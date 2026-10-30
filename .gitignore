@@ -3,3 +3,6 @@
 **/.lake/
 *.llbc
 .DS_Store
+
+/audit/server-stack/target/
+**/__pycache__/

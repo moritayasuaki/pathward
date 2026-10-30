@@ -8,6 +8,20 @@ The Rust library has **zero external dependencies**, uses `no_std`, forbids
 `unsafe`, allocates nothing, and performs no I/O. Verification tools are separate
 development dependencies; they are not linked into the library.
 
+## Server dependencies
+
+The future server may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
+after audit. The [dated dependency audit](docs/dependency-audit.md) records a
+fixed candidate graph, RustSec results, source-review findings, and requirements
+for safely connecting it to the proved core. The candidate is isolated under
+`audit/server-stack`; it does not add dependencies to this library or implement
+a server. Dependencies and their integration are outside the current Lean proof.
+
+Run `make dependency-audit-setup` once, then `make dependency-audit` to check the
+reviewed graph against fresh RustSec advisories and yanked packages. Both commands
+need network access. `make dependency-check` compiles the candidate. The existing
+`make check` verifies the dependency-free Rust/Lean core; CI runs both tracks.
+
 ## Policy
 
 Input is the **raw, undecoded URL path**, as bytes. Query strings and fragments

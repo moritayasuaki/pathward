@@ -1,0 +1,15 @@
+[package]
+name = "pathward-server-dependency-review"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Isolated review fixture: no dependency is added to the verified core.
+[workspace]
+resolver = "3"
+
+[dependencies]
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "tokio", "original-uri"] }
+tower-http = { version = "=0.7.1", default-features = false, features = ["fs", "limit", "timeout", "trace"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-acme = { version = "=0.15.4", default-features = false, features = ["axum", "ring", "tls12", "webpki-roots"] }

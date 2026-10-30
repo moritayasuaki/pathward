@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
       - name: Install pinned elan
@@ -30,3 +30,19 @@ jobs:
         run: make setup
       - name: Verify Rust, extraction, Lean proofs, and axioms
         run: make check
+
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Install pinned RustSec auditor
+        run: make dependency-audit-setup
+      - name: Audit reviewed core and server candidate lockfiles
+        run: make dependency-audit
+      - name: Compile the reviewed candidate
+        run: make dependency-check
