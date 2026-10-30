@@ -1,0 +1,5 @@
+/target/
+/.tools/
+**/.lake/
+*.llbc
+.DS_Store

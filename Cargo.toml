@@ -1,0 +1,14 @@
+[package]
+name = "pathward"
+version = "0.1.0"
+edition = "2024"
+description = "A dependency-free Rust path authorization core with Lean proofs"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"

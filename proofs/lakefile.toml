@@ -1,0 +1,13 @@
+name = "pathward_proofs"
+version = "0.1.0"
+defaultTargets = ["PathwardProofs"]
+
+[[lean_lib]]
+name = "PathwardProofs"
+
+[[lean_lib]]
+name = "Generated"
+
+[[require]]
+name = "aeneas"
+path = "../.tools/cache/hax/tools/aeneas/build-183e4f0/backends/lean"

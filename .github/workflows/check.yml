@@ -1,0 +1,32 @@
+name: Rust and Lean
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned elan
+        env:
+          ELAN_SHA256: 620db834935d0da55ac9cda207b2e370e8034061cbb0228af5eb6c14b02f0c0c
+        run: |
+          curl --fail --location --retry 3 --max-time 180 \
+            https://github.com/leanprover/elan/releases/download/v4.2.0/elan-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$RUNNER_TEMP/elan.tar.gz"
+          printf '%s  %s\n' "$ELAN_SHA256" "$RUNNER_TEMP/elan.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP" elan-init
+          "$RUNNER_TEMP/elan-init" -y --default-toolchain none --no-modify-path
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Prepare fixed verification tools
+        run: make setup
+      - name: Verify Rust, extraction, Lean proofs, and axioms
+        run: make check
