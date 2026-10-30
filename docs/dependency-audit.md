@@ -1,5 +1,9 @@
 # Server dependency audit — 2026-10-30
 
+This is the historical TLS/server-candidate review. The subsequently implemented
+minimal HTTP server has a separate [HTTP/file audit](http-audit.md), with a much
+smaller dependency graph. Findings about the unused TLS candidate remain open.
+
 ## Decision and scope
 
 `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme` are permitted for the
@@ -192,7 +196,7 @@ in the main README and is outside this Cargo lockfile audit.
 ## Configuration dependency profile
 
 The actual KDL configuration adapter now has a separate 8-package graph and
-[focused parser audit](kdl-audit.md). `make dependency-audit` checks both profiles
+[focused parser audit](kdl-audit.md). `make dependency-audit` checks the candidate, configuration and actual HTTP profiles
 and the zero-dependency core; a change to either reviewed graph fails the gate.
 The 163-package server fixture described above is still not linked into the CLI.
 

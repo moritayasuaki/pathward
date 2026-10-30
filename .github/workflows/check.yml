@@ -30,6 +30,12 @@ jobs:
         run: make setup
       - name: Verify Rust, extraction, Lean proofs, and axioms
         run: make check
+      - name: Check mount confinement in a private Linux namespace
+        run: python3 scripts/linux_mount_check.py
+      - name: Build production HTTP binary and smoke-test the CLI
+        run: |
+          make server-build
+          python3 scripts/http_smoke.py
 
   dependency-audit:
     runs-on: ubuntu-24.04
@@ -40,9 +46,11 @@ jobs:
           persist-credentials: false
       - name: Install fixed Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Install pinned HTTP server toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
       - name: Install pinned RustSec auditor
         run: make dependency-audit-setup
-      - name: Audit core, configuration, and server candidate lockfiles
+      - name: Audit core, configuration, HTTP server, and candidate lockfiles
         run: make dependency-audit
       - name: Compile the reviewed candidate
         run: make dependency-check

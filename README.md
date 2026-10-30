@@ -3,7 +3,8 @@
 A small Rust path authorization and publication-rule compiler, with Lean proofs
 tied to the Rust implementation through Charon and Aeneas extraction. A separate
 KDL configuration crate turns explicit site declarations into checked rules.
-These are building blocks for a minimal web server; no HTTP/TLS listener exists yet.
+A separate Linux HTTP/1.1 server now serves those rules on loopback with
+descriptor-based file opening. TLS/ACME is not implemented yet.
 
 The Rust library has **zero external dependencies**, uses `no_std`, forbids
 `unsafe`, allocates nothing, and performs no I/O. Verification tools are separate
@@ -38,19 +39,39 @@ Rust rule compiler and lookup; the KDL parser and AST/schema bridge are audited
 and tested, not formally verified. See [production gaps](docs/production-readiness.md)
 before planning deployment or a Caddy migration.
 
+## HTTP serving (Linux)
+
+```sh
+make server-setup
+make server-build
+server/target/release/pathward-server serve-http examples/Pathward.kdl 127.0.0.1:8080
+curl -H 'Host: example.com' http://127.0.0.1:8080/
+```
+
+Prepare the configured root/files first. Linux 5.6+ and trusted procfs are required;
+there is no file-opening fallback on other platforms. The explicit HTTP mode
+accepts loopback listeners only, supports GET/HEAD, bounds connection/head/write
+resources, and never serves an unlisted URL. File resolution rejects symlinks,
+mount crossings below the root, special files and observed multiple hard links.
+
+Read the [HTTP guide](docs/http-serving.md), [adapter audit](docs/http-audit.md),
+and [remaining production gaps](docs/production-readiness.md). The real HTTP
+lockfile has 17 external package versions across all targets (12 in the Linux
+normal/build graph), including the configuration dependencies. It uses std,
+httparse, httpdate and rustix, independently of the larger TLS candidate below.
+
 ## Server dependencies
 
-The future server may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
+Future TLS/proxy integration may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
 after audit. The [dated dependency audit](docs/dependency-audit.md) records a
 fixed candidate graph, RustSec results, source-review findings, and requirements
 for safely connecting it to the proved core. The candidate is isolated under
-`audit/server-stack`; it does not add dependencies to this library or implement
-a server. Dependencies and their integration are outside the current Lean proof.
+`audit/server-stack`; it does not add dependencies to the core or HTTP adapter. Dependencies and their integration are outside the current Lean proof.
 
 Run `make dependency-audit-setup` once, then `make dependency-audit` to check the
 reviewed graph against fresh RustSec advisories and yanked packages. Both commands
 need network access. `make dependency-check` compiles the candidate. The existing
-`make check` verifies the Rust/Lean core and configuration adapter; CI runs both tracks.
+`make check` verifies the Rust/Lean core, configuration and HTTP adapter; CI runs both tracks.
 
 ## Policy
 
@@ -89,15 +110,16 @@ extension to the policy.
 
 ## Scope and trust boundary
 
-This is a lexical authorization and rule-compilation library, **not a filesystem
-sandbox or web server**. Its output is a decision or relative target, not a
-capability to an opened file.
+The core is a lexical authorization and rule-compilation library. Its output is
+a decision or relative target, not a capability to an opened file. The separate
+Linux HTTP adapter applies descriptor-based confinement as described in its
+audit; those OS operations are not included in the Lean proofs.
 Filesystem confinement requires a separate implementation that handles symlinks,
 mount points, hard links, platform-specific filename aliases, and races during
 lookup. An allowlisted URL must map only to its intended resource.
 
 HTTP parsing, proxy behavior, TLS, authentication, OS behavior, side channels,
-and denial of service of a complete server are outside this first milestone.
+and denial of service of a complete server are outside the formal proof.
 The request-target parser must preserve the raw path and fail closed on invalid
 syntax. Every serving route must actually enforce this decision.
 
@@ -116,7 +138,7 @@ Linux ARM64, and macOS ARM64.
 
 ```sh
 make setup  # Explicit network access and development-tool installation.
-make check  # Core/config tests and lints, extraction comparison, Lean build, axiom audit.
+make check  # Core/config/server tests and lints, extraction comparison, Lean build, axiom audit.
 ```
 
 `make setup` installs Cargo hax 0.4.2 under ignored `.tools/` using a pinned
@@ -128,8 +150,9 @@ checks; Charon requires `nightly-2026-08-18` with `rustc-dev`. Proofs use
 Lean 4.31.0 and the pinned Aeneas library, including Mathlib and its transitive
 development dependencies recorded in `proofs/lake-manifest.json`.
 
-`make setup` also fetches the separately locked KDL adapter dependencies; checks
-then use `--offline --locked` and install no packages.
+`make setup` also fetches the separately locked KDL/HTTP dependencies and installs
+Rust 1.99.1 for HTTP server builds; checks then use `--offline --locked` and install
+no packages. The extractor and original core toolchain remain pinned separately.
 
 These are significant **verification dependencies**, despite the Rust library
 having no runtime, build, or test crate dependencies. They stay out of the
@@ -169,6 +192,13 @@ The [rule compiler proofs](proofs/RulesProofs.lean) additionally establish:
 The KDL adapter calls this compiler before exposing immutable site tables, and
 uses the proved lookup for resolution. The parser, schema adaptation, host
 selection and memory allocation remain outside the extracted Rust model.
+
+The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
+literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
+and file metadata admission (regular, single-link, bounded size, identical
+pinned/reopened inode). The axiom audit covers 41 statements. Linux resolution,
+procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
+integration code, with focused reviews and Linux tests.
 
 The loop/recursion proofs explicitly establish slice indexing bounds and
 non-overflowing index increments. The Rust semantics modeled by Aeneas do not

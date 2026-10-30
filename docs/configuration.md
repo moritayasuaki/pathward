@@ -3,7 +3,8 @@
 PathWard reads a deliberately restricted profile of **KDL 2**, then compiles
 explicit URL-to-file declarations through the dependency-free, Lean-verified
 Rust rule compiler. The CLI validates and resolves rules; it does not serve files
-or obtain certificates. See [audit](kdl-audit.md) and [deployment gaps](production-readiness.md).
+or obtain certificates. The separate [Linux HTTP server](http-serving.md) can now
+serve these rules on loopback. See [audit](kdl-audit.md) and [deployment gaps](production-readiness.md).
 
 ```kdl
 // Only these URLs are public. Japanese text is also allowed in comments.
@@ -55,8 +56,8 @@ Hostname labels contain ASCII letters, digits, and hyphens, start/end with a
 letter or digit, and have at most 63 bytes; the complete hostname has at most 253.
 This syntactic check permits single labels and numeric labels. It does not
 establish DNS ownership or ACME eligibility. Host lookup is exact; there is no
-default host, wildcard, lowercasing, or port stripping in this API. A future
-HTTP adapter must validate authority/Host/SNI before choosing the host.
+default host, wildcard, lowercasing, or port stripping in this API. The HTTP adapter validates Host/authority before choosing the host; a future TLS
+adapter must also check SNI consistency.
 
 URL paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
 starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
@@ -64,8 +65,9 @@ interior dots allowed. Relative file paths use the same component grammar and
 are 1–4095 bytes. Absolute targets, `.`/`..`, hidden components, empty components,
 percent escapes, backslashes, trailing slashes/dots, and controls are rejected.
 Roots use the absolute URL grammar as a conservative Unix lexical grammar.
-The combined root/target length and filesystem-specific constraints still need
-checking when file serving is implemented.
+The Linux opener uses descriptor-relative lookup and handles filesystem-specific
+component/permission errors by denying the request. Configuration checking alone
+does not perform that filesystem lookup.
 
 There are no includes, environment substitutions, globs, prefix matches, redirects,
 rewrites, proxies, or implicit grants. Directive order does not change lookup.
@@ -126,4 +128,6 @@ whole-table validity, duplicate rejection, unchanged declarations, and exact
 resolution of the declared pairs. The preflight, upstream parser, AST-to-byte
 adapter, host dispatch, `Vec` allocation/movement, and Rust string conversion are
 reviewed/tested trusted code. **There is no end-to-end Lean theorem from arbitrary
-KDL text to a served file.** Filesystem/HTTP/TLS integration does not yet exist.
+KDL text to a served file.** The separate HTTP/Linux adapter is reviewed and tested, with additional pure
+serving decisions verified in Lean; OS operations remain trusted. TLS is not yet
+implemented. See [HTTP serving](http-serving.md).

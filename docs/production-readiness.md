@@ -1,70 +1,69 @@
 # Production readiness
 
-PathWard currently provides a path authorization core, a KDL configuration
-compiler, and a check/resolve CLI. It has no HTTP listener, file-serving adapter,
-TLS stack integration, certificate issuance, or reload loop. It cannot replace
-Caddy in production yet. These are concrete implementation gaps, including
-security boundaries that the current Lean proofs do not cover.
+PathWard now has a verified policy core, KDL configuration compiler, and a minimal
+Linux HTTP/1.1 static server. The server deliberately listens only on loopback;
+TLS/ACME does not run. It is not yet a complete Caddy replacement.
 
-## Required before serving real traffic
+## Implemented in this milestone
 
-1. **HTTP dispatch tied to the original request.** Validate request-target syntax,
-   methods (initially GET/HEAD), Host/authority and SNI consistency. Select only a
-   configured host. Pass the original undecoded path to the verified lookup before
-   nesting, rewriting, fallback, percent decoding or implicit indexes. Define
-   query handling and ensure every serving route enforces authorization. Unknown
-   hosts and denied paths must terminate dispatch. Bound HTTP/1 parser resources
-   and explicitly decide whether to enable HTTP/2, whose code is present in the
-   reviewed candidate graph.
-2. **Filesystem confinement and correct responses.** Open only the declared file
-   under its site's root, using a reviewed descriptor-relative strategy on the
-   chosen OS, or a separately justified immutable resource map. Address symlinks,
-   lookup races, hard links, mounts, aliases, regular-file checks, permissions and
-   combined path limits. A canonicalize/check/open sequence is insufficient.
-   Add race/integration tests. Define content types, safe response headers, HEAD,
-   errors, ranges and conditional requests without alternate unverified paths.
-3. **TLS/ACME that actually runs.** `tls "auto"` currently records intent only.
-   Implement account/certificate persistence, renewal polling, restart behavior,
-   staging tests, expiry alerts and configured-domain-only issuance. Store keys
-   outside the public tree with private permissions and crash-safe writes. Review
+- GET/HEAD over HTTP/1.1, exact virtual-host and publication selection, unchanged
+  path bytes, separately validated/ignored queries, and no fallback/index grants.
+- Linux descriptor-based file opening with `openat2` confinement, symlink/mount
+  rejection, O_PATH type checks, checked procfs reopening, regular/single-link/
+  size policy and stable inode selection. There is no fallback on unsupported OSes.
+- Strict request framing, one request per connection, bounded headers, four fixed
+  workers, eight queued accepted sockets, total socket deadlines and bounded file
+  copying. See the [HTTP guide](http-serving.md) for exact limits and assumptions.
+- Additional Lean proofs for the pure request/dispatch/file-metadata decisions.
+  The parser, adapters, std and Linux kernel are reviewed/tested trusted code.
+
+## Still required before public production serving
+
+1. **TLS/ACME and public authority policy.** Implement SNI/Host consistency,
+   configured-domain-only issuance, private/crash-safe account and certificate
+   persistence, renewal polling, expiry alerts and restart/staging tests. Review
    ACME response-size/deadline limits and trusted HTTPS endpoints. The current
-   path grammar rejects `/.well-known`; HTTP-01 needs a narrowly scoped dedicated
-   challenge handler, or choose a reviewed TLS-ALPN-01 strategy.
-4. **Resource and time budgets.** Bound open connections, concurrent TLS handshakes,
-   header/body sizes, total handshake/body/response times, per-client work and
-   file-transfer resources. A request middleware timeout does not cover TLS, and
-   an idle timeout does not bound a slowly progressing peer. Load-test slow clients
-   and exhaustion behavior with the actual adapter and deployment stack size.
-5. **Operations and deploy safety.** Add atomic configuration replacement with
-   last-known-good behavior on invalid reload; keep config/roots/key material under
-   explicit ownership and permission rules. Implement graceful draining/shutdown,
-   structured access/error logs without secrets, health checks, metrics and renewal
-   failure alerts. Validate startup files and recovery from failed deployments.
-   Pin/review a current production Rust toolchain separately from the extraction
-   nightly, and maintain automated dependency/security updates.
+   `tls "auto"` declaration is inactive. The path policy rejects `/.well-known`;
+   HTTP-01 needs a dedicated checked handler, or use reviewed TLS-ALPN-01 support.
+2. **Deployment and content ownership.** Enforce a service-owned configuration,
+   roots and key store, with least privilege. Use trusted local filesystems and
+   immutable releases; the current opener does not make concurrent file writes
+   immutable or prove inode-content provenance. Root identity is pinned until
+   restart. Configure process/supervisor resource budgets, especially for blocking
+   filesystem I/O that socket deadlines cannot interrupt. Review the chosen
+   deployment filesystem and kernel/seccomp/procfs setup.
+3. **Operations.** Add atomic config reload with last-known-good behavior,
+   signal-driven graceful draining, structured logs, health/metrics and useful
+   renewal/file-error alerts without exposing secrets. The library has a shutdown
+   flag; the CLI currently exits directly on ordinary process signals. Missing
+   files are denied per request rather than exhaustively opened at startup.
+4. **Load and protocol hardening.** Perform broader coverage-guided fuzzing,
+   prolonged race/stress testing and realistic throughput/slow-storage testing.
+   Add per-client/rate/bandwidth fairness where needed. Keep-alive, HTTP/2, proxy
+   integration and forwarded headers require separate protocol review; none is
+   enabled in the minimal server. IPv6 transport is supported for loopback binding,
+   but configured authorities remain DNS-style names rather than IPv6 literals.
+5. **HTTP functionality needed by the actual sites.** Add reviewed ranges,
+   conditional caching/ETags, suitable cache policies and any required redirects.
+   Current responses use no-store, fixed content types and no compression. A
+   Range header does not activate partial serving, and conditional fields do not
+   activate cache validators. The existing sites' redirects/bookmarks must be
+   preserved explicitly during migration; this project does not modify hamazon.is.
 
-The [server dependency audit](dependency-audit.md) has the source-level evidence
-and unresolved findings for these adapters. A zero-finding advisory scan does
-not close them. The [KDL audit](kdl-audit.md) separately describes the configuration
-parser and proof boundaries.
+The historical [TLS candidate audit](dependency-audit.md) still has open ACME,
+TLS-handshake and HTTP/2 findings. The minimal HTTP/file adapter has its own
+[audit](http-audit.md), with a smaller dependency graph. A clean advisory scan
+does not replace integration review.
 
-## Compatibility/features to decide before replacing Caddy
+## Deliberate limitations
 
-- Existing redirects and legacy project/document URL behavior are not implemented.
-  Migration must preserve them explicitly; no hamazon.is hosting files are changed
-  by this project.
-- Reverse proxying, upstream health checks, WebSockets, streaming, authentication,
-  compression and cache policies are not implemented.
-- No wildcard domains, environment expansion, includes, directory publishing or
-  implicit index files. These omissions keep grants explicit; add only if needed
-  with a reviewed policy and tests.
-- Current paths are ASCII and reject percent encoding, hidden components and
-  trailing slashes other than `/`. Unicode filenames, directory URLs, and larger
-  sites need a deliberate policy extension. Limits are 64 KiB of configuration,
-  16 sites and 256 exact mappings per site.
-- The KDL profile supports ordinary quoted values and line comments only; full KDL
-  syntax would require a different resource strategy or parser hardening.
+No reverse proxying, upstream health checks, WebSockets, authentication, wildcard
+domains, environment expansion, includes, directory grants or implicit indexes.
+The KDL profile supports ordinary quoted values and line comments, with 64 KiB,
+16 sites and 256 exact mappings per site. Paths remain ASCII and reject percent
+encoding, hidden components and trailing slashes other than `/`. Files are limited
+to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL syntax
+need explicit policy/resource extensions.
 
-The next practical milestone is a minimal static-file server on one declared
-platform, with the first four boundaries enforced and tested, followed by reload
-and operational tooling. Adding all optional Caddy features is a separate scope.
+The next deployment milestone is TLS/ACME with private durable key storage,
+followed by reload and operational tooling on one reviewed Linux deployment.

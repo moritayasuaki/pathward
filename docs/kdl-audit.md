@@ -1,5 +1,9 @@
 # KDL parser and dependency audit — 2026-10-30
 
+This records the KDL milestone. The later HTTP/file adapter and expanded serving
+proofs are documented in [HTTP audit](http-audit.md); the KDL proof boundary below
+remains unchanged.
+
 ## Scope and result
 
 This revision adds `pathward-config` as a separate crate, with `kdl = "=6.7.1"`,
@@ -104,7 +108,7 @@ Relative targets cannot start with `/` or contain hidden/traversal components.
 Compiler and lookup return without a modeled panic or divergence.
 
 [RulesProofs.lean](../proofs/RulesProofs.lean) contains the new proofs. The axiom
-audit now checks 24 exported security statements, admitting only Lean's standard
+audit at this milestone checked 24 exported security statements, admitting only Lean's standard
 `propext`, `Classical.choice`, and `Quot.sound`; no proof holes or custom security
 axioms. Native stack exhaustion is outside Aeneas' modeled execution semantics.
 Compiler duplicate checking is O(n²), lookup O(n), each with at most 256 rules.

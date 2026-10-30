@@ -1,0 +1,22 @@
+[package]
+name = "pathward-server"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "Bounded HTTP/1.1 static serving with Linux descriptor-based file confinement"
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+pathward = { path = ".." }
+pathward-config = { path = "../config" }
+httparse = { version = "=1.10.1", default-features = false }
+httpdate = "=1.0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "=1.1.6", default-features = false, features = ["fs", "std"] }
+
+[lints.rust]
+unsafe_code = "forbid"

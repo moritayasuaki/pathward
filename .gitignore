@@ -7,3 +7,5 @@
 
 /audit/server-stack/target/
 **/__pycache__/
+
+/server/target/

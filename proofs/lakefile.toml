@@ -1,6 +1,6 @@
 name = "pathward_proofs"
 version = "0.1.0"
-defaultTargets = ["PathwardProofs", "RulesProofs"]
+defaultTargets = ["PathwardProofs", "RulesProofs", "ServingProofs"]
 
 [[lean_lib]]
 name = "PathwardProofs"
@@ -14,3 +14,6 @@ name = "Generated"
 [[require]]
 name = "aeneas"
 path = "../.tools/cache/hax/tools/aeneas/build-183e4f0/backends/lean"
+
+[[lean_lib]]
+name = "ServingProofs"

@@ -10,7 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "audit/server-stack"
-PROFILES = {"server_candidate": FIXTURE, "configuration": ROOT / "config"}
+PROFILES = {"server_candidate": FIXTURE, "configuration": ROOT / "config", "http_server": ROOT / "server"}
 AUDITOR = ROOT / ".tools/audit/bin/cargo-audit"
 AUDITOR_VERSION = "cargo-audit 0.22.2"
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
@@ -31,9 +31,11 @@ def graph_snapshot(metadata, directory=FIXTURE):
         if package["id"] == metadata["resolve"]["root"]:
             continue
         source = package["source"]
-        if source is None and Path(package["manifest_path"]).resolve() == (ROOT / "Cargo.toml").resolve():
-            source = "path:."  # Only our proved core may be a local dependency.
-        if source not in (REGISTRY, "path:."):
+        local = {(ROOT / "Cargo.toml").resolve(): "path:.",
+                 (ROOT / "config/Cargo.toml").resolve(): "path:config"}
+        if source is None:
+            source = local.get(Path(package["manifest_path"]).resolve())
+        if source not in (REGISTRY, "path:.", "path:config"):
             raise SystemExit(f"Unreviewed package source: {package['name']} {package['source']}")
         packages.append({
             "name": package["name"], "version": package["version"],
@@ -83,7 +85,8 @@ def main():
     # Network fetch is explicit; --locked prevents silent dependency changes.
     graphs = {}
     for name, directory in PROFILES.items():
-        metadata = json.loads(output("cargo", "metadata", "--locked", "--format-version=1",
+        cargo = ["cargo", "+1.99.1"] if name == "http_server" else ["cargo"]
+        metadata = json.loads(output(*cargo, "metadata", "--locked", "--format-version=1",
                                     "--manifest-path", directory / "Cargo.toml"))
         graph = graph_snapshot(metadata, directory)
         if graph != json.loads((directory / "reviewed-graph.json").read_text()):
@@ -108,7 +111,8 @@ def main():
             "auditor": AUDITOR_VERSION, "database_commit": revision,
             "profiles": {name: {key: graph[key] for key in ("manifest_sha256", "lockfile_sha256")}
                          for name, graph in graphs.items()},
-            "rustc": output("rustc", "--version"), "reports": reports,
+            "rustc": output("rustc", "--version"),
+            "server_rustc": output("rustc", "+1.99.1", "--version"), "reports": reports,
         }
     destination = ROOT / ".tools/dependency-audit-latest.json"
     destination.parent.mkdir(exist_ok=True)

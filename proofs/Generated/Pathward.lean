@@ -394,4 +394,177 @@ def rules.lookup
     then rules.lookup_from path rules1 0#usize
     else ok none
 
+/-- [pathward::serving::MAX_FILE_BYTES]
+    Source: 'src/serving.rs', lines 5:0-5:49
+    Visibility: public -/
+@[global_simps, irreducible]
+def serving.MAX_FILE_BYTES : RustM Std.U64 := do
+  let i ← 64#u64 * 1024#u64
+  i * 1024#u64
+
+/-- [pathward::serving::path_length]: loop 0:
+    Source: 'src/serving.rs', lines 10:4-17:1
+    Visibility: public -/
+@[rust_loop]
+def serving.path_length_loop
+  (target : Slice Std.U8) (i : Std.Usize) : RustM Std.Usize := do
+  let i1 := Slice.len target
+  if i < i1
+  then
+    let i2 ← Slice.index_usize target i
+    if i2 = 63#u8
+    then ok i
+    else let i3 ← i + 1#usize
+         serving.path_length_loop target i3
+  else ok i
+partial_fixpoint
+
+/-- [pathward::serving::path_length]:
+    Source: 'src/serving.rs', lines 8:0-17:1
+    Visibility: public -/
+@[reducible]
+def serving.path_length (target : Slice Std.U8) : RustM Std.Usize := do
+  serving.path_length_loop target 0#usize
+
+/-- [pathward::serving::query_bytes]: loop 0:
+    Source: 'src/serving.rs', lines 23:4-31:1 -/
+@[rust_loop]
+def serving.query_bytes_loop
+  (query : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len query
+  if i < i1
+  then
+    let b ← Slice.index_usize query i
+    if b < 33#u8
+    then ok false
+    else
+      if b > 126#u8
+      then ok false
+      else
+        if b = 35#u8
+        then ok false
+        else let i2 ← i + 1#usize
+             serving.query_bytes_loop query i2
+  else ok true
+partial_fixpoint
+
+/-- [pathward::serving::query_bytes]:
+    Source: 'src/serving.rs', lines 21:0-31:1 -/
+@[reducible]
+def serving.query_bytes (query : Slice Std.U8) : RustM Bool := do
+  serving.query_bytes_loop query 0#usize
+
+/-- [pathward::serving::request_path]:
+    Source: 'src/serving.rs', lines 35:0-45:1
+    Visibility: public -/
+def serving.request_path
+  (target : Slice Std.U8) : RustM (Option (Slice Std.U8)) := do
+  let i := Slice.len target
+  if i > 8192#usize
+  then ok none
+  else
+    let i1 ← serving.path_length target
+    let (path, query) ← core.slice.Slice.split_at target i1
+    let b ← valid_path path
+    if b
+    then
+      let b1 ← serving.query_bytes query
+      if b1
+      then ok (some path)
+      else ok none
+    else ok none
+
+/-- [pathward::serving::Grant]
+    Source: 'src/serving.rs', lines 48:0-51:1
+    Visibility: public -/
+structure serving.Grant where
+  target : Slice Std.U8
+  send_body : Bool
+
+/-- [pathward::serving::authorize]:
+    Source: 'src/serving.rs', lines 55:0-75:1
+    Visibility: public -/
+def serving.authorize
+  (method : Slice Std.U8) (host : Slice Std.U8)
+  (configured_host : Slice Std.U8) (target : Slice Std.U8)
+  (publications : Slice rules.Publication) :
+  RustM (Option serving.Grant)
+  := do
+  let s ← lift (Array.to_slice (Array.make 3#usize [ 71#u8, 69#u8, 84#u8 ]))
+  let get ← same_path method s
+  if get
+  then
+    let b ← same_path host configured_host
+    if b
+    then
+      let o ← serving.request_path target
+      match o with
+      | none => ok none
+      | some path =>
+        let o1 ← rules.lookup path publications
+        match o1 with
+        | none => ok none
+        | some file => ok (some { target := file, send_body := true })
+    else ok none
+  else
+    let s1 ←
+      lift (Array.to_slice (Array.make 4#usize [ 72#u8, 69#u8, 65#u8, 68#u8 ]))
+    let b ← same_path method s1
+    if b
+    then
+      let b1 ← same_path host configured_host
+      if b1
+      then
+        let o ← serving.request_path target
+        match o with
+        | none => ok none
+        | some path =>
+          let o1 ← rules.lookup path publications
+          match o1 with
+          | none => ok none
+          | some file => ok (some { target := file, send_body := false })
+      else ok none
+    else ok none
+
+/-- [pathward::serving::FileFacts]
+    Source: 'src/serving.rs', lines 79:0-85:1
+    Visibility: public -/
+structure serving.FileFacts where
+  regular : Bool
+  links : Std.U64
+  size : Std.U64
+  device : Std.U64
+  inode : Std.U64
+
+/-- [pathward::serving::file_allowed]:
+    Source: 'src/serving.rs', lines 90:0-100:1
+    Visibility: public -/
+def serving.file_allowed
+  (pinned : serving.FileFacts) (opened : serving.FileFacts) : RustM Bool := do
+  if pinned.regular
+  then
+    if opened.regular
+    then
+      if pinned.links = 1#u64
+      then
+        if opened.links = 1#u64
+        then
+          let i ← serving.MAX_FILE_BYTES
+          if pinned.size <= i
+          then
+            if opened.size <= i
+            then
+              if pinned.device = opened.device
+              then
+                if pinned.inode = opened.inode
+                then ok (pinned.size = opened.size)
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
 end pathward
