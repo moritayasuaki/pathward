@@ -42,7 +42,7 @@ jobs:
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Install pinned RustSec auditor
         run: make dependency-audit-setup
-      - name: Audit reviewed core and server candidate lockfiles
+      - name: Audit core, configuration, and server candidate lockfiles
         run: make dependency-audit
       - name: Compile the reviewed candidate
         run: make dependency-check

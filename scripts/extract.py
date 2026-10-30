@@ -27,7 +27,9 @@ def main():
         output = Path(temporary)
         llbc = output / "pathward.llbc"
         subprocess.run([str(CHARON), "cargo", "--preset=aeneas", "--sysroot", "default",
-                        "--start-from", "pathward::is_public", "--dest-file", str(llbc)],
+                        "--start-from", "pathward::is_public",
+                        "--start-from", "pathward::rules::compile",
+                        "--start-from", "pathward::rules::lookup", "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
                         "-abort-on-error", "-warnings-as-errors", "-dest", str(output), str(llbc)],

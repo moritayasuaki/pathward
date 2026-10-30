@@ -1,9 +1,12 @@
 name = "pathward_proofs"
 version = "0.1.0"
-defaultTargets = ["PathwardProofs"]
+defaultTargets = ["PathwardProofs", "RulesProofs"]
 
 [[lean_lib]]
 name = "PathwardProofs"
+
+[[lean_lib]]
+name = "RulesProofs"
 
 [[lean_lib]]
 name = "Generated"

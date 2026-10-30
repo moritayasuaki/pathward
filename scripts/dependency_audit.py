@@ -10,6 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "audit/server-stack"
+PROFILES = {"server_candidate": FIXTURE, "configuration": ROOT / "config"}
 AUDITOR = ROOT / ".tools/audit/bin/cargo-audit"
 AUDITOR_VERSION = "cargo-audit 0.22.2"
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
@@ -23,24 +24,27 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def graph_snapshot(metadata):
+def graph_snapshot(metadata, directory=FIXTURE):
     nodes = {node["id"]: node for node in metadata["resolve"]["nodes"]}
     packages = []
     for package in metadata["packages"]:
         if package["id"] == metadata["resolve"]["root"]:
             continue
-        if package["source"] != REGISTRY:
+        source = package["source"]
+        if source is None and Path(package["manifest_path"]).resolve() == (ROOT / "Cargo.toml").resolve():
+            source = "path:."  # Only our proved core may be a local dependency.
+        if source not in (REGISTRY, "path:."):
             raise SystemExit(f"Unreviewed package source: {package['name']} {package['source']}")
         packages.append({
             "name": package["name"], "version": package["version"],
-            "source": package["source"], "license": package["license"],
+            "source": source, "license": package["license"],
             "features": sorted(nodes[package["id"]]["features"]),
             "build_script": any("custom-build" in target["kind"] for target in package["targets"]),
             "proc_macro": any("proc-macro" in target["kind"] for target in package["targets"]),
         })
     return {
-        "manifest_sha256": digest(FIXTURE / "Cargo.toml"),
-        "lockfile_sha256": digest(FIXTURE / "Cargo.lock"),
+        "manifest_sha256": digest(directory / "Cargo.toml"),
+        "lockfile_sha256": digest(directory / "Cargo.lock"),
         "packages": sorted(packages, key=lambda package: (package["name"], package["version"])),
     }
 
@@ -77,11 +81,14 @@ def main():
     if output(AUDITOR, "--version") != AUDITOR_VERSION:
         raise SystemExit(f"Expected {AUDITOR_VERSION}")
     # Network fetch is explicit; --locked prevents silent dependency changes.
-    metadata = json.loads(output("cargo", "metadata", "--locked", "--format-version=1",
-                                 "--manifest-path", FIXTURE / "Cargo.toml"))
-    graph = graph_snapshot(metadata)
-    if graph != json.loads((FIXTURE / "reviewed-graph.json").read_text()):
-        raise SystemExit("Dependency graph or features changed. Review the diff and refresh the audit record first.")
+    graphs = {}
+    for name, directory in PROFILES.items():
+        metadata = json.loads(output("cargo", "metadata", "--locked", "--format-version=1",
+                                    "--manifest-path", directory / "Cargo.toml"))
+        graph = graph_snapshot(metadata, directory)
+        if graph != json.loads((directory / "reviewed-graph.json").read_text()):
+            raise SystemExit(f"{name}: dependency graph or features changed. Review the diff and refresh the audit record first.")
+        graphs[name] = graph
     core = json.loads(output("cargo", "metadata", "--locked", "--offline", "--format-version=1"))
     if len(core["packages"]) != 1 or core["packages"][0]["dependencies"]:
         raise SystemExit("The proved core must stay dependency-free; review server dependencies separately.")
@@ -93,20 +100,22 @@ def main():
         if output("git", "status", "--porcelain", cwd=database):
             raise SystemExit("RustSec checkout has local changes; use a clean official database.")
         revision = output("git", "rev-parse", "HEAD", cwd=database)
-        reports = {
-            "core": scan(database, ROOT / "Cargo.lock", 1),
-            "server_candidate": scan(database, FIXTURE / "Cargo.lock", len(graph["packages"]) + 1),
-        }
+        reports = {"core": scan(database, ROOT / "Cargo.lock", 1)}
+        for name, directory in PROFILES.items():
+            reports[name] = scan(database, directory / "Cargo.lock", len(graphs[name]["packages"]) + 1)
         result = {
             "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "auditor": AUDITOR_VERSION, "database_commit": revision,
-            "manifest_sha256": graph["manifest_sha256"], "lockfile_sha256": graph["lockfile_sha256"],
+            "profiles": {name: {key: graph[key] for key in ("manifest_sha256", "lockfile_sha256")}
+                         for name, graph in graphs.items()},
             "rustc": output("rustc", "--version"), "reports": reports,
         }
     destination = ROOT / ".tools/dependency-audit-latest.json"
     destination.parent.mkdir(exist_ok=True)
     destination.write_text(json.dumps(result, indent=2) + "\n")
-    print(f"Dependency audit passed: {len(graph['packages'])} external candidate packages; no RustSec findings or warnings.")
+    for name, graph in graphs.items():
+        external = sum(package["source"] == REGISTRY for package in graph["packages"])
+        print(f"{name}: {external} external packages; no RustSec findings or warnings.")
     print(f"Database: {revision}; result: {destination.relative_to(ROOT)}")
 
 

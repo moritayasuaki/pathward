@@ -1,0 +1,103 @@
+{
+  "manifest_sha256": "dbfe5c00032a706f6e3cd84c587b191324d27b46179cb9822705f605d064af41",
+  "lockfile_sha256": "39aa9909061dd6333615ce36e10add4b0be1b31cde1fb4b0790386c343057ee7",
+  "packages": [
+    {
+      "name": "autocfg",
+      "version": "1.5.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 OR MIT",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "kdl",
+      "version": "6.7.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0",
+      "features": [
+        "span"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Unlicense OR MIT",
+      "features": [
+        "alloc",
+        "std"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "miette",
+      "version": "7.6.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "num-traits",
+      "version": "0.2.19",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "default",
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "pathward",
+      "version": "0.1.0",
+      "source": "path:.",
+      "license": "MIT",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "unicode-width",
+      "version": "0.1.14",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "cjk",
+        "default"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "winnow",
+      "version": "0.7.15",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT",
+      "features": [
+        "alloc",
+        "default",
+        "std",
+        "unstable-recover"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    }
+  ]
+}

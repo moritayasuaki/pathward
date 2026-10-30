@@ -1,12 +1,42 @@
 # PathWard
 
-A small Rust path authorization core, with Lean proofs tied to the Rust
-implementation through Charon and Aeneas extraction. The first building block
-for a minimal web server.
+A small Rust path authorization and publication-rule compiler, with Lean proofs
+tied to the Rust implementation through Charon and Aeneas extraction. A separate
+KDL configuration crate turns explicit site declarations into checked rules.
+These are building blocks for a minimal web server; no HTTP/TLS listener exists yet.
 
 The Rust library has **zero external dependencies**, uses `no_std`, forbids
 `unsafe`, allocates nothing, and performs no I/O. Verification tools are separate
 development dependencies; they are not linked into the library.
+
+## KDL configuration
+
+```kdl
+site "example.com" {
+    root "/srv/www"
+    publish "/" "index.html"
+    publish "/style.css" "assets/style.css"
+    tls "auto"
+}
+```
+
+```sh
+make config-setup
+cargo run --offline --locked --manifest-path config/Cargo.toml -- check examples/Pathward.kdl
+cargo run --offline --locked --manifest-path config/Cargo.toml -- resolve examples/Pathward.kdl example.com /style.css
+```
+
+Only listed URL-to-file pairs resolve. Unknown settings, duplicate decoded URLs,
+unsafe paths or invalid sites reject the whole configuration. `tls "auto"` is
+currently a policy declaration, not implemented certificate issuance.
+
+The [configuration guide](docs/configuration.md) describes the restricted KDL 2
+profile and limits. The [parser/dependency audit](docs/kdl-audit.md) records the
+8 external packages used by this separate adapter, source-review findings and
+input guards. The dependency-free core remains separate. Lean proves the actual
+Rust rule compiler and lookup; the KDL parser and AST/schema bridge are audited
+and tested, not formally verified. See [production gaps](docs/production-readiness.md)
+before planning deployment or a Caddy migration.
 
 ## Server dependencies
 
@@ -20,7 +50,7 @@ a server. Dependencies and their integration are outside the current Lean proof.
 Run `make dependency-audit-setup` once, then `make dependency-audit` to check the
 reviewed graph against fresh RustSec advisories and yanked packages. Both commands
 need network access. `make dependency-check` compiles the candidate. The existing
-`make check` verifies the dependency-free Rust/Lean core; CI runs both tracks.
+`make check` verifies the Rust/Lean core and configuration adapter; CI runs both tracks.
 
 ## Policy
 
@@ -59,8 +89,9 @@ extension to the policy.
 
 ## Scope and trust boundary
 
-This is a lexical authorization library, **not a filesystem sandbox or web
-server**. Its output is a Boolean decision, not a capability to an opened file.
+This is a lexical authorization and rule-compilation library, **not a filesystem
+sandbox or web server**. Its output is a decision or relative target, not a
+capability to an opened file.
 Filesystem confinement requires a separate implementation that handles symlinks,
 mount points, hard links, platform-specific filename aliases, and races during
 lookup. An allowlisted URL must map only to its intended resource.
@@ -85,7 +116,7 @@ Linux ARM64, and macOS ARM64.
 
 ```sh
 make setup  # Explicit network access and development-tool installation.
-make check  # Rust tests/lints, fresh extraction comparison, Lean build, axiom audit.
+make check  # Core/config tests and lints, extraction comparison, Lean build, axiom audit.
 ```
 
 `make setup` installs Cargo hax 0.4.2 under ignored `.tools/` using a pinned
@@ -96,6 +127,9 @@ neither `hax-lib` nor `hax-lean` is required. Rust 1.98.1 is used for ordinary
 checks; Charon requires `nightly-2026-08-18` with `rustc-dev`. Proofs use
 Lean 4.31.0 and the pinned Aeneas library, including Mathlib and its transitive
 development dependencies recorded in `proofs/lake-manifest.json`.
+
+`make setup` also fetches the separately locked KDL adapter dependencies; checks
+then use `--offline --locked` and install no packages.
 
 These are significant **verification dependencies**, despite the Rust library
 having no runtime, build, or test crate dependencies. They stay out of the
@@ -122,6 +156,20 @@ The [proofs](proofs/PathwardProofs.lean) establish:
 | `published_bytes_safe` | No authorized path contains percent, backslash, controls, non-ASCII, query, or fragment bytes. |
 | `no_empty_component`, `no_trailing_dot` | Canonical paths exclude double slashes and a final dot. |
 
+The [rule compiler proofs](proofs/RulesProofs.lean) additionally establish:
+
+| Theorem | Guarantee about the extracted Rust implementation |
+| --- | --- |
+| `compile_contract` | Success iff there are 1–256 valid URL/relative-target pairs with distinct URL bytes; the returned slice is exactly the input. |
+| `compile_total`, `lookup_total` | Compilation and lookup return without a modeled panic or divergence. |
+| `compiled_lookup_iff` | A successfully compiled table resolves exactly its declared URL-to-target pairs. |
+| `lookup_safe` | Even lookup on an uncompiled table cannot return a noncanonical URL or target, or an undeclared pair. |
+| `target_not_absolute`, `resolved_target_no_traversal` | Returned targets are relative and have no dot-prefixed/traversal components. |
+
+The KDL adapter calls this compiler before exposing immutable site tables, and
+uses the proved lookup for resolution. The parser, schema adaptation, host
+selection and memory allocation remain outside the extracted Rust model.
+
 The loop/recursion proofs explicitly establish slice indexing bounds and
 non-overflowing index increments. The Rust semantics modeled by Aeneas do not
 model exhaustion of the native machine's stack. Lookup is bounded to at most
@@ -134,7 +182,7 @@ need review; a proved policy can be unsuitable for a particular server.
 
 ## Rust-only checks
 
-Rust-only checks work offline and fetch no crates:
+Core-only Rust checks work offline and fetch no crates:
 
 ```sh
 cargo test --offline --locked
@@ -146,5 +194,8 @@ The security tests include an attack corpus, exact-match and length boundaries,
 all single-byte inputs, every word of length up to five over eleven byte-class
 representatives, and deterministic arbitrary-byte samples checked against an
 independent component-based grammar.
+
+The configuration adapter has its own `make config-check` target (offline after
+`make config-setup`), including malformed-input, isolation and limit tests.
 
 License: [MIT](LICENSE).

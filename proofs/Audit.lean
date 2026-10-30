@@ -1,4 +1,5 @@
 import PathwardProofs
+import RulesProofs
 
 #print axioms PathwardProofs.valid_path_eq
 #print axioms PathwardProofs.same_path_eq
@@ -13,3 +14,14 @@ import PathwardProofs
 #print axioms PathwardProofs.published_bytes_safe
 #print axioms PathwardProofs.published_rooted
 #print axioms PathwardProofs.published_no_traversal
+#print axioms RulesProofs.valid_target_eq
+#print axioms RulesProofs.compile_eq
+#print axioms RulesProofs.compile_total
+#print axioms RulesProofs.compile_preserves_declarations
+#print axioms RulesProofs.compile_contract
+#print axioms RulesProofs.lookup_eq
+#print axioms RulesProofs.lookup_total
+#print axioms RulesProofs.compiled_lookup_iff
+#print axioms RulesProofs.lookup_safe
+#print axioms RulesProofs.target_not_absolute
+#print axioms RulesProofs.resolved_target_no_traversal

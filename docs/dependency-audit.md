@@ -189,13 +189,20 @@ procedural macros also execute code during builds; the inventory is not a
 malware scan. The proof-tool graph (Lean/Aeneas/Mathlib) is documented separately
 in the main README and is outside this Cargo lockfile audit.
 
+## Configuration dependency profile
+
+The actual KDL configuration adapter now has a separate 8-package graph and
+[focused parser audit](kdl-audit.md). `make dependency-audit` checks both profiles
+and the zero-dependency core; a change to either reviewed graph fails the gate.
+The 163-package server fixture described above is still not linked into the CLI.
+
 ## Reproducing and updating the audit
 
 ```sh
 make dependency-audit-setup  # Explicitly install pinned cargo-audit under .tools/.
 make dependency-audit        # Fresh RustSec + yanked checks; network required.
 make dependency-check       # Compile the fixture with --locked.
-make check                  # Verify the original Rust/Lean core.
+make check                  # Verify the Rust/Lean core and KDL adapter.
 ```
 
 Local validation passed: the candidate compiled on macOS ARM64 with Rust 1.98.1;

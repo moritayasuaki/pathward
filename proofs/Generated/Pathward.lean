@@ -18,7 +18,7 @@ set_option maxRecDepth 2048
 namespace pathward
 
 /-- [pathward::State]
-    Source: 'src/lib.rs', lines 9:0-16:1
+    Source: 'src/lib.rs', lines 11:0-18:1
     Visibility: public -/
 @[discriminant isize]
 inductive State where
@@ -30,7 +30,7 @@ inductive State where
 | Reject : State
 
 /-- [pathward::{impl core::cmp::PartialEq<pathward::State> for pathward::State}::eq]:
-    Source: 'src/lib.rs', lines 8:29-8:38
+    Source: 'src/lib.rs', lines 10:29-10:38
     Visibility: public -/
 def State.Insts.CoreCmpPartialEqState.eq
   (self : State) (other : State) : RustM Bool := do
@@ -39,7 +39,7 @@ def State.Insts.CoreCmpPartialEqState.eq
   ok (self1 = other1)
 
 /-- [pathward::name_byte]:
-    Source: 'src/lib.rs', lines 21:0-27:1
+    Source: 'src/lib.rs', lines 23:0-29:1
     Visibility: public -/
 def name_byte (byte : Std.U8) : RustM Bool := do
   if byte >= 97#u8
@@ -102,7 +102,7 @@ def name_byte (byte : Std.U8) : RustM Bool := do
            else ok (byte = 45#u8)
 
 /-- [pathward::step]:
-    Source: 'src/lib.rs', lines 30:0-59:1
+    Source: 'src/lib.rs', lines 32:0-61:1
     Visibility: public -/
 def step (state : State) (byte : Std.U8) : RustM State := do
   match state with
@@ -154,7 +154,7 @@ def step (state : State) (byte : Std.U8) : RustM State := do
   | State.Reject => ok State.Reject
 
 /-- [pathward::accepting]:
-    Source: 'src/lib.rs', lines 62:0-64:1
+    Source: 'src/lib.rs', lines 64:0-66:1
     Visibility: public -/
 def accepting (state : State) : RustM Bool := do
   match state with
@@ -166,7 +166,7 @@ def accepting (state : State) : RustM Bool := do
   | State.Reject => ok false
 
 /-- [pathward::valid_path]: loop 0:
-    Source: 'src/lib.rs', lines 74:4-77:5
+    Source: 'src/lib.rs', lines 76:4-79:5
     Visibility: public -/
 @[rust_loop]
 def valid_path_loop
@@ -182,7 +182,7 @@ def valid_path_loop
 partial_fixpoint
 
 /-- [pathward::valid_path]:
-    Source: 'src/lib.rs', lines 68:0-79:1
+    Source: 'src/lib.rs', lines 70:0-81:1
     Visibility: public -/
 def valid_path (path : Slice Std.U8) : RustM Bool := do
   let i := Slice.len path
@@ -192,7 +192,7 @@ def valid_path (path : Slice Std.U8) : RustM Bool := do
        accepting state
 
 /-- [pathward::same_path]: loop 0:
-    Source: 'src/lib.rs', lines 87:4-94:1
+    Source: 'src/lib.rs', lines 89:4-96:1
     Visibility: public -/
 @[rust_loop]
 def same_path_loop
@@ -212,7 +212,7 @@ def same_path_loop
 partial_fixpoint
 
 /-- [pathward::same_path]:
-    Source: 'src/lib.rs', lines 82:0-94:1
+    Source: 'src/lib.rs', lines 84:0-96:1
     Visibility: public -/
 def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   let i := Slice.len left
@@ -222,7 +222,7 @@ def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   else same_path_loop left right 0#usize
 
 /-- [pathward::listed]:
-    Source: 'src/lib.rs', lines 106:0-116:1 -/
+    Source: 'src/lib.rs', lines 108:0-118:1 -/
 def listed
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) (index : Std.Usize)
   :
@@ -241,7 +241,7 @@ def listed
 partial_fixpoint
 
 /-- [pathward::is_public]:
-    Source: 'src/lib.rs', lines 97:0-102:1
+    Source: 'src/lib.rs', lines 99:0-104:1
     Visibility: public -/
 def is_public
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) : RustM Bool := do
@@ -253,5 +253,145 @@ def is_public
     if b
     then listed path published 0#usize
     else ok false
+
+/-- [pathward::rules::Publication]
+    Source: 'src/rules.rs', lines 9:0-12:1
+    Visibility: public -/
+structure rules.Publication where
+  path : Slice Std.U8
+  target : Slice Std.U8
+
+/-- [pathward::rules::valid_target]: loop 0:
+    Source: 'src/rules.rs', lines 22:4-25:5
+    Visibility: public -/
+@[rust_loop]
+def rules.valid_target_loop
+  (target : Slice Std.U8) (state : State) (i : Std.Usize) : RustM State := do
+  let i1 := Slice.len target
+  if i < i1
+  then
+    let i2 ← Slice.index_usize target i
+    let state1 ← step state i2
+    let i3 ← i + 1#usize
+    rules.valid_target_loop target state1 i3
+  else ok state
+partial_fixpoint
+
+/-- [pathward::rules::valid_target]:
+    Source: 'src/rules.rs', lines 16:0-27:1
+    Visibility: public -/
+def rules.valid_target (target : Slice Std.U8) : RustM Bool := do
+  let b ← core.slice.Slice.is_empty target
+  if b
+  then ok false
+  else
+    let i := Slice.len target
+    if i > 4095#usize
+    then ok false
+    else
+      let state ← rules.valid_target_loop target State.Root 0#usize
+      accepting state
+
+/-- [pathward::rules::contains_path]:
+    Source: 'src/rules.rs', lines 29:0-39:1 -/
+def rules.contains_path
+  (path : Slice Std.U8) (rules1 : Slice rules.Publication) (index : Std.Usize)
+  :
+  RustM Bool
+  := do
+  let i := Slice.len rules1
+  if index < i
+  then
+    let p ← Slice.index_usize rules1 index
+    let b ← same_path path p.path
+    if b
+    then ok true
+    else let i1 ← index + 1#usize
+         rules.contains_path path rules1 i1
+  else ok false
+partial_fixpoint
+
+/-- [pathward::rules::valid_rules]:
+    Source: 'src/rules.rs', lines 41:0-51:1 -/
+def rules.valid_rules
+  (rules1 : Slice rules.Publication) (index : Std.Usize) : RustM Bool := do
+  let i := Slice.len rules1
+  if index < i
+  then
+    let p ← Slice.index_usize rules1 index
+    let b ← valid_path p.path
+    if b
+    then
+      let b1 ← rules.valid_target p.target
+      if b1
+      then
+        let i1 ← index + 1#usize
+        let b2 ← rules.contains_path p.path rules1 i1
+        if b2
+        then ok false
+        else rules.valid_rules rules1 i1
+      else ok false
+    else ok false
+  else ok true
+partial_fixpoint
+
+/-- [pathward::rules::compile]:
+    Source: 'src/rules.rs', lines 55:0-61:1
+    Visibility: public -/
+def rules.compile
+  (rules1 : Slice rules.Publication) :
+  RustM (Option (Slice rules.Publication))
+  := do
+  let b ← core.slice.Slice.is_empty rules1
+  if b
+  then ok none
+  else
+    let i := Slice.len rules1
+    if i > 256#usize
+    then ok none
+    else
+      let b1 ← rules.valid_rules rules1 0#usize
+      if b1
+      then ok (some rules1)
+      else ok none
+
+/-- [pathward::rules::lookup_from]:
+    Source: 'src/rules.rs', lines 63:0-78:1 -/
+def rules.lookup_from
+  (path : Slice Std.U8) (rules1 : Slice rules.Publication) (index : Std.Usize)
+  :
+  RustM (Option (Slice Std.U8))
+  := do
+  let i := Slice.len rules1
+  if index < i
+  then
+    let p ← Slice.index_usize rules1 index
+    let b ← same_path path p.path
+    if b
+    then
+      let b1 ← rules.valid_target p.target
+      if b1
+      then ok (some p.target)
+      else ok none
+    else let i1 ← index + 1#usize
+         rules.lookup_from path rules1 i1
+  else ok none
+partial_fixpoint
+
+/-- [pathward::rules::lookup]:
+    Source: 'src/rules.rs', lines 82:0-88:1
+    Visibility: public -/
+def rules.lookup
+  (path : Slice Std.U8) (rules1 : Slice rules.Publication) :
+  RustM (Option (Slice Std.U8))
+  := do
+  let i := Slice.len rules1
+  if i > 256#usize
+  then ok none
+  else
+    let b ← valid_path path
+    if b
+    then rules.lookup_from path rules1 0#usize
+    else ok none
 
 end pathward

@@ -1,0 +1,7 @@
+// Explicit URL-to-file mappings. Unlisted URLs remain private.
+site "example.com" {
+    root "/srv/www"
+    publish "/" "index.html"
+    publish "/style.css" "assets/style.css"
+    tls "auto"
+}

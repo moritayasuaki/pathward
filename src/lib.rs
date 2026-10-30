@@ -4,6 +4,8 @@
 //! Strict, byte-preserving URL path validation and exact allowlist authorization.
 //! This crate performs no decoding, normalization, allocation, or filesystem I/O.
 
+pub mod rules;
+
 /// The small state machine used to recognize canonical paths.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
