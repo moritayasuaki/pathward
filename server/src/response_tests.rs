@@ -1,6 +1,5 @@
-#![cfg(target_os = "linux")]
+use crate::{Server, http};
 use pathward_config::ParsedConfig;
-use pathward_server::{Server, http};
 use std::{
     fs,
     io::{self, Read, Write},
