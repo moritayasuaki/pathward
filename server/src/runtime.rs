@@ -201,4 +201,14 @@ mod tests {
         });
         assert_eq!(server.generation(), 51);
     }
+    #[test]
+    fn a_server_cannot_restart_after_draining() {
+        let tree = tree();
+        let parsed = config(&tree.0.join("old"), "example.com", "old.txt");
+        let server = Server::new(&parsed.compile().unwrap()).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        server.serve(listener, &AtomicBool::new(true)).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        assert!(server.serve(listener, &AtomicBool::new(false)).is_err());
+    }
 }

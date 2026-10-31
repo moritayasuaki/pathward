@@ -68,7 +68,7 @@ impl Server {
     pub fn is_draining(&self) -> bool {
         self.state.read().map(|s| s.draining).unwrap_or(true)
     }
-    pub fn begin_shutdown(&self) {
+    pub(crate) fn begin_shutdown(&self) {
         if let Ok(mut state) = self.state.write() {
             state.draining = true;
         }
@@ -251,11 +251,17 @@ impl Server {
         shutdown: &AtomicBool,
         tls: Option<&tls::TlsServer>,
     ) -> io::Result<()> {
-        if self.is_draining() {
-            return Err(io::Error::other("server is draining"));
-        }
         listener.set_nonblocking(true)?;
-        self.observe.serving.store(true, Ordering::Release);
+        {
+            let state = self
+                .state
+                .write()
+                .map_err(|_| io::Error::other("state lock"))?;
+            if state.draining || self.observe.serving.load(Ordering::Acquire) {
+                return Err(io::Error::other("server already started or draining"));
+            }
+            self.observe.serving.store(true, Ordering::Release);
+        }
         let result = thread::scope(|scope| {
             let (send, receive) = mpsc::sync_channel::<(TcpStream, Instant)>(QUEUE_CAPACITY);
             let receive = Arc::new(Mutex::new(receive));
@@ -264,6 +270,13 @@ impl Server {
                 if let Err(e) = thread::Builder::new()
                     .name(format!("pathward-{i}"))
                     .spawn_scoped(scope, move || {
+                        struct StopOnExit<'a>(&'a AtomicBool);
+                        impl Drop for StopOnExit<'_> {
+                            fn drop(&mut self) {
+                                self.0.store(true, Ordering::Release);
+                            }
+                        }
+                        let _stop = StopOnExit(shutdown);
                         loop {
                             let job = match receive.lock() {
                                 Ok(receiver) => receiver.recv(),
@@ -325,6 +338,7 @@ impl Server {
                     Err(e) => break Err(e),
                 }
             };
+            shutdown.store(true, Ordering::Release);
             self.begin_shutdown();
             drop(listener);
             self.observe.serving.store(false, Ordering::Release);

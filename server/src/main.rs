@@ -232,7 +232,6 @@ fn run_service(
             None => server.serve(listener, &signals.shutdown),
         };
         signals.shutdown.store(true, Ordering::Release);
-        server.begin_shutdown();
         done.store(true, Ordering::Release);
         reload
             .join()
