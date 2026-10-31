@@ -58,7 +58,9 @@ same validated cache pathname to `Server::new_with_cache` and `Manager::new`.
 
 SIGTERM/SIGINT set an atomic flag. The accept loop closes the serving listener,
 marks the server draining, discards queued sockets, and joins the four active
-workers. Active HTTP/TLS exchanges finish under their existing total deadlines:
+workers. The bounded dispatcher runs at most two jobs per peer, skips busy peers
+without dropping their queued work, and wakes waiting workers during shutdown.
+Active HTTP/TLS exchanges finish under their existing total deadlines:
 5 seconds for TLS handshake, 5 seconds for HTTP headers, 10 seconds for a
 response, or 1 second for an error. New reload commits are refused after the
 server enters draining; a concurrent signal is sampled again inside the commit

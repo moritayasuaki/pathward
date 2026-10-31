@@ -42,9 +42,9 @@ and optional redirect-only plaintext listeners. It is not yet a complete Caddy r
 - Additional Lean proofs for the pure request/dispatch/file-metadata decisions.
   The parser, adapters, std and Linux kernel are reviewed/tested trusted code.
 
-The [continuous overlap soak](soak-testing.md) exercises configuration churn,
+The [completed one-hour overlap soak](soak-testing.md) exercised configuration churn,
 rollback and real local ACME renewals under slow-peer load, with resource and
-content-consistency assertions. The dispatcher now prevents a single peer from
+content-consistency assertions; 57,604 requests and 80 renewals passed. The dispatcher now prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving

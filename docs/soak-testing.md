@@ -93,5 +93,41 @@ no advisories/warnings against database
 `2295466c4e9df26647fd67d8fa1c705ac2fc7f81`; see
 [the machine-readable audit](../server/audit-result.json).
 
-The test result will be recorded after the uninterrupted run completes; a short
-calibration success alone does not establish the one-hour result.
+## Completed one-hour run — 2026-10-31
+
+The [extended Linux run](https://github.com/moritayasuaki/pathward/actions/runs/41191573153)
+passed every 10-minute checkpoint and the final shutdown/restart checks at source
+commit `ea1914f2014fc81e58375c444342f35e1981bfe4`. The same source also passed
+[the full Rust/Lean/ACME/dependency CI](https://github.com/moritayasuaki/pathward/actions/runs/41191573115).
+The [machine-readable result](soak-result-2026-10-31.json) preserves the final
+reported counters and histogram, with links to the original job logs.
+
+| Observation | Result |
+| --- | --- |
+| Uninterrupted offered-load duration | 3600 seconds; report elapsed 3602.732 seconds includes shutdown/restart |
+| Verified requests (including expected denials) | 57,604; zero unexpected failures/content combinations |
+| Managed configuration commits / rollbacks | 3,601 / 900; rollback commits are included in the commit count |
+| SIGHUP reload signals | 328 |
+| Rejected stale / private-root updates | 721 / 721 |
+| Commits observed during an active ACME order | 612 |
+| Certificates observed / renewals after initial issuance | 81 / 80 |
+| ACME errors, log drops, 5xx responses | 0 / 0 / 0 |
+| Slow-connection cycles | 2,182 (six incomplete TLS/HTTP connections per cycle) |
+| Request latency histogram p50 / p95 / p99 upper bounds | 50 / 100 / 100 ms; all observed requests were in buckets ≤100 ms |
+| Server RSS peak / final median growth from warm window | 6,736 KiB (6.58 MiB) / 240 KiB |
+| FDs peak / threads | 27 / 12; thread count stayed constant |
+| Graceful shutdown | 0.464 seconds |
+| Restart with exact durable certificate and same account | Passed |
+
+The test ran on a GitHub-hosted Ubuntu 24.04 x86-64 runner; the reported kernel
+was `Linux-7.0.0-1017-azure` with glibc 2.39. TLS handshake errors from deliberately
+incomplete attacker connections and rejection counters for deliberately invalid
+configuration commands are expected. They are not ordinary request/ACME failures.
+`final_metrics` is the last periodic scrape, while controller/log counters are
+collected through the end of load, so their final counts can differ by the last
+few operations. Histogram bounds are not exact percentile measurements.
+
+This result establishes that this workload passed on this source/environment.
+It does not establish absence of all leaks or availability under arbitrary load,
+and does not replace a staging test with the deployment's content, filesystem,
+network, access rate and supervision.

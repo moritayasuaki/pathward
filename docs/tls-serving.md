@@ -65,7 +65,8 @@ TLS 1.0/1.1, session resumption/tickets and 0-RTT are disabled. Handshakes have 
 5-second total deadline including queue time and a 128 KiB input limit. The
 existing four workers/eight queued connections bound handshake and serving
 concurrency; HTTP adds its existing header/write limits. [Admission gates](production-basics.md#admission-limits-and-test-scope) now bound
-per-peer concurrency and rate before TLS. Sustained denial-of-service protection
+per-peer concurrency and rate before TLS, with at most two running jobs per peer
+and bounded queuing for further validation connections. Sustained denial-of-service protection
 still requires deployment controls.
 
 See [audit and proof boundaries](tls-audit.md) and

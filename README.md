@@ -100,7 +100,8 @@ Read the [operator guide](docs/production-basics.md),
 
 The [continuous soak guide](docs/soak-testing.md) describes overlapping managed
 releases, real local ACME renewals, adversarial slow peers, resource checks and
-worker fairness. `make soak` defaults to one uninterrupted hour on Linux.
+worker fairness. The recorded one-hour run passed 57,604 requests, 3,601 managed
+commits and 80 renewals. `make soak` defaults to one uninterrupted hour on Linux.
 
 ## Server dependencies
 

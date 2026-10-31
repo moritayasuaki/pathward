@@ -1,0 +1,107 @@
+{
+  "run_url": "https://github.com/moritayasuaki/pathward/actions/runs/41191573153",
+  "job_id": 124509260777,
+  "standard_ci_url": "https://github.com/moritayasuaki/pathward/actions/runs/41191573115",
+  "report": {
+    "account_reused": true,
+    "counters": {
+      "commits_during_acme_order": 612,
+      "config_commits": 3601,
+      "event_acme_activated": 80,
+      "event_acme_order_started": 80,
+      "event_certificate_ready": 81,
+      "event_certificate_renewal_due": 80,
+      "event_reload_committed": 3929,
+      "event_reload_rejected": 1442,
+      "event_request": 64150,
+      "negative_requests": 21600,
+      "requests_ok": 57604,
+      "rollbacks": 900,
+      "sighups": 328,
+      "slow_connection_cycles": 2182,
+      "stale_rejections": 721,
+      "unsafe_root_rejections": 721
+    },
+    "distinct_certificates": 81,
+    "elapsed_seconds": 3602.732,
+    "failures": [],
+    "final_metrics": {
+      "pathward_acme_activations_total": 81,
+      "pathward_acme_errors_total": 0,
+      "pathward_acme_orders_total": 81,
+      "pathward_admission_rejected_total": 0,
+      "pathward_body_bytes_total": 943456256,
+      "pathward_certificate_not_after_seconds": 1793445178,
+      "pathward_certificate_not_before_seconds": 1793445119,
+      "pathward_certificate_present": 1,
+      "pathward_config_generation": 3928,
+      "pathward_connections_active": 3,
+      "pathward_connections_overloaded_total": 0,
+      "pathward_connections_total": 71170,
+      "pathward_draining": 0,
+      "pathward_log_dropped_total": 0,
+      "pathward_ready": 1,
+      "pathward_reload_errors_total": 1440,
+      "pathward_reloads_total": 3927,
+      "pathward_request_io_errors_total": 0,
+      "pathward_requests_total": 64112,
+      "pathward_responses_total{class=\"1xx\"}": 0,
+      "pathward_responses_total{class=\"2xx\"}": 21592,
+      "pathward_responses_total{class=\"3xx\"}": 14392,
+      "pathward_responses_total{class=\"4xx\"}": 28128,
+      "pathward_responses_total{class=\"5xx\"}": 0,
+      "pathward_tls_enabled": 1,
+      "pathward_tls_handshake_errors_total": 6568
+    },
+    "latency_bucket_counts": [
+      3493,
+      3572,
+      135,
+      42216,
+      8188,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "latency_bucket_upper_ms": [
+      5,
+      10,
+      25,
+      50,
+      100,
+      250,
+      500,
+      1000,
+      2000,
+      3000,
+      10000
+    ],
+    "platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39",
+    "requested_seconds": 3600,
+    "resources": {
+      "fds": {
+        "last": 23,
+        "max": 27,
+        "min": 14
+      },
+      "rss_kib": {
+        "last": 6736,
+        "max": 6736,
+        "min": 6056
+      },
+      "threads": {
+        "last": 12,
+        "max": 12,
+        "min": 12
+      }
+    },
+    "restart_reused_certificate": true,
+    "rss_growth_kib": 240,
+    "shutdown_seconds": 0.464,
+    "source_commit": "ea1914f2014fc81e58375c444342f35e1981bfe4",
+    "state": "passed"
+  }
+}

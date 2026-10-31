@@ -1,5 +1,9 @@
 # Production basics audit — 2026-10-31
 
+This records the P0 baseline. The later [continuous soak audit](soak-testing.md)
+adds per-peer worker dispatch, corrects denied-peer table insertion and expands
+the current axiom audit from 102 to 107 statements.
+
 Scope: P0.1 redirects, P0.2 response headers, P0.3 explicit generation and managed
 activation/rollback, P0.4 admission limits and bounded adversarial tests. The
 [risk assessment](deployment-risk.md) was written before implementation. This is
