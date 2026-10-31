@@ -50,12 +50,11 @@ interface. It is not yet a complete Caddy replacement.
    integration and forwarded headers require separate protocol review; none is
    enabled in the minimal server. IPv6 transport is supported for loopback binding,
    but configured authorities remain DNS-style names rather than IPv6 literals.
-5. **HTTP functionality needed by the actual sites.** Add reviewed ranges,
+5. **HTTP functionality.** Add reviewed ranges,
    conditional caching/ETags, suitable cache policies and any required redirects.
    Current responses use no-store, fixed content types and no compression. A
    Range header does not activate partial serving, and conditional fields do not
-   activate cache validators. The existing sites' redirects/bookmarks must be
-   preserved explicitly during migration; this project does not modify hamazon.is.
+   activate cache validators.
 
 The [TLS integration audit](tls-audit.md) records how the actual implementation
 addresses the historical candidate findings without using its high-level runtime.
@@ -73,5 +72,4 @@ to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL synta
 need explicit policy/resource extensions.
 
 The next deployment milestone is one reviewed Linux staging deployment, followed
-by reload, signal draining and operational monitoring. No existing live hosting
-has been modified by this implementation.
+by reload, signal draining and operational monitoring.
