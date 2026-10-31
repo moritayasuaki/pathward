@@ -30,5 +30,5 @@ pub fn commit_allowed(
 
 /// Admission is evaluated under one adapter lock, with monotonic time accounting.
 pub fn admission_allowed(active: u64, per_peer: u64, tokens: u64, draining: bool) -> bool {
-    !draining && active < 12 && per_peer < 2 && tokens > 0
+    !draining && active < 12 && per_peer < 6 && tokens > 0
 }

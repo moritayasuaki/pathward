@@ -350,7 +350,7 @@ def release.admission_allowed
   then ok false
   else
     if active < 12#u64
-    then if per_peer < 2#u64
+    then if per_peer < 6#u64
          then ok (tokens > 0#u64)
          else ok false
     else ok false

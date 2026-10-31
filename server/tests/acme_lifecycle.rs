@@ -125,6 +125,14 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
     let tls = TlsServer::new(manager.identity()).unwrap();
     let stop = AtomicBool::new(false);
     let renewed = thread::scope(|scope| {
+        // Always stop background workers even when an assertion panics.
+        struct Stop<'a>(&'a AtomicBool);
+        impl Drop for Stop<'_> {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+        let _stop = Stop(&stop);
         let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
         let redirect = TcpListener::bind("127.0.0.1:0").unwrap();
         let redirect_port = redirect.local_addr().unwrap().port();
@@ -145,14 +153,6 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
         assert!(reply.starts_with("HTTP/1.1 308"));
         assert!(reply.contains("Location: https://one.pathward.test/?q=kept\r\n"));
         scope.spawn(|| manager.run(&stop));
-        // Always stop background workers even when an assertion panics.
-        struct Stop<'a>(&'a AtomicBool);
-        impl Drop for Stop<'_> {
-            fn drop(&mut self) {
-                self.0.store(true, Ordering::Release);
-            }
-        }
-        let _stop = Stop(&stop);
         let first = wait_for(port, issued.clone(), None);
         assert!(first.0.starts_with(b"HTTP/1.1 200"));
         let head = fetch(port, issued.clone(), "HEAD", "one.pathward.test")

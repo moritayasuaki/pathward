@@ -139,11 +139,10 @@ mod tests {
         let a = Arc::new(Admission::new());
         let now = Instant::now();
         let ip = "127.0.0.1".parse().unwrap();
-        let p = a.at(ip, false, now).unwrap();
-        let q = a.at(ip, false, now).unwrap();
+        let leases: Vec<_> = (0..6).map(|_| a.at(ip, false, now).unwrap()).collect();
         assert!(a.at(ip, false, now).is_none());
-        drop((p, q));
-        for _ in 0..14 {
+        drop(leases);
+        for _ in 0..10 {
             drop(a.at(ip, false, now).unwrap());
         }
         assert!(a.at(ip, false, now).is_none());

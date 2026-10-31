@@ -32,8 +32,10 @@ with tempfile.TemporaryDirectory(prefix='pathward-load-') as tmp:
         held=[connect(),connect()]
         for s in held:s.sendall(b'GET / HTTP/1.1\r\n')
         time.sleep(.05)
-        assert get()==b'', 'third concurrent connection from one peer was admitted'
         assert get('127.0.0.3').endswith(b'OK'), 'another peer made no progress'
+        held.extend(connect() for _ in range(4))
+        time.sleep(.05)
+        assert get()==b'', 'seventh concurrent connection from one peer was admitted'
         for s in held:s.close()
         held=[];time.sleep(.05)
         denied=0

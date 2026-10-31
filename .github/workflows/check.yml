@@ -32,12 +32,6 @@ jobs:
         run: make rust-check config-check server-check
       - name: Check mount confinement in a private Linux namespace
         run: python3 scripts/linux_mount_check.py
-      - name: Install pinned local test CA
-        run: make acme-test-setup
-      - name: Test real TLS-ALPN-01 issuance, renewal, restart and persistence failure
-        run: make acme-integration
-      - name: Verify extraction, Lean proofs, and axioms
-        run: make proof-check
       - name: Build production HTTP binary and smoke-test the CLI
         run: |
           make server-build
@@ -46,6 +40,12 @@ jobs:
           python3 scripts/deployment_smoke.py
           python3 scripts/load_smoke.py
           cargo +1.99.1 run --offline --locked --release --manifest-path server/Cargo.toml --example fuzz_http -- 100000
+      - name: Install pinned local test CA
+        run: make acme-test-setup
+      - name: Test real TLS-ALPN-01 issuance, renewal, restart and persistence failure
+        run: make acme-integration
+      - name: Verify extraction, Lean proofs, and axioms
+        run: make proof-check
 
   dependency-audit:
     runs-on: ubuntu-24.04

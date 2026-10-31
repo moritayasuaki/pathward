@@ -61,12 +61,12 @@ theorem no_draining_commit (c e : Slice U8) (p s : Bool) :
     release.commit_allowed c e p s true = ok false := by simp [commit_eq,commitPolicy]
 
 theorem admission_eq (a p t : U64) (d : Bool) :
-    release.admission_allowed a p t d = ok (decide (d = false ∧ a.val < 12 ∧ p.val < 2 ∧ 0 < t.val)) := by
+    release.admission_allowed a p t d = ok (decide (d = false ∧ a.val < 12 ∧ p.val < 6 ∧ 0 < t.val)) := by
   simp [release.admission_allowed]
   split_ifs <;> simp_all
 
 theorem admission_contract (a p t : U64) (d : Bool) :
-    release.admission_allowed a p t d = ok true ↔ d = false ∧ a.val < 12 ∧ p.val < 2 ∧ 0 < t.val := by simp [admission_eq]
+    release.admission_allowed a p t d = ok true ↔ d = false ∧ a.val < 12 ∧ p.val < 6 ∧ 0 < t.val := by simp [admission_eq]
 
 theorem admission_no_exhausted_tokens (a p : U64) (d : Bool) :
     release.admission_allowed a p 0#u64 d = ok false := by simp [admission_eq]

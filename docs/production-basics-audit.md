@@ -99,7 +99,7 @@ Charon/Aeneas extracts the actual Rust functions in `src/response.rs` and
   entry with leading slash, and root alias obeys its explicit special case.
 - Commit requires the expected digest, prepared and persisted flags, and no
   draining; stale/unpersisted/draining commits are refused.
-- Admission requires non-draining, global count <12, peer count <2 and positive
+- Admission requires non-draining, global count <12, peer count <6 and positive
   tokens; no exhausted-token admission. All gates return without modeled panic.
 
 Together with the existing generation CAS/readiness/path/rule/TLS/file contracts,
@@ -119,6 +119,13 @@ Linux CI additionally covers native openat2 and local Pebble ACME/renewal tests,
 HTTP/HTTPS redirects and header integration, simultaneous expected-revision
 activation, unsafe/missing file rejection, rollback and SIGKILL/restart reuse.
 Injected post-rename storage failures exercise both restore and stop behavior.
+
+The initial two-connection peer cap blocked Pebble's three simultaneous real
+validation connections. The final six-connection cap is exercised by the same
+unmodified CA validation behavior; no ACME bypass was added. Four workers/eight
+queue slots and all global/rate bounds remain. Per-peer admission caps do not
+reserve workers for other peers: slow clients can still delay them until the
+existing deadlines expire.
 
 Admission unit tests cover counts, token refill, /64 and mapped-address keys,
 map cap/eviction and draining. The release smoke load test exercises slow peers,

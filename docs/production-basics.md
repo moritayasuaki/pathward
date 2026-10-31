@@ -164,13 +164,15 @@ listener/ACME identity changes still require a restart.
 ## Admission limits and test scope
 
 Before TLS work, one shared gate limits active plus queued connections to 12 and
-each peer to 2. Token buckets allow 8 admissions/second per peer (burst 16) and
+each peer to 6. Token buckets allow 8 admissions/second per peer (burst 16) and
 64/second globally (burst 128). Tokens count connections, including invalid TLS or
 HTTP attempts. IPv4-mapped IPv6 shares its IPv4 key; IPv6 peers share a /64 key.
 The peer table holds at most 256 keys, evicting inactive keys after 60 seconds
 when full. If it has no evictable entry, an unknown peer is refused. Denied
 connections close immediately without HTTP output. Permits release on every
-queue/error/connection exit. These are fixed limits in this release.
+queue/error/connection exit. These are fixed limits in this release. Six per peer accommodates ordinary
+parallel HTTP/1.1 clients and simultaneous CA validation probes. All traffic,
+including ACME validation, remains subject to the same global and peer gates.
 
 This protects worker/memory budgets but does not guarantee availability against
 distributed floods, SYN traffic, table exhaustion, bandwidth or slow storage.
