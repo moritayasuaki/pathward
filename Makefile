@@ -65,3 +65,10 @@ acme-test-setup:
 
 acme-integration:
 	python3 scripts/acme_integration.py
+
+.PHONY: soak
+SOAK_SECONDS ?= 3600
+SOAK_REPORT ?= .tools/soak-latest.json
+soak: server-build
+	cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml --example soak_server
+	python3 scripts/acme_integration.py --soak-seconds $(SOAK_SECONDS) --report "$(SOAK_REPORT)"

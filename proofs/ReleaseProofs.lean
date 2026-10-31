@@ -78,4 +78,22 @@ theorem gates_total (c e : Slice U8) (p s d : Bool) (a n t : U64) :
     (∃ b, release.commit_allowed c e p s d = ok b) ∧
     (∃ b, release.admission_allowed a n t d = ok b) :=
   ⟨⟨_,commit_eq c e p s d⟩,⟨_,admission_eq a n t d⟩⟩
+theorem dispatch_eq (a p : U64) (d : Bool) :
+    release.dispatch_allowed a p d = ok (decide (d = false ∧ a.val < 4 ∧ p.val < 2)) := by
+  simp [release.dispatch_allowed]
+  split_ifs <;> simp_all
+
+theorem dispatch_contract (a p : U64) (d : Bool) :
+    release.dispatch_allowed a p d = ok true ↔ d = false ∧ a.val < 4 ∧ p.val < 2 := by simp [dispatch_eq]
+
+theorem dispatch_bounded (a p : U64) (d : Bool)
+    (h : release.dispatch_allowed a p d = ok true) : a.val + 1 ≤ 4 ∧ p.val + 1 ≤ 2 := by
+  have hp := (dispatch_contract a p d).mp h
+  omega
+
+theorem dispatch_no_draining (a p : U64) :
+    release.dispatch_allowed a p true = ok false := by simp [dispatch_eq]
+
+theorem dispatch_total (a p : U64) (d : Bool) :
+    ∃ b, release.dispatch_allowed a p d = ok b := ⟨_,dispatch_eq a p d⟩
 end ReleaseProofs

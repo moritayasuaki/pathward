@@ -32,3 +32,8 @@ pub fn commit_allowed(
 pub fn admission_allowed(active: u64, per_peer: u64, tokens: u64, draining: bool) -> bool {
     !draining && active < 12 && per_peer < 6 && tokens > 0
 }
+
+/// Separate running-work quota; queued connections still count toward admission.
+pub fn dispatch_allowed(running: u64, peer_running: u64, draining: bool) -> bool {
+    !draining && running < 4 && peer_running < 2
+}

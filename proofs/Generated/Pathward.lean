@@ -355,6 +355,19 @@ def release.admission_allowed
          else ok false
     else ok false
 
+/-- [pathward::release::dispatch_allowed]:
+    Source: 'src/release.rs', lines 37:0-39:1
+    Visibility: public -/
+def release.dispatch_allowed
+  (running : Std.U64) (peer_running : Std.U64) (draining : Bool) :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else if running < 4#u64
+       then ok (peer_running < 2#u64)
+       else ok false
+
 /-- [pathward::response::visible]: loop 0:
     Source: 'src/response.rs', lines 7:4-14:1
     Visibility: public -/

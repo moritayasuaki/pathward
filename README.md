@@ -98,6 +98,10 @@ Read the [operator guide](docs/production-basics.md),
 [P0.3 risk assessment](docs/deployment-risk.md) and
 [integration/Lean audit](docs/production-basics-audit.md).
 
+The [continuous soak guide](docs/soak-testing.md) describes overlapping managed
+releases, real local ACME renewals, adversarial slow peers, resource checks and
+worker fairness. `make soak` defaults to one uninterrupted hour on Linux.
+
 ## Server dependencies
 
 Future proxy integration may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
@@ -234,7 +238,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 102 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 107 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

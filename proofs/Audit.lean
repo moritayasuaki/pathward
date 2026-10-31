@@ -111,3 +111,9 @@ import ReleaseProofs
 #print axioms ReleaseProofs.admission_no_exhausted_tokens
 #print axioms ReleaseProofs.admission_no_draining
 #print axioms ReleaseProofs.gates_total
+
+#print axioms ReleaseProofs.dispatch_eq
+#print axioms ReleaseProofs.dispatch_contract
+#print axioms ReleaseProofs.dispatch_bounded
+#print axioms ReleaseProofs.dispatch_no_draining
+#print axioms ReleaseProofs.dispatch_total

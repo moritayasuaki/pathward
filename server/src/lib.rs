@@ -11,6 +11,7 @@ pub mod observe;
 mod runtime;
 pub mod secrets;
 pub mod tls;
+mod work;
 
 use pathward::serving::authorize;
 use pathward_config::CompiledConfig;
@@ -22,7 +23,6 @@ use std::{
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
     thread,
     time::{Duration, Instant},
@@ -388,11 +388,9 @@ impl Server {
         }
         let admission = Arc::new(admission::Admission::new());
         let result = thread::scope(|scope| {
-            let (send, receive) =
-                mpsc::sync_channel::<(TcpStream, Instant, bool, admission::Permit)>(QUEUE_CAPACITY);
-            let receive = Arc::new(Mutex::new(receive));
+            let receive = work::Queue::<(TcpStream, Instant, bool, admission::Permit)>::new();
             for i in 0..WORKERS {
-                let receive = receive.clone();
+                let worker_queue = receive.clone();
                 if let Err(e) = thread::Builder::new()
                     .name(format!("pathward-{i}"))
                     .spawn_scoped(scope, move || {
@@ -404,11 +402,9 @@ impl Server {
                         }
                         let _stop = StopOnExit(shutdown);
                         loop {
-                            let job = match receive.lock() {
-                                Ok(receiver) => receiver.recv(),
-                                Err(_) => break,
-                            };
-                            let Ok((mut stream, accepted, redirect_only, _permit)) = job else {
+                            let Some(((mut stream, accepted, redirect_only, _permit), _running)) =
+                                worker_queue.take(shutdown)
+                            else {
                                 break;
                             };
                             let _active = self.observe.connection();
@@ -456,7 +452,7 @@ impl Server {
                         }
                     })
                 {
-                    drop(send);
+                    receive.close();
                     return Err(e);
                 }
             }
@@ -481,12 +477,11 @@ impl Server {
                                 let _ = stream.shutdown(Shutdown::Both);
                                 continue;
                             };
-                            if let Err(e) =
-                                send.try_send((stream, Instant::now(), redirect_only, permit))
-                            {
+                            if let Err((stream, _, _, _permit)) = receive.push(
+                                permit.peer(),
+                                (stream, Instant::now(), redirect_only, permit),
+                            ) {
                                 self.observe.overloaded.fetch_add(1, Ordering::Relaxed);
-                                let (mpsc::TrySendError::Full((stream, _, _, _permit))
-                                | mpsc::TrySendError::Disconnected((stream, _, _, _permit))) = e;
                                 let _ = stream.shutdown(Shutdown::Both);
                             }
                         }
@@ -508,7 +503,7 @@ impl Server {
             drop(redirect);
             self.observe.serving.store(false, Ordering::Release);
             self.observe.event("draining", self.generation(), 0);
-            drop(send);
+            receive.close();
             result
         });
         self.begin_shutdown();

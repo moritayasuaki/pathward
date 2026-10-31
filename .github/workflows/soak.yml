@@ -1,0 +1,68 @@
+name: Extended soak
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/soak-test]
+    paths: ["src/**", "server/**", "config/**", "proofs/**", "scripts/**", "Makefile", ".github/workflows/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soak:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Prepare reviewed server dependencies and pinned local CA
+        run: |
+          make server-setup acme-test-setup
+          make server-build
+          cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml --example soak_server
+      - name: Calibrate overlap checks for two minutes
+        run: make soak SOAK_SECONDS=120 SOAK_REPORT=.tools/soak-calibration.json
+      - name: Start one uninterrupted hour of load and renewal
+        run: |
+          setsid python3 scripts/acme_integration.py --soak-seconds 3600 --report .tools/soak-hour.json > "$RUNNER_TEMP/pathward-soak.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 10-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 600 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 20-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 1200 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 30-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 1800 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 40-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 2400 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 50-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 3000 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid"
+      - name: Verify 60-minute continuous checkpoint
+        run: python3 scripts/soak_checkpoint.py 3600 --report .tools/soak-hour.json --pid "$RUNNER_TEMP/pathward-soak.pid" --final
+      - name: Collect bounded reports and stop remaining test processes
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, signal
+          from pathlib import Path
+          for name in ["soak-calibration.json", "soak-hour.json"]:
+              path = Path(".tools") / name
+              if path.exists():
+                  print("SOAK_REPORT " + path.read_text())
+          log = Path(os.environ["RUNNER_TEMP"]) / "pathward-soak.log"
+          if log.exists():
+              print(log.read_text()[-16000:])
+          pidfile = Path(os.environ["RUNNER_TEMP"]) / "pathward-soak.pid"
+          if pidfile.exists():
+              pid = int(pidfile.read_text())
+              try:
+                  if os.getpgid(pid) == pid:
+                      os.killpg(pid, signal.SIGTERM)
+              except ProcessLookupError:
+                  pass
+          PY

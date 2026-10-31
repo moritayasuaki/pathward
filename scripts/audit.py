@@ -28,7 +28,7 @@ def main():
         seen.add(name)
     for name in re.findall(r"'([\w.]+)' does not depend on any axioms", output):
         seen.add(name)
-    if len(expected) < 102 or set(expected) != seen:
+    if len(expected) < 107 or set(expected) != seen:
         raise SystemExit(f"Missing or unexpected axiom audit results: expected {expected}, got {seen}")
     print(output, end="")
     print("Audit passed: no proof holes, only standard Lean axioms, zero Rust dependencies.")

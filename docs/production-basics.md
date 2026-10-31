@@ -170,7 +170,9 @@ HTTP attempts. IPv4-mapped IPv6 shares its IPv4 key; IPv6 peers share a /64 key.
 The peer table holds at most 256 keys, evicting inactive keys after 60 seconds
 when full. If it has no evictable entry, an unknown peer is refused. Denied
 connections close immediately without HTTP output. Permits release on every
-queue/error/connection exit. These are fixed limits in this release. Six per peer accommodates ordinary
+queue/error/connection exit. The bounded dispatcher runs at most two jobs per
+peer and four globally, allowing another peer's queued work to bypass a busy
+peer. A third validation connection may wait; no ACME exemption is used. These are fixed limits in this release. Six per peer accommodates ordinary
 parallel HTTP/1.1 clients and simultaneous CA validation probes. All traffic,
 including ACME validation, remains subject to the same global and peer gates.
 
@@ -186,3 +188,6 @@ checks, and 100,000 deterministic mutated HTTP inputs. Mutation tests are not
 coverage-guided fuzzing, and the burst test is not a prolonged production soak.
 Run broader fuzzing, realistic throughput and long-duration storage/race tests
 before migration. See [remaining production work](production-readiness.md).
+
+See [continuous overlap soak testing](soak-testing.md) for the extended workload
+and the worker-starvation correction.

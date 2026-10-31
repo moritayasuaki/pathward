@@ -78,7 +78,12 @@ impl Admission {
         let ip = key(ip);
         let mut state = self.0.lock().ok()?;
         state.global.refill(now);
-        if state.global.credit < 1000 || draining {
+        if !pathward::release::admission_allowed(
+            state.active,
+            0,
+            state.global.credit / 1000,
+            draining,
+        ) {
             return None;
         }
         if !state.peers.contains_key(&ip) {
@@ -121,6 +126,11 @@ impl Admission {
         })
     }
 }
+impl Permit {
+    pub fn peer(&self) -> IpAddr {
+        self.peer
+    }
+}
 impl Drop for Permit {
     fn drop(&mut self) {
         if let Ok(mut state) = self.admission.0.lock() {
@@ -155,6 +165,21 @@ mod tests {
         assert!(a.at(IpAddr::from([127, 0, 0, 20]), false, now).is_none());
         drop(leases);
         assert_eq!(a.0.lock().unwrap().active, 0);
+    }
+
+    #[test]
+    fn denied_new_peers_cannot_fill_the_table_while_all_slots_are_in_use() {
+        let a = Arc::new(Admission::new());
+        let now = Instant::now();
+        let held: Vec<_> = (0..12)
+            .map(|i| a.at(IpAddr::from([10, 0, 0, i]), false, now).unwrap())
+            .collect();
+        for i in 0..255 {
+            assert!(a.at(IpAddr::from([10, 0, 1, i]), false, now).is_none());
+        }
+        assert_eq!(a.0.lock().unwrap().peers.len(), 12);
+        drop(held);
+        assert!(a.at(IpAddr::from([10, 0, 2, 1]), false, now).is_some());
     }
     #[test]
     fn ipv6_prefix_and_mapped_v4_share_a_limit_and_table_is_bounded() {

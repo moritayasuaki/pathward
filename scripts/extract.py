@@ -44,6 +44,7 @@ def main():
                         "--start-from", "pathward::release::generated_rule",
                         "--start-from", "pathward::release::commit_allowed",
                         "--start-from", "pathward::release::admission_allowed",
+                        "--start-from", "pathward::release::dispatch_allowed",
                         "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
