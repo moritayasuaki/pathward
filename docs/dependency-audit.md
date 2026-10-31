@@ -2,7 +2,8 @@
 
 This is the historical TLS/server-candidate review. The subsequently implemented
 minimal HTTP server has a separate [HTTP/file audit](http-audit.md), with a much
-smaller dependency graph. Findings about the unused TLS candidate remain open.
+smaller dependency graph. The later [TLS integration audit](tls-audit.md) records controls for the actual
+implementation. The original high-level candidate remains unused.
 
 ## Decision and scope
 

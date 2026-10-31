@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-31T01:08:32.996218+00:00",
+  "checked_at": "2026-10-31T01:18:23.934027+00:00",
   "auditor": "cargo-audit 0.22.2",
   "database_commit": "2295466c4e9df26647fd67d8fa1c705ac2fc7f81",
   "profiles": {
@@ -12,8 +12,18 @@
       "lockfile_sha256": "39aa9909061dd6333615ce36e10add4b0be1b31cde1fb4b0790386c343057ee7"
     },
     "http_server": {
-      "manifest_sha256": "a9874c4b2dbe2697cf1fd3a0048c6b977fe68a7be510243a3abe6380b7f392a8",
-      "lockfile_sha256": "2aaa6d4633722ac58301bff52a9d4645022557dc016601b252ce792b4a4e9294"
+      "manifest_sha256": "9614049e5c625bfb9914d98df5f5e58ece7620924d05786d683c8f8893ceef7d",
+      "lockfile_sha256": "2aaa6d4633722ac58301bff52a9d4645022557dc016601b252ce792b4a4e9294",
+      "vendor_files_sha256": {
+        "Cargo.toml": "b3c9b5e14aae93e691ef86b02b9ded3893fa9d8d772b6f35da845ceb462a05b6",
+        "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "PROVENANCE.md": "a099b9b37d8bea5e5fdcfc00817bcef56b18068bd0be65006d930f71d393206c",
+        "src/acme.rs": "fd5d9c179cdd783c9dc64439a7d0587323cc983c28f2b56443228a2f4c5d26ef",
+        "src/https_helper.rs": "eab688b0e5d82bdb4667825dfc8c2ed6b63128c26785e43ea6ada233d3725c96",
+        "src/jose.rs": "c8fe2b0ee1f8a687b0d0762138fdbf0b610dd8c39f301c3c2a5dbf7883046080",
+        "src/lib.rs": "d898b71308f8341ccfc61fe42ececb48f773680254589bebd52ca927293106a1"
+      }
     }
   },
   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",

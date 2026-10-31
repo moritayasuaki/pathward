@@ -29,3 +29,10 @@ version; local patches are reviewed separately, never treated as advisory fixes
 without evidence. The fork adds a maintenance obligation on upgrades.
 
 See ../../docs/tls-audit.md for the source review, limitations and regression tests.
+
+Original shipped file SHA-256 (formatting is adjusted in the fork):
+
+- `src/acme.rs`: `353db1080dfadfb4d59dd2a22ca674b0b45531594ec9fb20e4274a7c9ccd5d74`
+- `src/jose.rs`: `8e654ceffda809e3137bbc932f721393927613121249d658a7d9fc94040fe56e`
+- `LICENSE-APACHE`: `a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2`
+- `LICENSE-MIT`: `23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3`

@@ -76,7 +76,8 @@ clock correctness, liveness of the worker, native resource exhaustion or the
 entire KDL-to-TLS execution.
 
 Portable tests cover actual TLS handshakes, SNI/ALPN rejection, handshake deadline,
-key/SAN mismatches, bounded HTTP response parsing and URL-origin controls. Linux
+key/SAN mismatches, bounded HTTP response parsing, URL-origin controls, CA certificate verification
+and a real slow-body total request deadline. Linux
 CI additionally covers private cache modes/locking/restart/partial writes,
 symlinks/hardlinks/special files, old-or-new atomic visibility, real HTTPS serving,
 TLS-ALPN-01, short-certificate renewal, restart reuse and persistence failure.

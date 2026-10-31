@@ -8,6 +8,7 @@ mod linux {
         io::{self, Read, Write},
         os::unix::{fs::MetadataExt, io::AsRawFd},
         path::{Component, Path},
+        sync::Mutex,
     };
 
     fn denied() -> io::Error {
@@ -32,6 +33,7 @@ mod linux {
     pub struct SecretStore {
         directory: File,
         uid: u32,
+        write_lock: Mutex<()>,
     }
     impl SecretStore {
         /// Create only the leaf directory. Ancestors must already be trusted.
@@ -103,7 +105,11 @@ mod linux {
                 )?
                 .into();
             }
-            let store = Self { directory, uid };
+            let store = Self {
+                directory,
+                uid,
+                write_lock: Mutex::new(()),
+            };
             store.check_directory()?;
             fs::flock(&store.directory, FlockOperation::NonBlockingLockExclusive)?;
             // A crash can leave the private staging inode. Validate before removal.
@@ -159,6 +165,7 @@ mod linux {
             Ok(Some(data))
         }
         fn store_name(&self, name: &str, data: &[u8]) -> io::Result<()> {
+            let _writer = self.write_lock.lock().map_err(|_| denied())?;
             if data.len() > 1_048_576 {
                 return Err(denied());
             }

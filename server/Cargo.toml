@@ -15,7 +15,7 @@ pathward-config = { path = "../config" }
 httparse = { version = "=1.10.1", default-features = false }
 httpdate = "=1.0.3"
 
-rustls-acme = { path = "../vendor/rustls-acme", default-features = false, features = ["ring"] }
+rustls-acme = { path = "../vendor/rustls-acme", default-features = false }
 rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 ring = { version = "=0.17.14", default-features = false, features = ["std"] }
 rcgen = { version = "=0.13.2", default-features = false, features = ["pem", "ring", "crypto"] }

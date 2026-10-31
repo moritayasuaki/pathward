@@ -59,6 +59,18 @@ fn private_atomic_store_lock_and_restart() {
             store.store_certificate(b"old").unwrap();
         }
     });
+    thread::scope(|scope| {
+        scope.spawn(|| {
+            for _ in 0..10 {
+                store.store_account(b"account-secret").unwrap();
+            }
+        });
+        scope.spawn(|| {
+            for _ in 0..10 {
+                store.store_certificate(b"old").unwrap();
+            }
+        });
+    });
     // A private staging file left by a killed writer is never interpreted as a certificate.
     fs::write(path.join(".pending"), b"partial-secret").unwrap();
     fs::set_permissions(path.join(".pending"), fs::Permissions::from_mode(0o600)).unwrap();
@@ -120,4 +132,34 @@ fn refuse_public_symlink_hardlink_special_and_oversized_cache() {
     fs::create_dir(&public).unwrap();
     fs::set_permissions(&public, fs::Permissions::from_mode(0o755)).unwrap();
     assert!(SecretStore::open(&public, &[]).is_err());
+}
+
+#[test]
+fn nondumpable_process_can_reopen_its_private_descriptors() {
+    if std::env::var_os("PATHWARD_TEST_NONDUMP_CHILD").is_some() {
+        rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)
+            .unwrap();
+        rustix::process::setrlimit(
+            rustix::process::Resource::Core,
+            rustix::process::Rlimit {
+                current: Some(0),
+                maximum: Some(0),
+            },
+        )
+        .unwrap();
+        let temp = Temp::new();
+        let store = SecretStore::open(&temp.0.join("cache"), &[]).unwrap();
+        store.store_account(b"private").unwrap();
+        assert_eq!(store.load_account().unwrap().unwrap(), b"private");
+        return;
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "nondumpable_process_can_reopen_its_private_descriptors",
+        ])
+        .env("PATHWARD_TEST_NONDUMP_CHILD", "1")
+        .status()
+        .unwrap();
+    assert!(status.success());
 }

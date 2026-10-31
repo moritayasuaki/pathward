@@ -1,11 +1,17 @@
-use crate::crypto::digest::{digest, Digest, SHA256};
+use crate::crypto::digest::{Digest, SHA256, digest};
 use crate::crypto::rand::SystemRandom;
 use crate::crypto::signature::{EcdsaKeyPair, KeyPair};
 use base64::prelude::*;
 use serde::Serialize;
 use thiserror::Error;
 
-pub(crate) fn sign(key: &EcdsaKeyPair, kid: Option<&str>, nonce: String, url: &str, payload: &str) -> Result<String, JoseError> {
+pub(crate) fn sign(
+    key: &EcdsaKeyPair,
+    kid: Option<&str>,
+    nonce: String,
+    url: &str,
+    payload: &str,
+) -> Result<String, JoseError> {
     let jwk = match kid {
         None => Some(Jwk::new(key)),
         Some(_) => None,
@@ -28,7 +34,10 @@ pub(crate) fn key_authorization(key: &EcdsaKeyPair, token: &str) -> Result<Strin
     Ok(format!("{}.{}", token, jwk.thumb_sha256_base64()?))
 }
 
-pub(crate) fn key_authorization_sha256(key: &EcdsaKeyPair, token: &str) -> Result<Digest, JoseError> {
+pub(crate) fn key_authorization_sha256(
+    key: &EcdsaKeyPair,
+    token: &str,
+) -> Result<Digest, JoseError> {
     let key_authorization = key_authorization(key, token)?;
     Ok(digest(&SHA256, key_authorization.as_bytes()))
 }
@@ -52,7 +61,12 @@ struct Protected<'a> {
 }
 
 impl<'a> Protected<'a> {
-    fn base64(jwk: Option<Jwk>, kid: Option<&'a str>, nonce: String, url: &'a str) -> Result<String, JoseError> {
+    fn base64(
+        jwk: Option<Jwk>,
+        kid: Option<&'a str>,
+        nonce: String,
+        url: &'a str,
+    ) -> Result<String, JoseError> {
         let protected = Self {
             alg: "ES256",
             jwk,

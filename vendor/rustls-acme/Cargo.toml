@@ -7,8 +7,6 @@ license = "Apache-2.0 OR MIT"
 description = "Reviewed low-level PathWard fork; see PROVENANCE.md"
 [features]
 default = []
-ring = []
-aws-lc-rs = []
 [dependencies]
 async-io = { version = "=2.6.0", default-features = false }
 async-net = { version = "=2.0.0", default-features = false }

@@ -115,7 +115,7 @@ def main():
         result = {
             "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "auditor": AUDITOR_VERSION, "database_commit": revision,
-            "profiles": {name: {key: graph[key] for key in ("manifest_sha256", "lockfile_sha256")}
+            "profiles": {name: {key: graph[key] for key in ("manifest_sha256", "lockfile_sha256", "vendor_files_sha256") if key in graph}
                          for name, graph in graphs.items()},
             "rustc": output("rustc", "--version"),
             "server_rustc": output("rustc", "+1.99.1", "--version"), "reports": reports,

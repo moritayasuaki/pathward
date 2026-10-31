@@ -1,10 +1,17 @@
 # Production readiness
 
 PathWard now has a verified policy core, KDL configuration compiler, and a minimal
-Linux HTTP/1.1 static server. The server deliberately listens only on loopback;
-TLS/ACME does not run. It is not yet a complete Caddy replacement.
+Linux HTTP/1.1 static server with TLS/ACME, private key persistence and automatic
+renewal. Plain HTTP stays loopback-only; explicit TLS mode can bind a public
+interface. It is not yet a complete Caddy replacement.
 
-## Implemented in this milestone
+## Implemented
+
+- TLS 1.2/1.3 with configured SNI and Host agreement, isolated TLS-ALPN-01,
+  private 0700/0600 account/certificate storage, atomic durable writes, fixed-origin
+  bounded ACME requests, automatic renewal, expiry refusal and restart reuse.
+- Additional extracted Lean contracts for TLS identity, secret metadata,
+  persist-before-activation and renewal arithmetic; local Pebble lifecycle tests.
 
 - GET/HEAD over HTTP/1.1, exact virtual-host and publication selection, unchanged
   path bytes, separately validated/ignored queries, and no fallback/index grants.
@@ -19,12 +26,12 @@ TLS/ACME does not run. It is not yet a complete Caddy replacement.
 
 ## Still required before public production serving
 
-1. **TLS/ACME and public authority policy.** Implement SNI/Host consistency,
-   configured-domain-only issuance, private/crash-safe account and certificate
-   persistence, renewal polling, expiry alerts and restart/staging tests. Review
-   ACME response-size/deadline limits and trusted HTTPS endpoints. The current
-   `tls "auto"` declaration is inactive. The path policy rejects `/.well-known`;
-   HTTP-01 needs a dedicated checked handler, or use reviewed TLS-ALPN-01 support.
+1. **Deployment-specific certificate operation.** Test staging with the real DNS,
+   TCP/443 path, service UID, clock and durable storage. Monitor redacted renewal/
+   expiry events externally. ARI, Retry-After handling, in-order badNonce retries,
+   revocation/OCSP, contact updates and key rollover are absent. One certificate
+   covers all configured sites; separate per-site issuance is not implemented.
+   HTTP-01/DNS-01, wildcard domains and automatic HTTP redirects are absent.
 2. **Deployment and content ownership.** Enforce a service-owned configuration,
    roots and key store, with least privilege. Use trusted local filesystems and
    immutable releases; the current opener does not make concurrent file writes
@@ -50,10 +57,10 @@ TLS/ACME does not run. It is not yet a complete Caddy replacement.
    activate cache validators. The existing sites' redirects/bookmarks must be
    preserved explicitly during migration; this project does not modify hamazon.is.
 
-The historical [TLS candidate audit](dependency-audit.md) still has open ACME,
-TLS-handshake and HTTP/2 findings. The minimal HTTP/file adapter has its own
-[audit](http-audit.md), with a smaller dependency graph. A clean advisory scan
-does not replace integration review.
+The [TLS integration audit](tls-audit.md) records how the actual implementation
+addresses the historical candidate findings without using its high-level runtime.
+The [HTTP/file audit](http-audit.md) remains relevant to confinement. A clean
+advisory scan does not replace integration review.
 
 ## Deliberate limitations
 
@@ -65,5 +72,6 @@ encoding, hidden components and trailing slashes other than `/`. Files are limit
 to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL syntax
 need explicit policy/resource extensions.
 
-The next deployment milestone is TLS/ACME with private durable key storage,
-followed by reload and operational tooling on one reviewed Linux deployment.
+The next deployment milestone is one reviewed Linux staging deployment, followed
+by reload, signal draining and operational monitoring. No existing live hosting
+has been modified by this implementation.

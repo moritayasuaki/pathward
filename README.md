@@ -3,8 +3,8 @@
 A small Rust path authorization and publication-rule compiler, with Lean proofs
 tied to the Rust implementation through Charon and Aeneas extraction. A separate
 KDL configuration crate turns explicit site declarations into checked rules.
-A separate Linux HTTP/1.1 server now serves those rules on loopback with
-descriptor-based file opening. TLS/ACME is not implemented yet.
+A separate Linux HTTP/1.1 server serves those rules with descriptor-based file
+opening, rustls TLS, private ACME key storage and automatic certificate renewal.
 
 The Rust library has **zero external dependencies**, uses `no_std`, forbids
 `unsafe`, allocates nothing, and performs no I/O. Verification tools are separate
@@ -29,7 +29,7 @@ cargo run --offline --locked --manifest-path config/Cargo.toml -- resolve exampl
 
 Only listed URL-to-file pairs resolve. Unknown settings, duplicate decoded URLs,
 unsafe paths or invalid sites reject the whole configuration. `tls "auto"` is
-currently a policy declaration, not implemented certificate issuance.
+activated by the explicit `serve-tls` command, with a dedicated private cache.
 
 The [configuration guide](docs/configuration.md) describes the restricted KDL 2
 profile and limits. The [parser/dependency audit](docs/kdl-audit.md) records the
@@ -54,19 +54,41 @@ accepts loopback listeners only, supports GET/HEAD, bounds connection/head/write
 resources, and never serves an unlisted URL. File resolution rejects symlinks,
 mount crossings below the root, special files and observed multiple hard links.
 
-Read the [HTTP guide](docs/http-serving.md), [adapter audit](docs/http-audit.md),
-and [remaining production gaps](docs/production-readiness.md). The real HTTP
-lockfile has 17 external package versions across all targets (12 in the Linux
-normal/build graph), including the configuration dependencies. It uses std,
-httparse, httpdate and rustix, independently of the larger TLS candidate below.
+Read the [HTTP guide](docs/http-serving.md), [historical HTTP audit](docs/http-audit.md),
+and [remaining production gaps](docs/production-readiness.md).
+
+## TLS and automatic renewal
+
+```sh
+server/target/release/pathward-server serve-tls /etc/pathward/Pathward.kdl \
+  /var/lib/pathward/staging --accept-terms --acme staging --listen 0.0.0.0:8443
+```
+
+The cache parent must already be trusted and service-owned; PathWard creates the
+private 0700 leaf and 0600 account/certificate records. Public TCP/443 must reach
+the TLS listener for TLS-ALPN-01. The command defaults to staging and requires
+explicit CA terms acceptance; select production with a separate persistent cache.
+No live certificate or deployment is created by tests.
+
+Certificates renew in the final third of lifetime. The worker checks keys, exact
+configured SANs and validity, persists before activation, preserves the valid old
+identity on failure, and rejects expired identities on new handshakes. SNI must
+be configured and HTTP Host must match it. See [operation](docs/tls-serving.md)
+and [TLS/key-storage audit](docs/tls-audit.md) for limits and trust assumptions.
+
+The actual server has **102 crates.io package versions plus one small attributed
+rustls-acme fork** across all targets (87 crates.io versions plus the fork in the
+Linux normal/build graph). No Axum, Tower, Tokio, Hyper or HTTP/2 stack is linked.
+The verified core remains zero-dependency. The fork and every transitive/build
+package are included in the reviewed inventory; this is not a full source proof.
 
 ## Server dependencies
 
-Future TLS/proxy integration may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
+Future proxy integration may use `std`, `axum`, `tower-http`, `rustls`, and `rustls-acme`
 after audit. The [dated dependency audit](docs/dependency-audit.md) records a
 fixed candidate graph, RustSec results, source-review findings, and requirements
 for safely connecting it to the proved core. The candidate is isolated under
-`audit/server-stack`; it does not add dependencies to the core or HTTP adapter. Dependencies and their integration are outside the current Lean proof.
+`audit/server-stack`; it does not add dependencies to the core; the actual TLS implementation has its own smaller, independently locked graph. Dependencies and their integration are outside the current Lean proof.
 
 Run `make dependency-audit-setup` once, then `make dependency-audit` to check the
 reviewed graph against fresh RustSec advisories and yanked packages. Both commands
@@ -196,7 +218,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 41 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 57 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 
@@ -229,3 +251,9 @@ The configuration adapter has its own `make config-check` target (offline after
 `make config-setup`), including malformed-input, isolation and limit tests.
 
 License: [MIT](LICENSE).
+
+The TLS extension in [TlsProofs.lean](proofs/TlsProofs.lean) proves exact SNI/Host
+identity, private-file admission, no unpersisted/expired activation and total
+renewal arithmetic. Metadata, clock, certificate-name/key checks and durable-write
+results are adapter inputs. Lean does not establish TLS cryptography, parser/OS
+correctness, renewal liveness or whole-server resource bounds.

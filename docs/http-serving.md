@@ -31,7 +31,7 @@ curl -I -H 'Host: example.com' http://127.0.0.1:8080/style.css
 `serve-http` explicitly selects plaintext HTTP. The address defaults to
 `127.0.0.1:8080`; literal loopback IPv4/IPv6 addresses are accepted. Port `0`
 selects an ephemeral port, printed at startup. Non-loopback addresses are rejected
-before the CLI binds. `tls "auto"` remains a declaration; the CLI explicitly
+before the CLI binds. In this HTTP-only mode, the CLI explicitly
 reports that automatic TLS is not active. Nothing is automatically exposed on
 ports 80/443 or deployed to an existing host.
 
@@ -142,7 +142,7 @@ future work.
 ## Verification
 
 `make check` checks the core, configuration and server; it regenerates and compares
-the actual Rust extraction and checks Lean proofs/41 axiom-audited statements.
+the actual Rust extraction and checks Lean proofs/57 axiom-audited statements.
 On Linux, server tests exercise real TCP serving, virtual-host isolation,
 GET/HEAD/query behavior, malformed framing, limits, excess connections, symlinks,
 hard links, special files, pinned roots and directory/symlink replacement races.
@@ -153,3 +153,6 @@ runner. `python3 scripts/http_smoke.py` tests the built release CLI.
 Linux behavior is not emulated by the macOS stub: unsupported platforms return
 an error. The kernel's confinement guarantees are exercised by integration tests
 and source/API review, not asserted as Lean theorems about the OS.
+
+TLS is available through the separate explicit [TLS/ACME mode](tls-serving.md).
+Its adapter reuses the same HTTP framing, verified grants and file opener.

@@ -61,9 +61,20 @@ impl Manager {
     ) -> io::Result<Self> {
         if domains.is_empty()
             || domains.len() > 16
-            || domains
-                .iter()
-                .any(|d| !d.contains('.') || d.parse::<std::net::IpAddr>().is_ok())
+            || domains.iter().any(|d| {
+                !d.contains('.')
+                    || d.len() > 253
+                    || d.parse::<std::net::IpAddr>().is_ok()
+                    || !d.split('.').all(|label| {
+                        !label.is_empty()
+                            && label.len() <= 63
+                            && label
+                                .bytes()
+                                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                            && label.as_bytes()[0].is_ascii_alphanumeric()
+                            && label.as_bytes()[label.len() - 1].is_ascii_alphanumeric()
+                    })
+            })
         {
             return Err(error());
         }

@@ -1,5 +1,8 @@
 # HTTP/file adapter audit — 2026-10-30
 
+This is the historical HTTP-only milestone. The later [TLS audit](tls-audit.md)
+records the current dependency graph and additional controls.
+
 ## Scope and dependency result
 
 The actual HTTP server is a separate crate using std threads/TCP, the existing KDL

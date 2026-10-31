@@ -50,8 +50,11 @@ server-setup:
 
 server-check:
 	cargo +1.99.1 fmt --manifest-path server/Cargo.toml --check
+	rustfmt +1.99.1 --edition 2024 --check vendor/rustls-acme/src/lib.rs
 	cargo +1.99.1 test --offline --locked --manifest-path server/Cargo.toml
+	cargo +1.99.1 test --offline --locked --manifest-path server/Cargo.toml -p rustls-acme --lib
 	cargo +1.99.1 clippy --offline --locked --manifest-path server/Cargo.toml --all-targets -- -D warnings
+	cargo +1.99.1 clippy --offline --locked --manifest-path server/Cargo.toml -p rustls-acme --all-targets -- -D warnings
 
 server-build:
 	cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml

@@ -4,7 +4,7 @@ PathWard reads a deliberately restricted profile of **KDL 2**, then compiles
 explicit URL-to-file declarations through the dependency-free, Lean-verified
 Rust rule compiler. The CLI validates and resolves rules; it does not serve files
 or obtain certificates. The separate [Linux HTTP server](http-serving.md) can now
-serve these rules on loopback. See [audit](kdl-audit.md) and [deployment gaps](production-readiness.md).
+serve these rules on loopback; [TLS mode](tls-serving.md) adds ACME. See [audit](kdl-audit.md) and [deployment gaps](production-readiness.md).
 
 ```kdl
 // Only these URLs are public. Japanese text is also allowed in comments.
@@ -18,8 +18,9 @@ site "example.com" {
 
 Here `/style.css` maps to `assets/style.css` under the declared root; the URL
 `/assets/style.css` remains private. `/` has an explicit index mapping, with no
-implicit index or directory publishing. `tls "auto"` is a validated policy
-**declaration only**; no TLS/ACME implementation exists yet.
+implicit index or directory publishing. `tls "auto"` selects automatic TLS when started with `serve-tls`. The configuration
+CLI still only validates/resolves; the server command takes a private cache path,
+CA environment and explicit terms acceptance. `serve-http` remains loopback-only.
 
 ## Try it
 
@@ -50,14 +51,14 @@ DNS, certificate eligibility, or root confinement.
 | `site "host" { ... }` | Independent virtual-host table | 1–16 sites; unique lowercase ASCII DNS-style hostname, no port, scheme, wildcard, trailing dot, or empty label |
 | `root "/absolute/path"` | Unix document root declaration | Exactly one per site; canonical absolute path, including `/` |
 | `publish "/url" "relative/file"` | One exact URL-to-target pair | 1–256 per site; duplicate URLs rejected even when targets are identical |
-| `tls "auto"` | Intended automatic TLS policy | Exactly one per site; only `auto` is accepted |
+| `tls "auto"` | Automatic TLS policy | Exactly one per site; only `auto` is accepted |
 
 Hostname labels contain ASCII letters, digits, and hyphens, start/end with a
 letter or digit, and have at most 63 bytes; the complete hostname has at most 253.
 This syntactic check permits single labels and numeric labels. It does not
 establish DNS ownership or ACME eligibility. Host lookup is exact; there is no
-default host, wildcard, lowercasing, or port stripping in this API. The HTTP adapter validates Host/authority before choosing the host; a future TLS
-adapter must also check SNI consistency.
+default host, wildcard, lowercasing, or port stripping in this API. The HTTP adapter validates Host/authority before choosing the host; the TLS
+adapter also requires SNI consistency.
 
 URL paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
 starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
@@ -129,5 +130,4 @@ resolution of the declared pairs. The preflight, upstream parser, AST-to-byte
 adapter, host dispatch, `Vec` allocation/movement, and Rust string conversion are
 reviewed/tested trusted code. **There is no end-to-end Lean theorem from arbitrary
 KDL text to a served file.** The separate HTTP/Linux adapter is reviewed and tested, with additional pure
-serving decisions verified in Lean; OS operations remain trusted. TLS is not yet
-implemented. See [HTTP serving](http-serving.md).
+serving decisions verified in Lean; OS operations remain trusted. See [HTTP serving](http-serving.md) and [TLS/ACME](tls-serving.md).
