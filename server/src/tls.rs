@@ -112,6 +112,15 @@ pub struct Identity {
     challenge: RwLock<Option<Challenge>>,
 }
 impl Identity {
+    /// Public certificate validity only; never returns certificate/key material.
+    pub fn certificate_times(&self) -> Option<(u64, u64)> {
+        self.certificate
+            .read()
+            .ok()?
+            .as_ref()
+            .map(|c| (c.not_before, c.not_after))
+    }
+
     pub(crate) fn new(domains: Vec<String>, certificate: Option<Certificate>) -> Self {
         Self {
             domains,

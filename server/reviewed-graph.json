@@ -1,6 +1,6 @@
 {
-  "manifest_sha256": "9614049e5c625bfb9914d98df5f5e58ece7620924d05786d683c8f8893ceef7d",
-  "lockfile_sha256": "2aaa6d4633722ac58301bff52a9d4645022557dc016601b252ce792b4a4e9294",
+  "manifest_sha256": "653be4baf638fddc1b8837f64b6883c3e388e802cb5e91a83e8da5250356bc6a",
+  "lockfile_sha256": "59cd2355c09b58b9751b016e63b7cab751b9514ba431143a9f40043cda14286a",
   "packages": [
     {
       "name": "asn1-rs",
@@ -233,6 +233,7 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "license": "MIT OR Apache-2.0",
       "features": [
+        "default",
         "std"
       ],
       "build_script": false,
@@ -415,6 +416,7 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "license": "MIT OR Apache-2.0",
       "features": [
+        "default",
         "std"
       ],
       "build_script": true,
@@ -828,6 +830,24 @@
         "default",
         "std"
       ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "signal-hook",
+      "version": "0.4.5",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "signal-hook-registry",
+      "version": "1.4.8",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
       "build_script": false,
       "proc_macro": false
     },

@@ -120,9 +120,10 @@ buffer and the admitted length, so later growth cannot extend the response.
 
 Blocking filesystem operations cannot be forcibly timed out by std socket timeouts.
 Use trusted local storage and service supervision. CPU/bandwidth fairness,
-per-client rate limiting, signal-driven graceful shutdown, reload and operational
-telemetry are not completed here. HTTP is loopback-only, and the CLI announces
-that `tls "auto"` is inactive rather than exposing public plaintext by default.
+per-client rate limiting and external alert integration remain deployment work.
+Signal-driven shutdown, reload and telemetry are now covered in
+[the runtime audit](runtime-audit.md). Plain HTTP is loopback-only, and startup
+logs identify whether TLS mode is enabled.
 
 ### PW-H04 — Prevent date-formatting panics and reflected response metadata
 

@@ -109,7 +109,7 @@ coordinate writers. Content snapshots/hashes are not implemented.
 
 The root descriptor is a capability to the directory opened at startup. Renaming
 or replacing the configured root pathname does not retarget the running server;
-it continues to use the original directory until restart. File descriptors also
+it continues to use the original directory until successful reload or restart. File descriptors also
 retain their admitted inode across later renames. Plan deployments accordingly.
 
 ## Resource bounds
@@ -134,15 +134,14 @@ interrupted by these socket deadlines. Slow/untrusted storage is outside this
 implementation's hard-time guarantee; use trusted local storage and an external
 service supervisor. Comprehensive throughput/per-client limits are still absent.
 
-`Server::serve` accepts a programmatic shutdown flag and drains/finishes bounded
-network work. The CLI has no signal-to-drain handler yet: ordinary process signals
-terminate it. Access/error metrics, reload and structured request logging are
-future work.
+`Server::serve` accepts a programmatic shutdown flag. The CLI now connects
+SIGTERM/SIGINT to draining and SIGHUP to atomic publication/root reload. Structured
+logs and optional loopback monitoring are described in [runtime operation](runtime.md).
 
 ## Verification
 
 `make check` checks the core, configuration and server; it regenerates and compares
-the actual Rust extraction and checks Lean proofs/57 axiom-audited statements.
+the actual Rust extraction and checks Lean proofs/70 axiom-audited statements.
 On Linux, server tests exercise real TCP serving, virtual-host isolation,
 GET/HEAD/query behavior, malformed framing, limits, excess connections, symlinks,
 hard links, special files, pinned roots and directory/symlink replacement races.

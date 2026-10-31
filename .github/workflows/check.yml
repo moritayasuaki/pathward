@@ -42,6 +42,7 @@ jobs:
         run: |
           make server-build
           python3 scripts/http_smoke.py
+          python3 scripts/runtime_smoke.py
 
   dependency-audit:
     runs-on: ubuntu-24.04

@@ -5,9 +5,9 @@ private-file metadata, certificate activation and renewal deadlines. TLS,
 cryptography, ACME, certificate parsers, filesystem operations and time inputs
 remain trusted, reviewed and tested adapters. See [operation](tls-serving.md).
 
-The actual server's reviewed inventory contains 102 crates.io package versions
+The actual server's reviewed inventory contains 104 crates.io package versions
 plus one attributed local rustls-acme fork; the Linux normal/build tree contains
-87 crates.io package versions plus the fork. All target-specific and build
+90 crates.io package versions plus the fork. All target-specific and build
 packages are scanned. The verified core still has zero external dependencies.
 No Axum, Tower, Tokio, Hyper, AWS-LC or HTTP/2 stack is linked. Direct dependencies
 use exact versions and disabled default feature bundles; the complete resolved
@@ -68,7 +68,7 @@ is dated evidence, not a security guarantee. std/compiler/OS are outside RustSec
 
 The actual Rust decisions are freshly extracted through Charon/Aeneas and checked
 in [TlsProofs.lean](../proofs/TlsProofs.lean), alongside existing path/rule/serving
-proofs. The 57-statement audit permits only standard Lean axioms, with no holes.
+proofs. The 70-statement audit permits only standard Lean axioms, with no holes.
 Proofs establish exact identity/metadata/activation contracts, no unpersisted or
 expired activation, total renewal arithmetic and retry at expiration. They do
 not prove cryptography, that OS fsync reached stable media, parser correctness,
@@ -99,7 +99,8 @@ cancelled; network/async deadlines do not prove a global OS scheduling bound.
 
 ARI, Retry-After-aware scheduling, in-order badNonce retry, revocation/OCSP,
 contact updates, account rollover, DNS-01/HTTP-01, per-site certificate separation,
-hot reload, signal draining and metrics/alert delivery remain future work. The
+and external alert delivery remain future work. Publication/root reload, signal
+draining and loopback metrics are implemented; see the [runtime audit](runtime-audit.md). The
 fallback renewal schedule starts in the last third of lifetime; failures emit
 redacted status events and exponential retry. Client-visible unavailability after
 expiry is intentional. Existing established connections are not revoked at expiry.

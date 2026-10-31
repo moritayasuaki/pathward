@@ -126,7 +126,8 @@ input, and only then parses. The string API checks the same cap before parsing.
 Limits are 16 sites, one children level, and 256 publications per site. File I/O
 can still block on a pipe/device or slow storage; a service must load trusted
 configuration from a controlled file and define load/reload time budgets.
-No hot reload or filesystem trust policy is implemented here.
+The configuration crate itself does not own reload or filesystem policy; the server
+now implements these at its [runtime boundary](runtime.md).
 
 ## Validation and remaining work
 

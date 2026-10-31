@@ -1,16 +1,14 @@
 #![forbid(unsafe_code)]
-use pathward_config::ParsedConfig;
-use pathward_server::{Server, acme, tls};
+use pathward_server::{Server, acme, control, tls};
 use std::{
     env,
-    fs::File,
     net::{SocketAddr, TcpListener},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
     sync::atomic::{AtomicBool, Ordering},
     thread,
 };
-const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com]\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
+const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args_os().skip(1).collect();
     if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
@@ -20,27 +18,40 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let command = args.first().and_then(|s| s.to_str()).ok_or(HELP)?;
     match command {
         "serve-http" => {
-            if args.len() != 2 && args.len() != 3 {
+            if args.len() < 2 {
                 return Err(HELP.into());
             }
-            let address: SocketAddr = args
-                .get(2)
-                .map(|s| s.to_str().ok_or("invalid address"))
-                .transpose()?
-                .unwrap_or("127.0.0.1:8080")
-                .parse()?;
+            let mut address: SocketAddr = "127.0.0.1:8080".parse()?;
+            let mut monitor = None;
+            let mut position = 2;
+            if let Some(value) = args.get(position).and_then(|s| s.to_str())
+                && !value.starts_with("--")
+            {
+                address = value.parse()?;
+                position += 1;
+            }
+            if position < args.len() {
+                if args[position] != "--monitor" || position + 2 != args.len() {
+                    return Err(HELP.into());
+                }
+                monitor = Some(args[position + 1].to_str().ok_or(HELP)?.parse()?);
+            }
             if !address.ip().is_loopback() {
                 return Err("HTTP-only mode requires loopback".into());
             }
-            let parsed = ParsedConfig::read(File::open(&args[1])?)?;
+            let parsed = control::read_config(Path::new(&args[1]))?;
             let config = parsed.compile()?;
             let server = Server::new(&config)?;
             let listener = TcpListener::bind(address)?;
-            eprintln!(
-                "HTTP-only listening on {}; TLS auto is not active",
-                listener.local_addr()?
-            );
-            server.serve(listener, &AtomicBool::new(false))?;
+            let signals = control::Signals::install()?;
+            run_service(
+                &server,
+                listener,
+                Path::new(&args[1]),
+                &signals,
+                None,
+                monitor,
+            )?;
         }
         "serve-tls" => {
             if args.len() < 4 {
@@ -51,6 +62,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let mut address = "0.0.0.0:443";
             let mut directory = acme::STAGING;
             let mut contact = Vec::new();
+            let mut monitor = None;
             let mut seen = std::collections::BTreeSet::new();
             let mut i = 3;
             while i < args.len() {
@@ -73,6 +85,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     "--listen" => address = value,
+                    "--monitor" => monitor = Some(value.parse()?),
                     "--contact" => contact.push(value.to_owned()),
                     _ => return Err(HELP.into()),
                 }
@@ -82,9 +95,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 return Err("--accept-terms is required before contacting the selected CA".into());
             }
             let address: SocketAddr = address.parse()?;
-            let parsed = ParsedConfig::read(File::open(&args[1])?)?;
+            let parsed = control::read_config(Path::new(&args[1]))?;
             let config = parsed.compile()?;
-            let server = Server::new(&config)?;
+            let server = Server::new_with_cache(&config, Some(&cache))?;
             let domains = config.sites().iter().map(|s| s.host().to_owned()).collect();
             let roots: Vec<_> = config.sites().iter().map(|s| s.root()).collect();
             #[cfg(target_os = "linux")]
@@ -100,7 +113,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     },
                 )?;
             }
-            let manager = acme::Manager::new(
+            let signals = control::Signals::install()?;
+            let mut manager = acme::Manager::new(
                 domains,
                 &roots,
                 &cache,
@@ -108,20 +122,98 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 contact,
                 acme::public_client_config()?,
             )?;
-            let tls = tls::TlsServer::new(manager.identity())?;
+            manager.set_observability(server.observability());
             let listener = TcpListener::bind(address)?;
-            eprintln!(
-                "HTTPS listening on {}; ACME={}; cache is private; TLS-ALPN-01 requires external TCP/443",
-                listener.local_addr()?,
-                if directory == acme::STAGING {
-                    "staging"
-                } else {
-                    "production"
-                }
-            );
-            let shutdown = AtomicBool::new(false);
-            thread::scope(|scope| -> std::io::Result<()> {
-                let worker = thread::Builder::new()
+            run_service(
+                &server,
+                listener,
+                Path::new(&args[1]),
+                &signals,
+                Some(&manager),
+                monitor,
+            )?;
+        }
+        _ => return Err(HELP.into()),
+    }
+    Ok(())
+}
+struct StopWorker<'a>(&'a AtomicBool);
+impl Drop for StopWorker<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
+    }
+}
+fn run_service(
+    server: &Server,
+    listener: TcpListener,
+    path: &Path,
+    signals: &control::Signals,
+    manager: Option<&acme::Manager>,
+    monitor: Option<SocketAddr>,
+) -> std::io::Result<()> {
+    let monitor = monitor
+        .map(|addr| {
+            if !addr.ip().is_loopback() {
+                return Err(std::io::Error::other("monitor requires loopback"));
+            }
+            TcpListener::bind(addr)
+        })
+        .transpose()?;
+    let identity = manager.map(acme::Manager::identity);
+    let tls = identity
+        .as_ref()
+        .map(|identity| tls::TlsServer::new(identity.clone()))
+        .transpose()?;
+    server.observability().enable_stderr()?;
+    server.observability().listening(
+        listener.local_addr()?.port(),
+        monitor
+            .as_ref()
+            .map(|l| l.local_addr().map(|a| a.port()))
+            .transpose()?,
+        tls.is_some(),
+    );
+    let done = AtomicBool::new(false);
+    thread::scope(|scope| {
+        // Set both flags on every exit, including thread-spawn errors and panics,
+        // before scope waits for background workers.
+        struct Stop<'a>(&'a AtomicBool, &'a AtomicBool);
+        impl Drop for Stop<'_> {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+                self.1.store(true, Ordering::Release);
+            }
+        }
+        let _stop = Stop(&signals.shutdown, &done);
+        let reload = thread::Builder::new()
+            .name("pathward-reload".into())
+            .spawn_scoped(scope, || {
+                let _stop = StopWorker(&signals.shutdown);
+                control::reload_loop(server, path, signals)
+            })?;
+        let monitor_worker = monitor
+            .map(|listener| {
+                thread::Builder::new()
+                    .name("pathward-monitor".into())
+                    .spawn_scoped(scope, || {
+                        let _stop = StopWorker(&signals.shutdown);
+                        let result = control::monitor(
+                            listener,
+                            server,
+                            identity.as_deref(),
+                            &signals.shutdown,
+                            &done,
+                        );
+                        if result.is_err() {
+                            signals.shutdown.store(true, Ordering::Release);
+                        }
+                        result
+                    })
+            })
+            .transpose()?;
+        let acme_worker = manager
+            .map(|manager| {
+                thread::Builder::new()
                     .name("pathward-acme".into())
                     .spawn_scoped(scope, || {
                         struct Stop<'a>(&'a AtomicBool);
@@ -130,20 +222,33 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 self.0.store(true, Ordering::Release);
                             }
                         }
-                        let _stop = Stop(&shutdown);
-                        manager.run(&shutdown)
-                    })?;
-                let result = server.serve_tls(listener, &shutdown, &tls);
-                shutdown.store(true, Ordering::Release);
-                worker
-                    .join()
-                    .map_err(|_| std::io::Error::other("ACME worker failed"))?;
-                result
-            })?;
+                        let _stop = Stop(&signals.shutdown);
+                        manager.run(&signals.shutdown);
+                    })
+            })
+            .transpose()?;
+        let result = match tls.as_ref() {
+            Some(tls) => server.serve_tls(listener, &signals.shutdown, tls),
+            None => server.serve(listener, &signals.shutdown),
+        };
+        signals.shutdown.store(true, Ordering::Release);
+        server.begin_shutdown();
+        done.store(true, Ordering::Release);
+        reload
+            .join()
+            .map_err(|_| std::io::Error::other("reload worker failed"))?;
+        if let Some(worker) = acme_worker {
+            worker
+                .join()
+                .map_err(|_| std::io::Error::other("ACME worker failed"))?;
         }
-        _ => return Err(HELP.into()),
-    }
-    Ok(())
+        if let Some(worker) = monitor_worker {
+            worker
+                .join()
+                .map_err(|_| std::io::Error::other("monitor worker failed"))??;
+        }
+        result
+    })
 }
 fn main() -> ExitCode {
     match run() {

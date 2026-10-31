@@ -69,3 +69,7 @@ sustained denial-of-service protection still require deployment controls.
 See [audit and proof boundaries](tls-audit.md) and
 [remaining deployment work](production-readiness.md). To reproduce the local CA
 test, explicitly run `make acme-test-setup` then `make acme-integration` on Linux.
+
+For SIGHUP reload, SIGTERM/SIGINT draining, redacted JSON logging and the optional
+loopback `--monitor` endpoints, see [runtime operation](runtime.md). Hostname and
+ACME identity changes require restart; root/publication changes can be reloaded.

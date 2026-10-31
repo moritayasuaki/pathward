@@ -2,6 +2,7 @@ import PathwardProofs
 import RulesProofs
 import ServingProofs
 import TlsProofs
+import RuntimeProofs
 
 #print axioms PathwardProofs.valid_path_eq
 #print axioms PathwardProofs.same_path_eq
@@ -61,3 +62,17 @@ import TlsProofs
 #print axioms TlsProofs.renewal_contract
 #print axioms TlsProofs.renew_at_expiration
 #print axioms TlsProofs.lifecycle_total
+
+#print axioms RuntimeProofs.commit_contract
+#print axioms RuntimeProofs.commit_total
+#print axioms RuntimeProofs.failed_retains
+#print axioms RuntimeProofs.draining_retains
+#print axioms RuntimeProofs.stale_retains
+#print axioms RuntimeProofs.identity_mismatch_retains
+#print axioms RuntimeProofs.unsafe_storage_retains
+#print axioms RuntimeProofs.unprepared_retains
+#print axioms RuntimeProofs.exhausted_retains
+#print axioms RuntimeProofs.ready_eq
+#print axioms RuntimeProofs.ready_contract
+#print axioms RuntimeProofs.no_ready_while_draining
+#print axioms RuntimeProofs.no_ready_without_tls_certificate

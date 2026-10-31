@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-31T01:18:23.934027+00:00",
+  "checked_at": "2026-10-31T01:53:33.174275+00:00",
   "auditor": "cargo-audit 0.22.2",
   "database_commit": "2295466c4e9df26647fd67d8fa1c705ac2fc7f81",
   "profiles": {
@@ -12,8 +12,8 @@
       "lockfile_sha256": "39aa9909061dd6333615ce36e10add4b0be1b31cde1fb4b0790386c343057ee7"
     },
     "http_server": {
-      "manifest_sha256": "9614049e5c625bfb9914d98df5f5e58ece7620924d05786d683c8f8893ceef7d",
-      "lockfile_sha256": "2aaa6d4633722ac58301bff52a9d4645022557dc016601b252ce792b4a4e9294",
+      "manifest_sha256": "653be4baf638fddc1b8837f64b6883c3e388e802cb5e91a83e8da5250356bc6a",
+      "lockfile_sha256": "59cd2355c09b58b9751b016e63b7cab751b9514ba431143a9f40043cda14286a",
       "vendor_files_sha256": {
         "Cargo.toml": "b3c9b5e14aae93e691ef86b02b9ded3893fa9d8d772b6f35da845ceb462a05b6",
         "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
@@ -117,7 +117,7 @@
         "last-updated": null
       },
       "lockfile": {
-        "dependency-count": 106
+        "dependency-count": 108
       },
       "settings": {
         "target_arch": [],

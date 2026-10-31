@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the release CLI over real HTTP on an ephemeral loopback port."""
 from pathlib import Path
-import re
+import json
 import select
 import socket
 import subprocess
@@ -28,9 +28,9 @@ with tempfile.TemporaryDirectory(prefix="pathward-smoke-") as temporary:
     try:
         assert select.select([process.stderr], [], [], 10)[0], "server startup timed out"
         line = process.stderr.readline().decode()
-        found = re.search(r"HTTP-only listening on 127\.0\.0\.1:(\d+);", line)
-        assert found, line
-        port = int(found.group(1))
+        event = json.loads(line)
+        assert event["event"] == "listening", event
+        port = event["port"]
         for method, path, code, body in [
             ("GET", "/?v=1", 200, b"pathward smoke\n"),
             ("HEAD", "/", 200, b""),

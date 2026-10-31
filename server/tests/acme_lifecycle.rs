@@ -153,6 +153,7 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
     });
     drop(tls);
     drop(manager);
+    let server = Server::new(&config).unwrap();
     // Restart uses durable account/certificate without polling or contacting ACME.
     let manager = make_manager();
     let tls = TlsServer::new(manager.identity()).unwrap();

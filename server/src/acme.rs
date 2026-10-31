@@ -47,6 +47,7 @@ pub struct Manager {
     account_key: Vec<u8>,
     cache: SecretStore,
     identity: Arc<Identity>,
+    observe: Arc<crate::observe::Observability>,
 }
 impl Manager {
     /// Custom HTTPS origins/trust roots are an explicit library/test boundary.
@@ -127,7 +128,11 @@ impl Manager {
             account_key,
             cache,
             identity,
+            observe: Arc::new(crate::observe::Observability::default()),
         })
+    }
+    pub fn set_observability(&mut self, observe: Arc<crate::observe::Observability>) {
+        self.observe = observe;
     }
     pub fn identity(&self) -> Arc<Identity> {
         self.identity.clone()
@@ -281,11 +286,20 @@ impl Manager {
                     })
                     .unwrap_or("awaiting_certificate");
                 if health != previous {
-                    eprintln!("tls certificate state={health}");
+                    self.observe.event(
+                        match health {
+                            "ready" => "certificate_ready",
+                            "renewal_due" => "certificate_renewal_due",
+                            "unavailable" => "certificate_unavailable",
+                            _ => "certificate_pending",
+                        },
+                        0,
+                        0,
+                    );
                     previous = health;
                 }
                 if self.due() && Instant::now() >= next {
-                    eprintln!("acme event=order_started");
+                    self.observe.acme(None, 0);
                     let result = future::or(self.order(), async {
                         let deadline = Instant::now() + ORDER_BUDGET;
                         loop {
@@ -316,12 +330,12 @@ impl Manager {
                         self.identity.install(cert, true)
                     });
                     if result.is_ok() {
-                        eprintln!("acme event=certificate_persisted_and_activated");
+                        self.observe.acme(Some(true), 0);
                         retry = 60;
                         // Even an unusually short-lived CA certificate cannot cause a tight order loop.
                         next = Instant::now() + Duration::from_secs(1);
                     } else {
-                        eprintln!("acme event=order_or_persistence_failed retry_seconds={retry}");
+                        self.observe.acme(Some(false), retry);
                         next = Instant::now() + Duration::from_secs(retry);
                         retry = (retry * 2).min(3600);
                     }

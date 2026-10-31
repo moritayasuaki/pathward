@@ -35,7 +35,9 @@ def main():
                         "--start-from", "pathward::tls::identity_allowed",
                         "--start-from", "pathward::tls::secret_allowed",
                         "--start-from", "pathward::tls::activate",
-                        "--start-from", "pathward::tls::renewal_due", "--dest-file", str(llbc)],
+                        "--start-from", "pathward::tls::renewal_due",
+                        "--start-from", "pathward::runtime::commit_generation",
+                        "--start-from", "pathward::runtime::ready", "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
                         "-abort-on-error", "-warnings-as-errors", "-dest", str(output), str(llbc)],

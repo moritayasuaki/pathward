@@ -228,6 +228,7 @@ pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
         417 => "Expectation Failed",
         421 => "Misdirected Request",
         431 => "Request Header Fields Too Large",
+        503 => "Service Unavailable",
         505 => "HTTP Version Not Supported",
         _ => "Internal Server Error",
     };

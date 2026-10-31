@@ -76,11 +76,19 @@ identity on failure, and rejects expired identities on new handshakes. SNI must
 be configured and HTTP Host must match it. See [operation](docs/tls-serving.md)
 and [TLS/key-storage audit](docs/tls-audit.md) for limits and trust assumptions.
 
-The actual server has **102 crates.io package versions plus one small attributed
-rustls-acme fork** across all targets (87 crates.io versions plus the fork in the
+The actual server has **104 crates.io package versions plus one small attributed
+rustls-acme fork** across all targets (90 crates.io versions plus the fork in the
 Linux normal/build graph). No Axum, Tower, Tokio, Hyper or HTTP/2 stack is linked.
 The verified core remains zero-dependency. The fork and every transitive/build
 package are included in the reviewed inventory; this is not a full source proof.
+
+## Runtime operation
+
+SIGHUP atomically reloads publications and pinned roots; failed reloads retain the
+active configuration. SIGTERM/SIGINT drain active connections. Runtime events are
+redacted JSON on stderr; optional `--monitor 127.0.0.1:9090` exposes health,
+readiness and Prometheus metrics. Host/ACME identity changes require restart.
+See [operation](docs/runtime.md) and [source/proof audit](docs/runtime-audit.md).
 
 ## Server dependencies
 
@@ -218,7 +226,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 57 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 70 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

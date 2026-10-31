@@ -394,6 +394,50 @@ def rules.lookup
     then rules.lookup_from path rules1 0#usize
     else ok none
 
+/-- [pathward::runtime::commit_generation]:
+    Source: 'src/runtime.rs', lines 4:0-23:1
+    Visibility: public -/
+def runtime.commit_generation
+  (current : Std.U64) (expected : Std.U64) (prepared : Bool)
+  (identity_matches : Bool) (storage_isolated : Bool) (draining : Bool) :
+  RustM Std.U64
+  := do
+  if prepared
+  then
+    if identity_matches
+    then
+      if storage_isolated
+      then
+        if draining
+        then ok current
+        else
+          if current = expected
+          then
+            if current < core.num.U64.MAX
+            then current + 1#u64
+            else ok current
+          else ok current
+      else ok current
+    else ok current
+  else ok current
+
+/-- [pathward::runtime::ready]:
+    Source: 'src/runtime.rs', lines 25:0-27:1
+    Visibility: public -/
+def runtime.ready
+  (draining : Bool) (serving1 : Bool) (tls1 : Bool) (certificate_valid : Bool)
+  :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else
+    if serving1
+    then if tls1
+         then ok certificate_valid
+         else ok true
+    else ok false
+
 /-- [pathward::serving::MAX_FILE_BYTES]
     Source: 'src/serving.rs', lines 5:0-5:49
     Visibility: public -/

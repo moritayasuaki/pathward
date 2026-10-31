@@ -1,6 +1,6 @@
 name = "pathward_proofs"
 version = "0.1.0"
-defaultTargets = ["PathwardProofs", "RulesProofs", "ServingProofs", "TlsProofs"]
+defaultTargets = ["PathwardProofs", "RulesProofs", "ServingProofs", "TlsProofs", "RuntimeProofs"]
 
 [[lean_lib]]
 name = "PathwardProofs"
@@ -20,3 +20,6 @@ name = "ServingProofs"
 
 [[lean_lib]]
 name = "TlsProofs"
+
+[[lean_lib]]
+name = "RuntimeProofs"
