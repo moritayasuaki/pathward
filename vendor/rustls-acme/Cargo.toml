@@ -1,0 +1,24 @@
+[package]
+name = "rustls-acme"
+version = "0.15.4"
+edition = "2024"
+publish = false
+license = "Apache-2.0 OR MIT"
+description = "Reviewed low-level PathWard fork; see PROVENANCE.md"
+[features]
+default = []
+ring = []
+aws-lc-rs = []
+[dependencies]
+async-io = { version = "=2.6.0", default-features = false }
+async-net = { version = "=2.0.0", default-features = false }
+futures-lite = { version = "=2.6.1", default-features = false, features = ["std"] }
+futures-rustls = { version = "=0.26.0", default-features = false, features = ["ring"] }
+http = { version = "=1.5.0", default-features = false, features = ["std"] }
+httparse = { version = "=1.10.1", default-features = false }
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+rcgen = { version = "=0.13.2", default-features = false, features = ["pem", "ring", "crypto"] }
+ring = { version = "=0.17.14", default-features = false, features = ["std"] }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "=1.0.154", default-features = false, features = ["std"] }
+thiserror = { version = "=2.0.21", default-features = false, features = ["std"] }

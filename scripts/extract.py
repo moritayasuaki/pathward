@@ -31,7 +31,11 @@ def main():
                         "--start-from", "pathward::rules::compile",
                         "--start-from", "pathward::rules::lookup",
                         "--start-from", "pathward::serving::authorize",
-                        "--start-from", "pathward::serving::file_allowed", "--dest-file", str(llbc)],
+                        "--start-from", "pathward::serving::file_allowed",
+                        "--start-from", "pathward::tls::identity_allowed",
+                        "--start-from", "pathward::tls::secret_allowed",
+                        "--start-from", "pathward::tls::activate",
+                        "--start-from", "pathward::tls::renewal_due", "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
                         "-abort-on-error", "-warnings-as-errors", "-dest", str(output), str(llbc)],

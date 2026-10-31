@@ -567,4 +567,111 @@ def serving.file_allowed
     else ok false
   else ok false
 
+/-- [pathward::tls::identity_allowed]:
+    Source: 'src/tls.rs', lines 5:0-7:1
+    Visibility: public -/
+def tls.identity_allowed
+  (sni : Slice Std.U8) (host : Slice Std.U8) (configured : Slice Std.U8) :
+  RustM Bool
+  := do
+  let b ← core.slice.Slice.is_empty sni
+  if b
+  then ok false
+  else
+    let b1 ← same_path sni host
+    if b1
+    then same_path host configured
+    else ok false
+
+/-- [pathward::tls::SecretFacts]
+    Source: 'src/tls.rs', lines 10:0-18:1
+    Visibility: public -/
+structure tls.SecretFacts where
+  regular : Bool
+  owner : Std.U32
+  mode : Std.U32
+  links : Std.U64
+  size : Std.U64
+  device : Std.U64
+  inode : Std.U64
+
+/-- [pathward::tls::secret_allowed]:
+    Source: 'src/tls.rs', lines 21:0-34:1
+    Visibility: public -/
+def tls.secret_allowed
+  (pin : tls.SecretFacts) (opened : tls.SecretFacts) (uid : Std.U32) :
+  RustM Bool
+  := do
+  if pin.regular
+  then
+    if opened.regular
+    then
+      if pin.owner = uid
+      then
+        if opened.owner = uid
+        then
+          if pin.mode = 384#u32
+          then
+            if opened.mode = 384#u32
+            then
+              if pin.links = 1#u64
+              then
+                if opened.links = 1#u64
+                then
+                  if pin.size <= 1048576#u64
+                  then
+                    if opened.size = pin.size
+                    then
+                      if pin.device = opened.device
+                      then ok (pin.inode = opened.inode)
+                      else ok false
+                    else ok false
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::tls::activate]:
+    Source: 'src/tls.rs', lines 37:0-46:1
+    Visibility: public -/
+def tls.activate
+  (not_before : Std.U64) (not_after : Std.U64) (now : Std.U64)
+  (key_matches : Bool) (names_match : Bool) (persisted : Bool) :
+  RustM Bool
+  := do
+  if key_matches
+  then
+    if names_match
+    then
+      if persisted
+      then if not_before <= now
+           then ok (now < not_after)
+           else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::tls::renewal_due]:
+    Source: 'src/tls.rs', lines 50:0-57:1
+    Visibility: public -/
+def tls.renewal_due
+  (not_before : Std.U64) (not_after : Std.U64) (now : Std.U64) :
+  RustM Bool
+  := do
+  if now < not_before
+  then ok true
+  else
+    if now >= not_after
+    then ok true
+    else
+      let lifetime ← not_after - not_before
+      let remaining ← not_after - now
+      let i ← lifetime / 3#u64
+      ok (remaining <= i)
+
 end pathward

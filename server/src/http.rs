@@ -3,6 +3,21 @@ use std::io::{self, Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
+pub trait Transport: Read + Write {
+    fn deadline(&mut self, deadline: Instant) -> io::Result<()>;
+    fn local_port(&self) -> io::Result<u16>;
+}
+impl Transport for TcpStream {
+    fn deadline(&mut self, deadline: Instant) -> io::Result<()> {
+        let left = remaining(deadline)?;
+        self.set_read_timeout(Some(left))?;
+        self.set_write_timeout(Some(left))
+    }
+    fn local_port(&self) -> io::Result<u16> {
+        Ok(self.local_addr()?.port())
+    }
+}
+
 pub const MAX_HEAD_BYTES: usize = 16_384;
 pub const MAX_HEADERS: usize = 32;
 pub const READ_BUDGET: Duration = Duration::from_secs(5);
@@ -126,18 +141,18 @@ pub fn parse(head: &[u8], local_port: u16) -> Result<Request<'_>, Rejection> {
     })
 }
 
-fn remaining(deadline: Instant) -> io::Result<Duration> {
+pub(crate) fn remaining(deadline: Instant) -> io::Result<Duration> {
     deadline
         .checked_duration_since(Instant::now())
         .filter(|d| !d.is_zero())
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "connection deadline"))
 }
 
-pub fn read_head(stream: &mut TcpStream, deadline: Instant) -> io::Result<Vec<u8>> {
+pub fn read_head(stream: &mut impl Transport, deadline: Instant) -> io::Result<Vec<u8>> {
     let mut data = Vec::with_capacity(MAX_HEAD_BYTES);
     let mut chunk = [0; 1024];
     loop {
-        stream.set_read_timeout(Some(remaining(deadline)?))?;
+        stream.deadline(deadline)?;
         let limit = chunk.len().min(MAX_HEAD_BYTES - data.len());
         if limit == 0 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "header limit"));
@@ -160,9 +175,13 @@ pub fn read_head(stream: &mut TcpStream, deadline: Instant) -> io::Result<Vec<u8
     }
 }
 
-pub fn write_all(stream: &mut TcpStream, mut bytes: &[u8], deadline: Instant) -> io::Result<()> {
+pub fn write_all(
+    stream: &mut impl Transport,
+    mut bytes: &[u8],
+    deadline: Instant,
+) -> io::Result<()> {
     while !bytes.is_empty() {
-        stream.set_write_timeout(Some(remaining(deadline)?))?;
+        stream.deadline(deadline)?;
         let n = match stream.write(bytes) {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
             result => result?,
@@ -175,6 +194,7 @@ pub fn write_all(stream: &mut TcpStream, mut bytes: &[u8], deadline: Instant) ->
         }
         bytes = &bytes[n..];
     }
+    stream.flush()?;
     Ok(())
 }
 

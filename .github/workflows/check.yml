@@ -32,6 +32,10 @@ jobs:
         run: make check
       - name: Check mount confinement in a private Linux namespace
         run: python3 scripts/linux_mount_check.py
+      - name: Install pinned local test CA
+        run: make acme-test-setup
+      - name: Test real TLS-ALPN-01 issuance, renewal, restart and persistence failure
+        run: make acme-integration
       - name: Build production HTTP binary and smoke-test the CLI
         run: |
           make server-build

@@ -55,3 +55,10 @@ server-check:
 
 server-build:
 	cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml
+
+.PHONY: acme-test-setup acme-integration
+acme-test-setup:
+	python3 scripts/acme_test_setup.py
+
+acme-integration:
+	python3 scripts/acme_integration.py

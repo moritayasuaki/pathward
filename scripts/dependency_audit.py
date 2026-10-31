@@ -32,10 +32,11 @@ def graph_snapshot(metadata, directory=FIXTURE):
             continue
         source = package["source"]
         local = {(ROOT / "Cargo.toml").resolve(): "path:.",
-                 (ROOT / "config/Cargo.toml").resolve(): "path:config"}
+                 (ROOT / "config/Cargo.toml").resolve(): "path:config",
+                 (ROOT / "vendor/rustls-acme/Cargo.toml").resolve(): "path:vendor/rustls-acme"}
         if source is None:
             source = local.get(Path(package["manifest_path"]).resolve())
-        if source not in (REGISTRY, "path:.", "path:config"):
+        if source not in (REGISTRY, "path:.", "path:config", "path:vendor/rustls-acme"):
             raise SystemExit(f"Unreviewed package source: {package['name']} {package['source']}")
         packages.append({
             "name": package["name"], "version": package["version"],
@@ -44,11 +45,16 @@ def graph_snapshot(metadata, directory=FIXTURE):
             "build_script": any("custom-build" in target["kind"] for target in package["targets"]),
             "proc_macro": any("proc-macro" in target["kind"] for target in package["targets"]),
         })
-    return {
+    result = {
         "manifest_sha256": digest(directory / "Cargo.toml"),
         "lockfile_sha256": digest(directory / "Cargo.lock"),
         "packages": sorted(packages, key=lambda package: (package["name"], package["version"])),
     }
+    if any(p["source"] == "path:vendor/rustls-acme" for p in packages):
+        vendor = ROOT / "vendor/rustls-acme"
+        result["vendor_files_sha256"] = {str(p.relative_to(vendor)): digest(p)
+                                        for p in sorted(vendor.rglob("*")) if p.is_file()}
+    return result
 
 
 def scan(database, lockfile, expected_count):

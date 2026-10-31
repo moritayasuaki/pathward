@@ -1,8 +1,11 @@
 //! Minimal HTTP/1.1 serving on loopback, using the verified publication gate.
 #![forbid(unsafe_code)]
 
+pub mod acme;
 pub mod files;
 pub mod http;
+pub mod secrets;
+pub mod tls;
 
 use files::DocumentRoot;
 use pathward::serving::authorize;
@@ -43,7 +46,7 @@ impl<'a> Server<'a> {
         Ok(Self { sites })
     }
 
-    fn reject(stream: &mut TcpStream, status: u16) -> io::Result<()> {
+    fn reject(stream: &mut impl http::Transport, status: u16) -> io::Result<()> {
         // Error responses contain no reflected paths, hosts, or error details.
         http::write_all(
             stream,
@@ -52,7 +55,12 @@ impl<'a> Server<'a> {
         )
     }
 
-    fn handle(&self, stream: &mut TcpStream, accepted: Instant) -> io::Result<()> {
+    fn handle(
+        &self,
+        stream: &mut impl http::Transport,
+        accepted: Instant,
+        sni: Option<&str>,
+    ) -> io::Result<()> {
         let head = match http::read_head(stream, accepted + http::READ_BUDGET) {
             Ok(head) => head,
             Err(e) => {
@@ -66,7 +74,7 @@ impl<'a> Server<'a> {
                 );
             }
         };
-        let req = match http::parse(&head, stream.local_addr()?.port()) {
+        let req = match http::parse(&head, stream.local_port()?) {
             Ok(req) => req,
             Err(http::Rejection(status)) => return Self::reject(stream, status),
         };
@@ -76,6 +84,15 @@ impl<'a> Server<'a> {
         let Some(site) = self.sites.iter().find(|s| s.config.host() == req.host) else {
             return Self::reject(stream, 421);
         };
+        if let Some(sni) = sni
+            && !pathward::tls::identity_allowed(
+                sni.as_bytes(),
+                req.host.as_bytes(),
+                site.config.host().as_bytes(),
+            )
+        {
+            return Self::reject(stream, 421);
+        }
         let Some(grant) = authorize(
             req.method,
             req.host.as_bytes(),
@@ -120,9 +137,25 @@ impl<'a> Server<'a> {
         if !listener.local_addr()?.ip().is_loopback() {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                "HTTP-only mode requires a loopback listener; TLS is not implemented",
+                "HTTP-only mode requires a loopback listener",
             ));
         }
+        self.serve_transport(listener, shutdown, None)
+    }
+    pub fn serve_tls(
+        &self,
+        listener: TcpListener,
+        shutdown: &AtomicBool,
+        tls: &tls::TlsServer,
+    ) -> io::Result<()> {
+        self.serve_transport(listener, shutdown, Some(tls))
+    }
+    fn serve_transport(
+        &self,
+        listener: TcpListener,
+        shutdown: &AtomicBool,
+        tls: Option<&tls::TlsServer>,
+    ) -> io::Result<()> {
         listener.set_nonblocking(true)?;
         thread::scope(|scope| {
             let (send, receive) = mpsc::sync_channel::<(TcpStream, Instant)>(QUEUE_CAPACITY);
@@ -143,7 +176,17 @@ impl<'a> Server<'a> {
                             if !shutdown.load(Ordering::Acquire)
                                 && stream.set_nonblocking(false).is_ok()
                             {
-                                let _ = self.handle(&mut stream, accepted);
+                                if let Some(tls) = tls {
+                                    // Own the socket through the entire TLS exchange.
+                                    if let Ok(Some(mut encrypted)) = tls.accept(stream, accepted) {
+                                        let sni = encrypted.sni.clone();
+                                        let _ =
+                                            self.handle(&mut encrypted, Instant::now(), Some(&sni));
+                                        let _ = encrypted.finish();
+                                    }
+                                    continue;
+                                }
+                                let _ = self.handle(&mut stream, accepted, None);
                             }
                             let _ = stream.shutdown(Shutdown::Both);
                         }

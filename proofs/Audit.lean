@@ -1,6 +1,7 @@
 import PathwardProofs
 import RulesProofs
 import ServingProofs
+import TlsProofs
 
 #print axioms PathwardProofs.valid_path_eq
 #print axioms PathwardProofs.same_path_eq
@@ -43,3 +44,20 @@ import ServingProofs
 #print axioms ServingProofs.file_allowed_contract
 #print axioms ServingProofs.file_allowed_total
 #print axioms ServingProofs.file_identity_preserved
+
+#print axioms TlsProofs.identity_eq
+#print axioms TlsProofs.identity_contract
+#print axioms TlsProofs.no_domain_fronting
+#print axioms TlsProofs.no_missing_sni
+#print axioms TlsProofs.secret_eq
+#print axioms TlsProofs.secret_contract
+#print axioms TlsProofs.no_public_secret
+#print axioms TlsProofs.secret_identity
+#print axioms TlsProofs.activate_eq
+#print axioms TlsProofs.activate_contract
+#print axioms TlsProofs.no_unpersisted_activation
+#print axioms TlsProofs.no_expired_activation
+#print axioms TlsProofs.renewal_eq
+#print axioms TlsProofs.renewal_contract
+#print axioms TlsProofs.renew_at_expiration
+#print axioms TlsProofs.lifecycle_total
