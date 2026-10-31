@@ -37,30 +37,49 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
         for command in commands:
             subprocess.run(["openssl"] + command, cwd=work, stdout=log, stderr=log, check=True)
     api, management, serving = port(), port(), port()
-    dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    dns.bind(("127.0.0.1", 0)); dns.settimeout(0.2)
+    dns = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    dns.bind(("127.0.0.1", 0)); dns.listen(32); dns.settimeout(0.2)
     stop = threading.Event()
+    def read_exact(connection, size):
+        data = b""
+        while len(data) < size:
+            chunk = connection.recv(size - len(data))
+            if not chunk:
+                raise OSError("short test DNS frame")
+            data += chunk
+        return data
     def respond_dns():
+        # Pebble's custom resolver deliberately uses DNS over TCP.
         while not stop.is_set():
             try:
-                data, address = dns.recvfrom(4096)
+                connection, _ = dns.accept()
             except socket.timeout:
                 continue
-            offset = 12
-            while offset < len(data) and data[offset]:
-                offset += data[offset] + 1
-            end = offset + 5
-            if end > len(data):
-                continue
-            kind = struct.unpack("!H", data[offset+1:offset+3])[0]
-            answer = b"\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x01\x00\x04\x7f\x00\x00\x01" if kind == 1 else b""
-            response = data[:2] + struct.pack("!HHHHH", 0x8180, 1, bool(answer), 0, 0) + data[12:end] + answer
-            dns.sendto(response, address)
+            with connection:
+                connection.settimeout(1)
+                try:
+                    size = struct.unpack("!H", read_exact(connection, 2))[0]
+                    if size > 4096:
+                        continue
+                    data = read_exact(connection, size)
+                    offset = 12
+                    while offset < len(data) and data[offset]:
+                        offset += data[offset] + 1
+                    end = offset + 5
+                    if end > len(data):
+                        continue
+                    kind = struct.unpack("!H", data[offset+1:offset+3])[0]
+                    answer = bytes.fromhex("c00c000100010000000100047f000001") if kind == 1 else b""
+                    response = data[:2] + struct.pack("!HHHHH", 0x8180, 1, bool(answer), 0, 0) + data[12:end] + answer
+                    connection.sendall(struct.pack("!H", len(response)) + response)
+                except OSError:
+                    continue
     worker = threading.Thread(target=respond_dns)
     worker.start()
     config = {"pebble": {"listenAddress": f"127.0.0.1:{api}", "managementListenAddress": f"127.0.0.1:{management}",
         "certificate": str(work / "server.pem"), "privateKey": str(work / "server.key"),
-        "httpPort": port(), "tlsPort": serving, "certificateValidityPeriod": 30}}
+        "httpPort": port(), "tlsPort": serving, "keyAlgorithm": "ecdsa",
+        "profiles": {"default": {"description": "PathWard local renewal test", "validityPeriod": 30}}}}
     (work / "pebble.json").write_text(json.dumps(config))
     env = dict(os.environ, PEBBLE_VA_NOSLEEP="1", PEBBLE_WFE_NONCEREJECT="0", PEBBLE_AUTHZREUSE="0")
     # Validation is real: deliberately do NOT set PEBBLE_VA_ALWAYS_VALID.
