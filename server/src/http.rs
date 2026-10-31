@@ -221,6 +221,8 @@ pub fn content_type(target: &str) -> &'static str {
 pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
     let reason = match status {
         200 => "OK",
+        301 => "Moved Permanently",
+        308 => "Permanent Redirect",
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",

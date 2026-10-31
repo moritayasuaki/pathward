@@ -16,8 +16,9 @@ server/target/release/pathward-server serve-tls /etc/pathward/Pathward.kdl \
 
 Configure DNS for every site and forward public TCP/443 directly to this TLS
 listener (8443 in the example). TLS-ALPN-01 cannot pass through a proxy that
-terminates TLS. Ports 80, automatic HTTP redirects, DNS-01 and HTTP-01 are not
-implemented. No deployment, DNS mutation, firewall change or public issuance is
+terminates TLS. Optional `--http-listen 0.0.0.0:8080` adds a redirect-only public
+HTTP listener; forward TCP/80 there. See [redirect operation](production-basics.md).
+DNS-01 and HTTP-01 are not implemented. No deployment, DNS mutation, firewall change or public issuance is
 performed by building/testing this repository.
 
 Staging is the default and its certificates are not publicly trusted. After
@@ -25,8 +26,8 @@ validating the setup, select `--acme production` with a **separate** private cac
 such as `/var/lib/pathward/production`. `--accept-terms` explicitly accepts the
 selected CA's subscriber terms. Do not use a disposable cache in production.
 The directory binds to the CA, sorted configured domains and contact; changing
-that identity requires a separate directory. Configuration is immutable until
-restart. The initial implementation uses one SAN certificate/account for all
+that identity requires a separate directory. Host/ACME identity changes require restart; publications, roots, headers and
+redirects support transactional reload. The initial implementation uses one SAN certificate/account for all
 1–16 configured DNS domains, so these domains share an identity and public CT
 visibility. Issuance requires control of every domain.
 
@@ -63,8 +64,9 @@ supported (TLS ALPN `http/1.1`, or absent ALPN for ordinary clients). ACME-only
 TLS 1.0/1.1, session resumption/tickets and 0-RTT are disabled. Handshakes have a
 5-second total deadline including queue time and a 128 KiB input limit. The
 existing four workers/eight queued connections bound handshake and serving
-concurrency; HTTP adds its existing header/write limits. Per-client fairness and
-sustained denial-of-service protection still require deployment controls.
+concurrency; HTTP adds its existing header/write limits. [Admission gates](production-basics.md#admission-limits-and-test-scope) now bound
+per-peer concurrency and rate before TLS. Sustained denial-of-service protection
+still requires deployment controls.
 
 See [audit and proof boundaries](tls-audit.md) and
 [remaining deployment work](production-readiness.md). To reproduce the local CA

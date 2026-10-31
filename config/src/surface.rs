@@ -2,7 +2,7 @@
 //! This admits bounded, well-formed syntax before calling the upstream parser,
 //! avoiding its recursive children, block comments, slashdash and error recovery.
 //! It never decodes or rewrites values; kdl remains the authoritative decoder.
-use crate::{ConfigError, MAX_PUBLICATIONS, MAX_SITES, error};
+use crate::{ConfigError, MAX_HEADERS, MAX_PUBLICATIONS, MAX_REDIRECTS, MAX_SITES, error};
 
 pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
     let mut input = Surface { source, pos: 0 };
@@ -22,16 +22,21 @@ pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
         let mut directives = 0;
         while input.peek() != Some(b'}') {
             directives += 1;
-            if directives > MAX_PUBLICATIONS + 2 {
+            if directives > MAX_PUBLICATIONS + MAX_REDIRECTS + MAX_HEADERS + 2 {
                 return input.fail("too many site directives");
             }
             let start = input.pos;
-            while input.peek().is_some_and(|b| b.is_ascii_lowercase()) {
+            while input
+                .peek()
+                .is_some_and(|b| b.is_ascii_lowercase() || b == b'-')
+            {
                 input.pos += 1;
             }
             let arguments = match &source[start..input.pos] {
                 "root" | "tls" => 1,
                 "publish" => 2,
+                "redirect" | "redirect-prefix" => 4,
+                "header" => 3,
                 _ => {
                     input.pos = start;
                     return input.fail("expected root, publish, or tls directive");

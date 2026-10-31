@@ -215,6 +215,24 @@ mod linux {
                 }
             }
         }
+        pub(crate) fn socket_path(&self) -> std::path::PathBuf {
+            std::path::PathBuf::from(format!(
+                "/proc/self/fd/{}/control.sock",
+                self.directory.as_raw_fd()
+            ))
+        }
+        pub fn load_config(&self) -> io::Result<Option<Vec<u8>>> {
+            self.load_name(".config")
+        }
+        pub fn store_config(&self, bytes: &[u8]) -> io::Result<()> {
+            self.store_name(".config", bytes)
+        }
+        pub fn load_previous(&self) -> io::Result<Option<Vec<u8>>> {
+            self.load_name(".previous")
+        }
+        pub fn store_previous(&self, bytes: &[u8]) -> io::Result<()> {
+            self.store_name(".previous", bytes)
+        }
         pub fn load_account(&self) -> io::Result<Option<Vec<u8>>> {
             self.load_name(".account")
         }
@@ -242,6 +260,21 @@ impl SecretStore {
         ))
     }
     pub fn bind(&self, _: &[u8]) -> std::io::Result<()> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub(crate) fn socket_path(&self) -> std::path::PathBuf {
+        std::path::PathBuf::new()
+    }
+    pub fn load_config(&self) -> std::io::Result<Option<Vec<u8>>> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub fn store_config(&self, _: &[u8]) -> std::io::Result<()> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub fn load_previous(&self) -> std::io::Result<Option<Vec<u8>>> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub fn store_previous(&self, _: &[u8]) -> std::io::Result<()> {
         Err(std::io::ErrorKind::Unsupported.into())
     }
     pub fn load_account(&self) -> std::io::Result<Option<Vec<u8>>> {

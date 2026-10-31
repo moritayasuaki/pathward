@@ -254,13 +254,6 @@ def is_public
     then listed path published 0#usize
     else ok false
 
-/-- [pathward::rules::Publication]
-    Source: 'src/rules.rs', lines 9:0-12:1
-    Visibility: public -/
-structure rules.Publication where
-  path : Slice Std.U8
-  target : Slice Std.U8
-
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/
@@ -291,6 +284,433 @@ def rules.valid_target (target : Slice Std.U8) : RustM Bool := do
     else
       let state ← rules.valid_target_loop target State.Root 0#usize
       accepting state
+
+/-- [pathward::release::generated_rule]:
+    Source: 'src/release.rs', lines 5:0-18:1
+    Visibility: public -/
+def release.generated_rule
+  (url : Slice Std.U8) (target : Slice Std.U8) (entry : Slice Std.U8)
+  (root_alias : Bool) :
+  RustM Bool
+  := do
+  let b ← core.slice.Slice.is_empty url
+  if b
+  then ok false
+  else
+    let (_, suffix) ← core.slice.Slice.split_at url 1#usize
+    let b1 ← valid_path url
+    if b1
+    then
+      let b2 ← rules.valid_target target
+      if b2
+      then
+        let b3 ← same_path target entry
+        if b3
+        then
+          if root_alias
+          then
+            let s ← lift (Array.to_slice (Array.make 1#usize [ 47#u8 ]))
+            same_path url s
+          else same_path suffix target
+        else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::release::commit_allowed]:
+    Source: 'src/release.rs', lines 21:0-29:1
+    Visibility: public -/
+def release.commit_allowed
+  (current : Slice Std.U8) (expected : Slice Std.U8) (prepared : Bool)
+  (persisted : Bool) (draining : Bool) :
+  RustM Bool
+  := do
+  let i := Slice.len current
+  if i = 64#usize
+  then
+    let b ← same_path current expected
+    if b
+    then
+      if prepared
+      then if persisted
+           then ok (¬ draining)
+           else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::release::admission_allowed]:
+    Source: 'src/release.rs', lines 32:0-34:1
+    Visibility: public -/
+def release.admission_allowed
+  (active : Std.U64) (per_peer : Std.U64) (tokens : Std.U64) (draining : Bool)
+  :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else
+    if active < 12#u64
+    then if per_peer < 2#u64
+         then ok (tokens > 0#u64)
+         else ok false
+    else ok false
+
+/-- [pathward::response::visible]: loop 0:
+    Source: 'src/response.rs', lines 7:4-14:1
+    Visibility: public -/
+@[rust_loop]
+def response.visible_loop
+  (bytes : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len bytes
+  if i < i1
+  then
+    let i2 ← Slice.index_usize bytes i
+    if i2 < 32#u8
+    then ok false
+    else
+      if i2 > 126#u8
+      then ok false
+      else let i3 ← i + 1#usize
+           response.visible_loop bytes i3
+  else ok true
+partial_fixpoint
+
+/-- [pathward::response::visible]:
+    Source: 'src/response.rs', lines 5:0-14:1
+    Visibility: public -/
+@[reducible]
+def response.visible (bytes : Slice Std.U8) : RustM Bool := do
+  response.visible_loop bytes 0#usize
+
+/-- [pathward::response::header_name]:
+    Source: 'src/response.rs', lines 16:0-24:1
+    Visibility: public -/
+def response.header_name («name» : Slice Std.U8) : RustM Bool := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 23#usize [
+        99#u8, 111#u8, 110#u8, 116#u8, 101#u8, 110#u8, 116#u8, 45#u8, 115#u8,
+        101#u8, 99#u8, 117#u8, 114#u8, 105#u8, 116#u8, 121#u8, 45#u8, 112#u8,
+        111#u8, 108#u8, 105#u8, 99#u8, 121#u8
+        ]))
+  let b ← same_path «name» s
+  if b
+  then ok true
+  else
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 25#usize [
+          115#u8, 116#u8, 114#u8, 105#u8, 99#u8, 116#u8, 45#u8, 116#u8, 114#u8,
+          97#u8, 110#u8, 115#u8, 112#u8, 111#u8, 114#u8, 116#u8, 45#u8, 115#u8,
+          101#u8, 99#u8, 117#u8, 114#u8, 105#u8, 116#u8, 121#u8
+          ]))
+    let b1 ← same_path «name» s1
+    if b1
+    then ok true
+    else
+      let s2 ←
+        lift (Array.to_slice
+          (Array.make 15#usize [
+            114#u8, 101#u8, 102#u8, 101#u8, 114#u8, 114#u8, 101#u8, 114#u8,
+            45#u8, 112#u8, 111#u8, 108#u8, 105#u8, 99#u8, 121#u8
+            ]))
+      let b2 ← same_path «name» s2
+      if b2
+      then ok true
+      else
+        let s3 ←
+          lift (Array.to_slice
+            (Array.make 18#usize [
+              112#u8, 101#u8, 114#u8, 109#u8, 105#u8, 115#u8, 115#u8, 105#u8,
+              111#u8, 110#u8, 115#u8, 45#u8, 112#u8, 111#u8, 108#u8, 105#u8,
+              99#u8, 121#u8
+              ]))
+        let b3 ← same_path «name» s3
+        if b3
+        then ok true
+        else
+          let s4 ←
+            lift (Array.to_slice
+              (Array.make 15#usize [
+                120#u8, 45#u8, 102#u8, 114#u8, 97#u8, 109#u8, 101#u8, 45#u8,
+                111#u8, 112#u8, 116#u8, 105#u8, 111#u8, 110#u8, 115#u8
+                ]))
+          let b4 ← same_path «name» s4
+          if b4
+          then ok true
+          else
+            let s5 ←
+              lift (Array.to_slice
+                (Array.make 12#usize [
+                  120#u8, 45#u8, 114#u8, 111#u8, 98#u8, 111#u8, 116#u8, 115#u8,
+                  45#u8, 116#u8, 97#u8, 103#u8
+                  ]))
+            let b5 ← same_path «name» s5
+            if b5
+            then ok true
+            else
+              let s6 ←
+                lift (Array.to_slice
+                  (Array.make 4#usize [ 108#u8, 105#u8, 110#u8, 107#u8 ]))
+              same_path «name» s6
+
+/-- [pathward::response::header_allowed]:
+    Source: 'src/response.rs', lines 26:0-28:1
+    Visibility: public -/
+def response.header_allowed
+  («name» : Slice Std.U8) (value : Slice Std.U8) : RustM Bool := do
+  let b ← response.header_name «name»
+  if b
+  then
+    let b1 ← core.slice.Slice.is_empty value
+    if b1
+    then ok false
+    else
+      let i := Slice.len value
+      if i <= 4096#usize
+      then response.visible value
+      else ok false
+  else ok false
+
+/-- [pathward::response::host_bytes]: loop 0:
+    Source: 'src/response.rs', lines 36:4-44:1
+    Visibility: public -/
+@[rust_loop]
+def response.host_bytes_loop
+  (host : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len host
+  if i < i1
+  then
+    let b ← Slice.index_usize host i
+    if b >= 97#u8
+    then
+      if b <= 122#u8
+      then let i2 ← i + 1#usize
+           response.host_bytes_loop host i2
+      else
+        if b >= 48#u8
+        then
+          if b <= 57#u8
+          then let i2 ← i + 1#usize
+               response.host_bytes_loop host i2
+          else
+            if b = 46#u8
+            then let i2 ← i + 1#usize
+                 response.host_bytes_loop host i2
+            else
+              if b = 45#u8
+              then let i2 ← i + 1#usize
+                   response.host_bytes_loop host i2
+              else ok false
+        else
+          if b = 46#u8
+          then let i2 ← i + 1#usize
+               response.host_bytes_loop host i2
+          else
+            if b = 45#u8
+            then let i2 ← i + 1#usize
+                 response.host_bytes_loop host i2
+            else ok false
+    else
+      if b >= 48#u8
+      then
+        if b <= 57#u8
+        then let i2 ← i + 1#usize
+             response.host_bytes_loop host i2
+        else
+          if b = 46#u8
+          then let i2 ← i + 1#usize
+               response.host_bytes_loop host i2
+          else
+            if b = 45#u8
+            then let i2 ← i + 1#usize
+                 response.host_bytes_loop host i2
+            else ok false
+      else
+        if b = 46#u8
+        then let i2 ← i + 1#usize
+             response.host_bytes_loop host i2
+        else
+          if b = 45#u8
+          then let i2 ← i + 1#usize
+               response.host_bytes_loop host i2
+          else ok false
+  else ok true
+partial_fixpoint
+
+/-- [pathward::response::host_bytes]:
+    Source: 'src/response.rs', lines 31:0-44:1
+    Visibility: public -/
+def response.host_bytes (host : Slice Std.U8) : RustM Bool := do
+  let b ← core.slice.Slice.is_empty host
+  if b
+  then ok false
+  else
+    let i := Slice.len host
+    if i > 253#usize
+    then ok false
+    else response.host_bytes_loop host 0#usize
+
+/-- [pathward::serving::query_bytes]: loop 0:
+    Source: 'src/serving.rs', lines 23:4-31:1 -/
+@[rust_loop]
+def serving.query_bytes_loop
+  (query : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len query
+  if i < i1
+  then
+    let b ← Slice.index_usize query i
+    if b < 33#u8
+    then ok false
+    else
+      if b > 126#u8
+      then ok false
+      else
+        if b = 35#u8
+        then ok false
+        else let i2 ← i + 1#usize
+             serving.query_bytes_loop query i2
+  else ok true
+partial_fixpoint
+
+/-- [pathward::serving::query_bytes]:
+    Source: 'src/serving.rs', lines 21:0-31:1 -/
+@[reducible]
+def serving.query_bytes (query : Slice Std.U8) : RustM Bool := do
+  serving.query_bytes_loop query 0#usize
+
+/-- [pathward::serving::path_length]: loop 0:
+    Source: 'src/serving.rs', lines 10:4-17:1
+    Visibility: public -/
+@[rust_loop]
+def serving.path_length_loop
+  (target : Slice Std.U8) (i : Std.Usize) : RustM Std.Usize := do
+  let i1 := Slice.len target
+  if i < i1
+  then
+    let i2 ← Slice.index_usize target i
+    if i2 = 63#u8
+    then ok i
+    else let i3 ← i + 1#usize
+         serving.path_length_loop target i3
+  else ok i
+partial_fixpoint
+
+/-- [pathward::serving::path_length]:
+    Source: 'src/serving.rs', lines 8:0-17:1
+    Visibility: public -/
+@[reducible]
+def serving.path_length (target : Slice Std.U8) : RustM Std.Usize := do
+  serving.path_length_loop target 0#usize
+
+/-- [pathward::serving::request_path]:
+    Source: 'src/serving.rs', lines 35:0-45:1
+    Visibility: public -/
+def serving.request_path
+  (target : Slice Std.U8) : RustM (Option (Slice Std.U8)) := do
+  let i := Slice.len target
+  if i > 8192#usize
+  then ok none
+  else
+    let i1 ← serving.path_length target
+    let (path, query) ← core.slice.Slice.split_at target i1
+    let b ← valid_path path
+    if b
+    then
+      let b1 ← serving.query_bytes query
+      if b1
+      then ok (some path)
+      else ok none
+    else ok none
+
+/-- [pathward::response::redirect_allowed]:
+    Source: 'src/response.rs', lines 48:0-54:1
+    Visibility: public -/
+def response.redirect_allowed
+  (host : Slice Std.U8) (configured_host : Slice Std.U8)
+  (target : Slice Std.U8) (status : Std.U16) :
+  RustM Bool
+  := do
+  if status = 301#u16
+  then
+    let b ← same_path host configured_host
+    if b
+    then
+      let b1 ← response.host_bytes host
+      if b1
+      then
+        let b2 ← response.visible target
+        if b2
+        then
+          let o ← serving.request_path target
+          ok (core.option.Option.is_some o)
+        else ok false
+      else ok false
+    else ok false
+  else
+    if status = 308#u16
+    then
+      let b ← same_path host configured_host
+      if b
+      then
+        let b1 ← response.host_bytes host
+        if b1
+        then
+          let b2 ← response.visible target
+          if b2
+          then
+            let o ← serving.request_path target
+            ok (core.option.Option.is_some o)
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::response::route_matches]:
+    Source: 'src/response.rs', lines 57:0-63:1
+    Visibility: public -/
+def response.route_matches
+  (path : Slice Std.U8) («from» : Slice Std.U8) («prefix» : Bool) :
+  RustM Bool
+  := do
+  let b ← valid_path path
+  if b
+  then
+    let b1 ← valid_path «from»
+    if b1
+    then
+      let i := Slice.len path
+      let i1 := Slice.len «from»
+      if i < i1
+      then ok false
+      else
+        let i2 := Slice.len «from»
+        let (head, tail) ← core.slice.Slice.split_at path i2
+        let b2 ← same_path head «from»
+        if b2
+        then
+          let b3 ← core.slice.Slice.is_empty tail
+          if b3
+          then ok true
+          else
+            if «prefix»
+            then
+              let i3 := Slice.len «from»
+              if i3 > 1#usize
+              then let i4 ← Slice.index_usize tail 0#usize
+                   ok (i4 = 47#u8)
+              else ok false
+            else ok false
+        else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::rules::Publication]
+    Source: 'src/rules.rs', lines 9:0-12:1
+    Visibility: public -/
+structure rules.Publication where
+  path : Slice Std.U8
+  target : Slice Std.U8
 
 /-- [pathward::rules::contains_path]:
     Source: 'src/rules.rs', lines 29:0-39:1 -/
@@ -445,78 +865,6 @@ def runtime.ready
 def serving.MAX_FILE_BYTES : RustM Std.U64 := do
   let i ← 64#u64 * 1024#u64
   i * 1024#u64
-
-/-- [pathward::serving::path_length]: loop 0:
-    Source: 'src/serving.rs', lines 10:4-17:1
-    Visibility: public -/
-@[rust_loop]
-def serving.path_length_loop
-  (target : Slice Std.U8) (i : Std.Usize) : RustM Std.Usize := do
-  let i1 := Slice.len target
-  if i < i1
-  then
-    let i2 ← Slice.index_usize target i
-    if i2 = 63#u8
-    then ok i
-    else let i3 ← i + 1#usize
-         serving.path_length_loop target i3
-  else ok i
-partial_fixpoint
-
-/-- [pathward::serving::path_length]:
-    Source: 'src/serving.rs', lines 8:0-17:1
-    Visibility: public -/
-@[reducible]
-def serving.path_length (target : Slice Std.U8) : RustM Std.Usize := do
-  serving.path_length_loop target 0#usize
-
-/-- [pathward::serving::query_bytes]: loop 0:
-    Source: 'src/serving.rs', lines 23:4-31:1 -/
-@[rust_loop]
-def serving.query_bytes_loop
-  (query : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
-  let i1 := Slice.len query
-  if i < i1
-  then
-    let b ← Slice.index_usize query i
-    if b < 33#u8
-    then ok false
-    else
-      if b > 126#u8
-      then ok false
-      else
-        if b = 35#u8
-        then ok false
-        else let i2 ← i + 1#usize
-             serving.query_bytes_loop query i2
-  else ok true
-partial_fixpoint
-
-/-- [pathward::serving::query_bytes]:
-    Source: 'src/serving.rs', lines 21:0-31:1 -/
-@[reducible]
-def serving.query_bytes (query : Slice Std.U8) : RustM Bool := do
-  serving.query_bytes_loop query 0#usize
-
-/-- [pathward::serving::request_path]:
-    Source: 'src/serving.rs', lines 35:0-45:1
-    Visibility: public -/
-def serving.request_path
-  (target : Slice Std.U8) : RustM (Option (Slice Std.U8)) := do
-  let i := Slice.len target
-  if i > 8192#usize
-  then ok none
-  else
-    let i1 ← serving.path_length target
-    let (path, query) ← core.slice.Slice.split_at target i1
-    let b ← valid_path path
-    if b
-    then
-      let b1 ← serving.query_bytes query
-      if b1
-      then ok (some path)
-      else ok none
-    else ok none
 
 /-- [pathward::serving::Grant]
     Source: 'src/serving.rs', lines 48:0-51:1

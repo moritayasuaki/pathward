@@ -3,6 +3,8 @@ import RulesProofs
 import ServingProofs
 import TlsProofs
 import RuntimeProofs
+import ResponseProofs
+import ReleaseProofs
 
 #print axioms PathwardProofs.valid_path_eq
 #print axioms PathwardProofs.same_path_eq
@@ -76,3 +78,36 @@ import RuntimeProofs
 #print axioms RuntimeProofs.ready_contract
 #print axioms RuntimeProofs.no_ready_while_draining
 #print axioms RuntimeProofs.no_ready_without_tls_certificate
+
+#print axioms ResponseProofs.visible_loop_eq
+#print axioms ResponseProofs.visible_eq
+#print axioms ResponseProofs.host_loop_eq
+#print axioms ResponseProofs.host_eq
+#print axioms ResponseProofs.header_name_eq
+#print axioms ResponseProofs.header_eq
+#print axioms ResponseProofs.header_contract
+#print axioms ResponseProofs.header_no_controls
+#print axioms ResponseProofs.redirect_eq
+#print axioms ResponseProofs.redirect_contract
+#print axioms ResponseProofs.redirect_fixed_host
+#print axioms ResponseProofs.redirect_no_controls
+#print axioms ResponseProofs.split_eq
+#print axioms ResponseProofs.route_eq
+#print axioms ResponseProofs.route_contract
+#print axioms ResponseProofs.response_total
+#print axioms ReleaseProofs.generated_eq
+#print axioms ReleaseProofs.generated_contract
+#print axioms ReleaseProofs.generated_exact_entry
+#print axioms ReleaseProofs.generated_no_extra_url
+#print axioms ReleaseProofs.generated_safe_target
+#print axioms ReleaseProofs.generated_total
+#print axioms ReleaseProofs.commit_eq
+#print axioms ReleaseProofs.commit_contract
+#print axioms ReleaseProofs.no_unpersisted_commit
+#print axioms ReleaseProofs.no_stale_commit
+#print axioms ReleaseProofs.no_draining_commit
+#print axioms ReleaseProofs.admission_eq
+#print axioms ReleaseProofs.admission_contract
+#print axioms ReleaseProofs.admission_no_exhausted_tokens
+#print axioms ReleaseProofs.admission_no_draining
+#print axioms ReleaseProofs.gates_total

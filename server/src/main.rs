@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use pathward_server::{Server, acme, control, tls};
+use pathward_server::{Server, acme, control, deployment, tls};
 use std::{
     env,
     net::{SocketAddr, TcpListener},
@@ -8,7 +8,13 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread,
 };
-const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
+const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--http-listen 0.0.0.0:80] [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\npathward-server check CONFIG [--cache DIR]\npathward-server generate BASE SITE ROOT MANIFEST [--index FILE]\npathward-server init CONTROL_DIR CONFIG\npathward-server status --control-dir DIR\npathward-server activate --control-dir DIR --expect GENERATION:SHA256 CONFIG\npathward-server rollback --control-dir DIR --expect GENERATION:SHA256\nServing modes accept --control-dir DIR with CONFIG=DIR/.config.\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
+#[derive(Default)]
+struct ServiceOptions {
+    monitor: Option<SocketAddr>,
+    http_listen: Option<SocketAddr>,
+    control_dir: Option<PathBuf>,
+}
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args_os().skip(1).collect();
     if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
@@ -17,12 +23,95 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let command = args.first().and_then(|s| s.to_str()).ok_or(HELP)?;
     match command {
+        "check" => {
+            if args.len() != 2 && args.len() != 4 {
+                return Err(HELP.into());
+            }
+            let cache = if args.len() == 4 {
+                if args[2] != "--cache" {
+                    return Err(HELP.into());
+                }
+                Some(Path::new(&args[3]))
+            } else {
+                None
+            };
+            let (revision, files) = deployment::check(Path::new(&args[1]), cache)?;
+            println!("OK {revision} files={files}");
+        }
+        "generate" => {
+            if args.len() != 5 && args.len() != 7 {
+                return Err(HELP.into());
+            }
+            let parsed = control::read_config(Path::new(&args[1]))?;
+            let config = parsed.compile()?;
+            let host = args[2].to_str().ok_or(HELP)?;
+            let root = args[3].to_str().ok_or(HELP)?;
+            let manifest = bounded_text(Path::new(&args[4]))?;
+            let index = if args.len() == 7 {
+                if args[5] != "--index" {
+                    return Err(HELP.into());
+                }
+                Some(args[6].to_str().ok_or(HELP)?)
+            } else {
+                None
+            };
+            print!(
+                "{}",
+                deployment::generate(&config, host, root, &manifest, index)?
+            );
+        }
+        "init" => {
+            if args.len() != 3 {
+                return Err(HELP.into());
+            }
+            let parsed = control::read_config(Path::new(&args[2]))?;
+            deployment::initialize(Path::new(&args[1]), &parsed.compile()?)?;
+            println!("initialized");
+        }
+        "status" | "activate" | "rollback" => {
+            let expected_len = match command {
+                "status" => 3,
+                "activate" => 6,
+                _ => 5,
+            };
+            if args.len() != expected_len || args[1] != "--control-dir" {
+                return Err(HELP.into());
+            }
+            let expected = if command != "status" {
+                if args[3] != "--expect" {
+                    return Err(HELP.into());
+                }
+                Some(args[4].to_str().ok_or(HELP)?)
+            } else {
+                None
+            };
+            let bytes = if command == "activate" {
+                bounded_text(Path::new(&args[5]))?.into_bytes()
+            } else {
+                Vec::new()
+            };
+            let reply = deployment::command(
+                Path::new(&args[2]),
+                match command {
+                    "status" => "STATUS",
+                    "activate" => "APPLY",
+                    _ => "ROLLBACK",
+                },
+                expected,
+                &bytes,
+            )?;
+            let fields: Vec<_> = reply.split(' ').collect();
+            if fields.len() != 3 {
+                return Err("invalid control reply".into());
+            }
+            println!("{}:{}", fields[1], fields[2]);
+        }
         "serve-http" => {
             if args.len() < 2 {
                 return Err(HELP.into());
             }
             let mut address: SocketAddr = "127.0.0.1:8080".parse()?;
-            let mut monitor = None;
+            let mut options = ServiceOptions::default();
             let mut position = 2;
             if let Some(value) = args.get(position).and_then(|s| s.to_str())
                 && !value.starts_with("--")
@@ -30,11 +119,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 address = value.parse()?;
                 position += 1;
             }
-            if position < args.len() {
-                if args[position] != "--monitor" || position + 2 != args.len() {
-                    return Err(HELP.into());
+            let mut seen = std::collections::BTreeSet::new();
+            while position < args.len() {
+                let flag = args[position].to_str().ok_or(HELP)?;
+                if !seen.insert(flag) {
+                    return Err("duplicate CLI option".into());
                 }
-                monitor = Some(args[position + 1].to_str().ok_or(HELP)?.parse()?);
+                let value = args
+                    .get(position + 1)
+                    .and_then(|s| s.to_str())
+                    .ok_or(HELP)?;
+                match flag {
+                    "--monitor" => options.monitor = Some(value.parse()?),
+                    "--control-dir" => options.control_dir = Some(value.into()),
+                    _ => return Err(HELP.into()),
+                }
+                position += 2;
             }
             if !address.ip().is_loopback() {
                 return Err("HTTP-only mode requires loopback".into());
@@ -50,7 +150,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 Path::new(&args[1]),
                 &signals,
                 None,
-                monitor,
+                options,
             )?;
         }
         "serve-tls" => {
@@ -62,7 +162,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let mut address = "0.0.0.0:443";
             let mut directory = acme::STAGING;
             let mut contact = Vec::new();
-            let mut monitor = None;
+            let mut options = ServiceOptions::default();
             let mut seen = std::collections::BTreeSet::new();
             let mut i = 3;
             while i < args.len() {
@@ -85,7 +185,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     "--listen" => address = value,
-                    "--monitor" => monitor = Some(value.parse()?),
+                    "--monitor" => options.monitor = Some(value.parse()?),
+                    "--http-listen" => options.http_listen = Some(value.parse()?),
+                    "--control-dir" => options.control_dir = Some(value.into()),
                     "--contact" => contact.push(value.to_owned()),
                     _ => return Err(HELP.into()),
                 }
@@ -113,6 +215,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     },
                 )?;
             }
+            if options
+                .control_dir
+                .as_ref()
+                .is_some_and(|d| d.starts_with(&cache) || cache.starts_with(d))
+            {
+                return Err("control and ACME storage must be disjoint".into());
+            }
             let signals = control::Signals::install()?;
             let mut manager = acme::Manager::new(
                 domains,
@@ -130,7 +239,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 Path::new(&args[1]),
                 &signals,
                 Some(&manager),
-                monitor,
+                options,
             )?;
         }
         _ => return Err(HELP.into()),
@@ -149,9 +258,42 @@ fn run_service(
     path: &Path,
     signals: &control::Signals,
     manager: Option<&acme::Manager>,
-    monitor: Option<SocketAddr>,
+    options: ServiceOptions,
 ) -> std::io::Result<()> {
-    let monitor = monitor
+    let managed = if let Some(directory) = &options.control_dir {
+        if path != directory.join(".config") {
+            return Err(std::io::Error::other(
+                "managed config must be CONTROL_DIR/.config",
+            ));
+        }
+        server.protect_directory(directory)?;
+        server.check_files()?;
+        let parsed = control::read_config(path)?;
+        if server.revision()
+            != deployment::revision(
+                parsed
+                    .compile()
+                    .map_err(|_| std::io::Error::other("config"))?
+                    .source()
+                    .as_bytes(),
+            )
+        {
+            return Err(std::io::Error::other(
+                "configuration changed during startup",
+            ));
+        }
+        Some(deployment::Managed::open(
+            directory,
+            &parsed
+                .compile()
+                .map_err(|_| std::io::Error::other("config"))?,
+            server.cache_path(),
+        )?)
+    } else {
+        None
+    };
+    let monitor = options
+        .monitor
         .map(|addr| {
             if !addr.ip().is_loopback() {
                 return Err(std::io::Error::other("monitor requires loopback"));
@@ -159,6 +301,7 @@ fn run_service(
             TcpListener::bind(addr)
         })
         .transpose()?;
+    let redirect = options.http_listen.map(TcpListener::bind).transpose()?;
     let identity = manager.map(acme::Manager::identity);
     let tls = identity
         .as_ref()
@@ -191,6 +334,17 @@ fn run_service(
                 let _stop = StopWorker(&signals.shutdown);
                 control::reload_loop(server, path, signals)
             })?;
+        let deployment_worker = managed
+            .as_ref()
+            .map(|managed| {
+                thread::Builder::new()
+                    .name("pathward-deploy".into())
+                    .spawn_scoped(scope, || {
+                        let _stop = StopWorker(&signals.shutdown);
+                        managed.run(server, &signals.shutdown)
+                    })
+            })
+            .transpose()?;
         let monitor_worker = monitor
             .map(|listener| {
                 thread::Builder::new()
@@ -228,7 +382,12 @@ fn run_service(
             })
             .transpose()?;
         let result = match tls.as_ref() {
-            Some(tls) => server.serve_tls(listener, &signals.shutdown, tls),
+            Some(tls) => match redirect {
+                Some(redirect) => {
+                    server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, tls)
+                }
+                None => server.serve_tls(listener, &signals.shutdown, tls),
+            },
             None => server.serve(listener, &signals.shutdown),
         };
         signals.shutdown.store(true, Ordering::Release);
@@ -236,6 +395,11 @@ fn run_service(
         reload
             .join()
             .map_err(|_| std::io::Error::other("reload worker failed"))?;
+        if let Some(worker) = deployment_worker {
+            worker
+                .join()
+                .map_err(|_| std::io::Error::other("deployment worker failed"))??;
+        }
         if let Some(worker) = acme_worker {
             worker
                 .join()
@@ -248,6 +412,10 @@ fn run_service(
         }
         result
     })
+}
+fn bounded_text(path: &Path) -> std::io::Result<String> {
+    let bytes = control::read_bytes(path)?;
+    String::from_utf8(bytes).map_err(|_| std::io::Error::other("input must be UTF-8"))
 }
 fn main() -> ExitCode {
     match run() {

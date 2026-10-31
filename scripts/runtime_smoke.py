@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         (directory / name / "index.html").write_text(name.upper())
     config = directory / "Pathward.kdl"
     def content(root, host="example.com", path="/"):
-        return f'site "{host}" {{\nroot "{root}"\npublish "{path}" "index.html"\ntls "auto"\n}}\n'
+        return f'site "{host}" {{\nroot "{root}"\npublish "{path}" "index.html"\nredirect "/legacy" "example.com" "/new" "308"\nheader "*" "referrer-policy" "no-referrer"\nheader "/new" "referrer-policy" "same-origin"\ntls "auto"\n}}\n'
     def replace(text):
         pending = directory / "pending"
         pending.write_text(text)
@@ -83,7 +83,12 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         process.send_signal(signal.SIGHUP)
         wait_for(lambda: metrics()["pathward_config_generation"]==2)
         assert get(port).startswith(b"HTTP/1.1 404")
-        assert get(port,"/new?PRIVATE_QUERY_TOKEN=123").endswith(b"NEW")
+        new=get(port,"/new?PRIVATE_QUERY_TOKEN=123")
+        assert new.endswith(b"NEW") and b"referrer-policy: same-origin\r\n" in new
+        redirect=get(port,"/legacy?q=kept")
+        assert redirect.startswith(b"HTTP/1.1 308") and b"Location: https://example.com/new?q=kept\r\n" in redirect
+        assert b"referrer-policy: no-referrer\r\n" in redirect
+        assert get(port,"/legacy",host="evil.test").startswith(b"HTTP/1.1 421")
         for text in ["broken kdl {", content(directory/"missing",path="/new"), content(directory/"old",host="other.example")]:
             before = metrics()["pathward_reload_errors_total"]
             replace(text)
@@ -103,11 +108,11 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         # All four workers are active, then queue extra work. Shutdown must keep
         # the active generation alive, close the listener, and discard the queue.
         wait_for(lambda: metrics()["pathward_connections_active"]==0)
-        active = [socket.create_connection(("127.0.0.1",port),timeout=3) for _ in range(4)]
+        active = [socket.create_connection(("127.0.0.1",port),timeout=3,source_address=(f"127.0.0.{i+2}",0)) for i in range(4)]
         for stream in active: stream.sendall(b"GET /new HTTP/1.1\r\nHost: example.com\r\n")
         wait_for(lambda: metrics()["pathward_connections_active"]==4)
         accepted = metrics()["pathward_connections_total"]
-        queued = [socket.create_connection(("127.0.0.1",port),timeout=3) for _ in range(8)]
+        queued = [socket.create_connection(("127.0.0.1",port),timeout=3,source_address=(f"127.0.0.{i+10}",0)) for i in range(8)]
         for stream in queued: stream.sendall(b"GET /new HTTP/1.1\r\nHost: example.com\r\n\r\n")
         wait_for(lambda: metrics()["pathward_connections_total"]>=accepted+8)
         process.send_signal(signal.SIGTERM)

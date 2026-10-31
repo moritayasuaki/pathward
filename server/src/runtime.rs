@@ -8,8 +8,88 @@ pub(crate) struct Site {
     pub host: String,
     pub root: DocumentRoot,
     rules: Vec<(Vec<u8>, Vec<u8>)>,
+    redirects: Vec<Redirect>,
+    headers: Vec<Header>,
+}
+struct Redirect {
+    from: String,
+    host: String,
+    to: String,
+    status: u16,
+    prefix: bool,
+}
+struct Header {
+    scope: String,
+    name: String,
+    value: String,
 }
 impl Site {
+    pub fn head(
+        &self,
+        status: u16,
+        length: u64,
+        content_type: &str,
+        path: &[u8],
+        encrypted: bool,
+    ) -> String {
+        let mut out = crate::http::response_head(status, length, content_type);
+        out.truncate(out.len() - 2);
+        for h in &self.headers {
+            let exact = h.scope.as_bytes() == path;
+            let overridden = self
+                .headers
+                .iter()
+                .any(|other| other.scope.as_bytes() == path && other.name == h.name);
+            if (exact || (h.scope == "*" && !overridden))
+                && (encrypted || h.name != "strict-transport-security")
+                && pathward::response::header_allowed(h.name.as_bytes(), h.value.as_bytes())
+            {
+                out.push_str(&h.name);
+                out.push_str(": ");
+                out.push_str(&h.value);
+                out.push_str("\r\n");
+            }
+        }
+        out.push_str("\r\n");
+        out
+    }
+    pub fn redirect(
+        &self,
+        target: &[u8],
+        hosts: &[Site],
+        automatic: bool,
+    ) -> Option<(u16, String)> {
+        let path = pathward::serving::request_path(target)?;
+        let query = std::str::from_utf8(&target[path.len()..]).ok()?;
+        let (host, destination, status) = if automatic {
+            (&self.host, std::str::from_utf8(path).ok()?.to_owned(), 308)
+        } else {
+            let rule = self
+                .redirects
+                .iter()
+                .filter(|r| pathward::response::route_matches(path, r.from.as_bytes(), r.prefix))
+                .max_by_key(|r| r.from.len())?;
+            let suffix = std::str::from_utf8(&path[rule.from.len()..]).ok()?;
+            let destination = if rule.to == "/" && !suffix.is_empty() {
+                suffix.to_owned()
+            } else {
+                format!("{}{suffix}", rule.to)
+            };
+            (&rule.host, destination, rule.status)
+        };
+        let configured = hosts.iter().find(|s| s.host == *host)?;
+        let target = format!("{destination}{query}");
+        if !pathward::response::redirect_allowed(
+            host.as_bytes(),
+            configured.host.as_bytes(),
+            target.as_bytes(),
+            status,
+        ) {
+            return None;
+        }
+        Some((status, format!("https://{host}{target}")))
+    }
+
     pub fn publications(&self) -> Vec<Publication<'_>> {
         self.rules
             .iter()
@@ -19,8 +99,21 @@ impl Site {
 }
 pub(crate) struct Snapshot {
     pub sites: Vec<Site>,
+    pub source: String,
 }
 impl Snapshot {
+    pub fn check_files(&self) -> io::Result<usize> {
+        let mut count = 0;
+        for site in &self.sites {
+            for (_, target) in &site.rules {
+                let _ = site.root.open_file(
+                    std::str::from_utf8(target).map_err(|_| io::Error::other("target"))?,
+                )?;
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
     pub fn prepare(config: &CompiledConfig<'_>, cache: Option<&Path>) -> io::Result<Self> {
         if !Self::isolated(config, cache) {
             return Err(io::Error::new(
@@ -35,6 +128,26 @@ impl Snapshot {
                 Ok(Site {
                     host: site.host().to_owned(),
                     root: DocumentRoot::open(site.root())?,
+                    redirects: site
+                        .redirects()
+                        .iter()
+                        .map(|r| Redirect {
+                            from: r.from.into(),
+                            host: r.host.into(),
+                            to: r.to.into(),
+                            status: r.status,
+                            prefix: r.prefix,
+                        })
+                        .collect(),
+                    headers: site
+                        .headers()
+                        .iter()
+                        .map(|h| Header {
+                            scope: h.scope.into(),
+                            name: h.name.into(),
+                            value: h.value.into(),
+                        })
+                        .collect(),
                     rules: site
                         .publications()
                         .iter()
@@ -43,7 +156,10 @@ impl Snapshot {
                 })
             })
             .collect::<io::Result<Vec<_>>>()?;
-        Ok(Self { sites })
+        Ok(Self {
+            sites,
+            source: config.source().to_owned(),
+        })
     }
     pub fn isolated(config: &CompiledConfig<'_>, cache: Option<&Path>) -> bool {
         cache.is_none_or(|cache| {

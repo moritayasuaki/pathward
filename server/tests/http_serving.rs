@@ -59,6 +59,8 @@ fn with_server(test: impl FnOnce(SocketAddr)) {
 }
 
 fn exchange(address: SocketAddr, request: &[u8]) -> Vec<u8> {
+    // Admission is covered separately; keep this framing/confinement corpus below 8/s.
+    std::thread::sleep(Duration::from_millis(130));
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2)).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(8)))

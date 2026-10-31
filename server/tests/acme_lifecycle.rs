@@ -126,7 +126,24 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
     let stop = AtomicBool::new(false);
     let renewed = thread::scope(|scope| {
         let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
-        scope.spawn(|| server.serve_tls(listener, &stop, &tls).unwrap());
+        let redirect = TcpListener::bind("127.0.0.1:0").unwrap();
+        let redirect_port = redirect.local_addr().unwrap().port();
+        scope.spawn(|| {
+            server
+                .serve_tls_with_redirect(listener, redirect, &stop, &tls)
+                .unwrap()
+        });
+        let mut plain = TcpStream::connect(("127.0.0.1", redirect_port)).unwrap();
+        plain
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        plain
+            .write_all(b"GET /?q=kept HTTP/1.1\r\nHost: one.pathward.test\r\n\r\n")
+            .unwrap();
+        let mut reply = String::new();
+        plain.read_to_string(&mut reply).unwrap();
+        assert!(reply.starts_with("HTTP/1.1 308"));
+        assert!(reply.contains("Location: https://one.pathward.test/?q=kept\r\n"));
         scope.spawn(|| manager.run(&stop));
         // Always stop background workers even when an assertion panics.
         struct Stop<'a>(&'a AtomicBool);

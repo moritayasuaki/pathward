@@ -16,6 +16,7 @@ pub struct Observability {
     pub(crate) serving: AtomicBool,
     pub(crate) accepted: AtomicU64,
     pub(crate) overloaded: AtomicU64,
+    pub(crate) admission_rejected: AtomicU64,
     active: AtomicU64,
     requests: AtomicU64,
     responses: [AtomicU64; 6],
@@ -161,6 +162,11 @@ impl Observability {
                 "connections_overloaded_total",
                 "counter",
                 self.overloaded.load(Ordering::Relaxed),
+            ),
+            (
+                "admission_rejected_total",
+                "counter",
+                self.admission_rejected.load(Ordering::Relaxed),
             ),
             (
                 "requests_total",

@@ -155,3 +155,10 @@ and source/API review, not asserted as Lean theorems about the OS.
 
 TLS is available through the separate explicit [TLS/ACME mode](tls-serving.md).
 Its adapter reuses the same HTTP framing, verified grants and file opener.
+
+## Production basics extension
+
+See [production basics](production-basics.md) for response headers, configured
+redirects, managed deployment preflight/activation/rollback, and the additional
+global/per-peer connection and rate gates. The TLS mode can optionally bind a
+public plaintext redirect-only listener; HTTP file serving stays loopback-only.

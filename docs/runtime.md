@@ -1,8 +1,9 @@
 # Reload, shutdown, logs and monitoring
 
 On Linux, both CLI serving modes install SIGHUP, SIGTERM and SIGINT handlers before
-starting worker threads. No configuration syntax was added. Existing KDL files
-continue to work.
+starting worker threads. Existing KDL files continue to work. The later
+[production basics](production-basics.md) extension adds headers/redirects and an
+optional private managed activation/rollback workflow.
 
 ```sh
 pathward-server serve-http /etc/pathward/Pathward.kdl 127.0.0.1:8080 \
@@ -25,9 +26,9 @@ Symlink configuration files are refused. Trusted local filesystem operations can
 still block in the kernel; NONBLOCK does not time-limit regular-file I/O.
 
 The reload worker serializes and coalesces signals. It parses and compiles the
-whole candidate, checks the unchanged host set and exclusion of the private ACME
-cache, then pins every candidate document root with the existing no-symlink
-opener. It commits one immutable snapshot (owned host/rule bytes plus pinned root
+whole candidate, checks the unchanged host set and exclusion of private ACME
+and managed control storage, then pins every candidate document root with the existing no-symlink
+opener. It commits one immutable snapshot (owned host/rule/redirect/header bytes plus pinned root
 descriptors) under a short write lock. Any parse, schema, identity, isolation,
 root-open, generation-overflow or draining failure retains the current generation.
 Successful no-op reloads also increment the generation, starting from 1.
@@ -41,7 +42,7 @@ revocation of active requests or already established TLS sessions. At most four
 requests retain old snapshots; repeated signals cannot create an unbounded
 queue of configurations. Old root descriptors close when their last request ends.
 
-**Reloadable:** exact publications and document roots, including replacing a root
+**Reloadable:** exact publications, redirects, headers and document roots, including replacing a root
 pathname with another directory. Missing published files are still denied at
 request time; reload validates roots and rules, not every file's contents.
 
@@ -113,7 +114,7 @@ query strings and other paths are not matched. With IPv6 loopback transport use
 
 Metrics include accepted/active/overloaded connections, completed responses,
 request I/O and handshake errors, completed body bytes, reload successes/errors,
-configuration generation, ACME attempts/activations/errors, dropped logs, readiness,
+configuration generation, admission rejections, ACME attempts/activations/errors, dropped logs, readiness,
 draining, TLS enablement and certificate presence/not-before/not-after UNIX times.
 Counters reset on process restart; a scrape is a collection of atomic observations,
 not a transaction across all counters. Readiness does not check every file or

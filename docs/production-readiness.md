@@ -2,10 +2,22 @@
 
 PathWard now has a verified policy core, KDL configuration compiler, and a minimal
 Linux HTTP/1.1 static server with TLS/ACME, private key persistence and automatic
-renewal, atomic config reload, graceful shutdown and operational telemetry. Plain HTTP stays loopback-only; explicit TLS mode can bind a public
-interface. It is not yet a complete Caddy replacement.
+renewal, atomic config reload, graceful shutdown and operational telemetry. HTTP file serving stays loopback-only; explicit TLS mode can bind public TLS
+and optional redirect-only plaintext listeners. It is not yet a complete Caddy replacement.
 
 ## Implemented
+
+- P0.1: automatic HTTP→HTTPS and configured exact/component-prefix 301/308
+  redirects to configured hosts, with validated query preservation.
+- P0.2: allowlisted scoped response headers, including CSP/HSTS; framing/control
+  injection rejected and HSTS suppressed on plaintext.
+- P0.3: explicit-manifest generation, serving-opener file preflight, private Unix
+  control socket, expected generation/digest activation, durable restore/stop on
+  failure and checked rollback. No recursive publication or automatic release GC.
+- P0.4: shared global/per-peer concurrency/rate gates, bounded peer table,
+  deterministic 100,000-input HTTP mutation corpus and bounded Linux load tests.
+  [Guide](production-basics.md), [risk assessment](deployment-risk.md),
+  [integration and extracted-proof audit](production-basics-audit.md).
 
 - Transactional publication/root reload, failure retention and fixed identity;
   SIGTERM/SIGINT draining, bounded redacted JSON logging, loopback-only health,
@@ -37,7 +49,7 @@ interface. It is not yet a complete Caddy replacement.
    expiry events externally. ARI, Retry-After handling, in-order badNonce retries,
    revocation/OCSP, contact updates and key rollover are absent. One certificate
    covers all configured sites; separate per-site issuance is not implemented.
-   HTTP-01/DNS-01, wildcard domains and automatic HTTP redirects are absent.
+   HTTP-01/DNS-01 and wildcard domains are absent.
 2. **Deployment and content ownership.** Enforce a service-owned configuration,
    roots and key store, with least privilege. Use trusted local filesystems and
    immutable releases; the current opener does not make concurrent file writes
@@ -48,16 +60,17 @@ interface. It is not yet a complete Caddy replacement.
 3. **Operations integration.** Connect the implemented JSON logs and loopback
    metrics to a collector, alert manager and service supervisor. Choose expiry,
    overload, reload-failure and missing-file/error thresholds; test alerts and
-   forced-stop behavior. Missing files are denied per request rather than
-   exhaustively opened at startup. Host/ACME identity changes require restart.
+   forced-stop behavior. Managed startup/activation and server `check` preflight
+   files; ordinary SIGHUP validates roots/rules and denies missing files per request.
+   Host/ACME identity changes require restart.
 4. **Load and protocol hardening.** Perform broader coverage-guided fuzzing,
    prolonged race/stress testing and realistic throughput/slow-storage testing.
-   Add per-client/rate/bandwidth fairness where needed. Keep-alive, HTTP/2, proxy
+   Tune the fixed connection/rate limits and add bandwidth fairness where needed. Keep-alive, HTTP/2, proxy
    integration and forwarded headers require separate protocol review; none is
    enabled in the minimal server. IPv6 transport is supported for loopback binding,
    but configured authorities remain DNS-style names rather than IPv6 literals.
 5. **HTTP functionality.** Add reviewed ranges,
-   conditional caching/ETags, suitable cache policies and any required redirects.
+   conditional caching/ETags, suitable cache policies and broader URL support for any legacy redirects.
    Current responses use no-store, fixed content types and no compression. A
    Range header does not activate partial serving, and conditional fields do not
    activate cache validators.

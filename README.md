@@ -84,11 +84,19 @@ package are included in the reviewed inventory; this is not a full source proof.
 
 ## Runtime operation
 
-SIGHUP atomically reloads publications and pinned roots; failed reloads retain the
+SIGHUP atomically reloads publications, redirects, headers and pinned roots; failed reloads retain the
 active configuration. SIGTERM/SIGINT drain active connections. Runtime events are
 redacted JSON on stderr; optional `--monitor 127.0.0.1:9090` exposes health,
 readiness and Prometheus metrics. Host/ACME identity changes require restart.
 See [operation](docs/runtime.md) and [source/proof audit](docs/runtime-audit.md).
+
+The four production basics add optional HTTP→HTTPS and configured 301/308
+redirects, bounded CSP/HSTS and other approved headers, explicit-manifest KDL
+generation, file preflight, private local activation/rollback with generation and
+SHA-256 checks, and connection/rate admission limits. There are no added packages.
+Read the [operator guide](docs/production-basics.md),
+[P0.3 risk assessment](docs/deployment-risk.md) and
+[integration/Lean audit](docs/production-basics-audit.md).
 
 ## Server dependencies
 
@@ -226,9 +234,16 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 70 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 102 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
+
+The [response](proofs/ResponseProofs.lean) and [release](proofs/ReleaseProofs.lean)
+proofs add safe header values, fixed-host redirect admission, component-boundary
+routing, exact manifest-entry mapping, durable/prepared commit prerequisites and
+connection-admission bounds. The adapters establishing the inputs to these gates
+remain reviewed/tested code; filesystem durability and whole-server availability
+are not proved.
 
 The loop/recursion proofs explicitly establish slice indexing bounds and
 non-overflowing index increments. The Rust semantics modeled by Aeneas do not

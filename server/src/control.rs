@@ -50,7 +50,7 @@ impl Drop for Signals {
 
 /// A single descriptor pins each config read; nonregular files are refused.
 /// Administrators must publish config using atomic rename, on a trusted local FS.
-pub fn read_config(path: &Path) -> io::Result<ParsedConfig> {
+pub fn read_bytes(path: &Path) -> io::Result<Vec<u8>> {
     #[cfg(target_os = "linux")]
     let file = {
         use rustix::fs::{Mode, OFlags, open};
@@ -82,20 +82,22 @@ pub fn read_config(path: &Path) -> io::Result<ParsedConfig> {
     if !meta.is_file() || meta.len() > 65_536 {
         return Err(io::Error::other("invalid configuration file"));
     }
-    ParsedConfig::read(file).map_err(|_| io::Error::other("configuration parse rejected"))
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    file.take(65_537).read_to_end(&mut bytes)?;
+    if bytes.len() > 65_536 {
+        return Err(io::Error::other("input exceeds 65536 bytes"));
+    }
+    Ok(bytes)
+}
+pub fn read_config(path: &Path) -> io::Result<ParsedConfig> {
+    ParsedConfig::read(read_bytes(path)?.as_slice())
+        .map_err(|_| io::Error::other("configuration parse rejected"))
 }
 pub fn reload_loop(server: &Server, path: &Path, signals: &Signals) {
     while !signals.shutdown.load(Ordering::Acquire) {
         if signals.reload.swap(false, Ordering::AcqRel) {
-            match read_config(path) {
-                Ok(parsed) => match parsed.compile() {
-                    Ok(config) => {
-                        let _ = server.reload(&config, &signals.shutdown);
-                    }
-                    Err(_) => server.observe.reload(false, server.generation()),
-                },
-                Err(_) => server.observe.reload(false, server.generation()),
-            }
+            let _ = server.reload_file(path, &signals.shutdown);
         }
         thread::sleep(Duration::from_millis(50));
     }
