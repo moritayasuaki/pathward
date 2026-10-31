@@ -28,14 +28,16 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Prepare fixed verification tools
         run: make setup
-      - name: Verify Rust, extraction, Lean proofs, and axioms
-        run: make check
+      - name: Verify Rust core, configuration, and server
+        run: make rust-check config-check server-check
       - name: Check mount confinement in a private Linux namespace
         run: python3 scripts/linux_mount_check.py
       - name: Install pinned local test CA
         run: make acme-test-setup
       - name: Test real TLS-ALPN-01 issuance, renewal, restart and persistence failure
         run: make acme-integration
+      - name: Verify extraction, Lean proofs, and axioms
+        run: make proof-check
       - name: Build production HTTP binary and smoke-test the CLI
         run: |
           make server-build

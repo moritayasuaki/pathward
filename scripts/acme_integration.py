@@ -6,11 +6,14 @@ from pathlib import Path
 import socket
 import ssl
 import struct
+import sys
 import subprocess
 import tempfile
 import threading
 import time
 import urllib.request
+if sys.platform != "linux":
+    raise SystemExit("ACME lifecycle integration requires native Linux confinement/storage")
 ROOT = Path(__file__).resolve().parents[1]
 PEBBLE = ROOT / ".tools/pebble/pebble"
 if not PEBBLE.is_file():
@@ -63,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
     # Validation is real: deliberately do NOT set PEBBLE_VA_ALWAYS_VALID.
     env.pop("PEBBLE_VA_ALWAYS_VALID", None)
     with (work / "pebble.log").open("w+") as log:
-        process = subprocess.Popen([str(PEBBLE), "-config", str(work / "pebble.json"), "-strict", "false", "-dnsserver", f"127.0.0.1:{dns.getsockname()[1]}"], env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([str(PEBBLE), "-config", str(work / "pebble.json"), "-strict=false", "-dnsserver", f"127.0.0.1:{dns.getsockname()[1]}"], env=env, stdout=log, stderr=log)
         try:
             context = ssl.create_default_context(cafile=str(work / "ca.pem"))
             for _ in range(100):
