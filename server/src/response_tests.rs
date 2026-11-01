@@ -90,6 +90,10 @@ fn configured_locations_headers_and_reload_use_one_checked_policy() {
     );
     let p = ParsedConfig::parse(&text).unwrap();
     let server = Server::new(&p.compile().unwrap()).unwrap();
+    assert!(
+        exchange(&server, "/old/deep/ja/?x=1", "example.com", None)
+            .contains("Location: https://other.example/ja/?x=1\r\n")
+    );
     for (local, sni, redirect, authority, status) in [
         (8443, Some("example.com"), false, "example.com:443", 200),
         (8443, Some("example.com"), false, "example.com:8443", 400),

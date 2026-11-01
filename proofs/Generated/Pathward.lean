@@ -162,7 +162,7 @@ def accepting (state : State) : RustM Bool := do
   | State.Root => ok true
   | State.Segment => ok true
   | State.Dot => ok false
-  | State.Separator => ok false
+  | State.Separator => ok true
   | State.Reject => ok false
 
 /-- [pathward::valid_path]: loop 0:
@@ -246,7 +246,7 @@ partial_fixpoint
 def is_public
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) : RustM Bool := do
   let i := Slice.len published
-  if i > 256#usize
+  if i > 4096#usize
   then ok false
   else
     let b ← valid_path path
@@ -756,7 +756,13 @@ def rules.valid_target (target : Slice Std.U8) : RustM Bool := do
     then ok false
     else
       let state ← rules.valid_target_loop target State.Root 0#usize
-      accepting state
+      match state with
+      | State.Start => ok false
+      | State.Root => ok true
+      | State.Segment => ok true
+      | State.Dot => ok false
+      | State.Separator => ok false
+      | State.Reject => ok false
 
 /-- [pathward::release::generated_rule]:
     Source: 'src/release.rs', lines 5:0-18:1
@@ -1476,7 +1482,7 @@ def rules.compile
   then ok none
   else
     let i := Slice.len rules1
-    if i > 256#usize
+    if i > 4096#usize
     then ok none
     else
       let b1 ← rules.valid_rules rules1 0#usize
@@ -1515,7 +1521,7 @@ def rules.lookup
   RustM (Option (Slice Std.U8))
   := do
   let i := Slice.len rules1
-  if i > 256#usize
+  if i > 4096#usize
   then ok none
   else
     let b ← valid_path path

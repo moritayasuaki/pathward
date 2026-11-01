@@ -239,3 +239,6 @@ import ReleaseProofs
 #print axioms StreamingProofs.no_unsolicited_deflate
 #print axioms StreamingProofs.no_context_takeover
 #print axioms StreamingProofs.optional_uncompressed
+
+#print axioms PathwardProofs.directory_suffix_allowed
+#print axioms RulesProofs.target_no_directory_suffix

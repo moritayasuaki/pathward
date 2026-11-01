@@ -11,10 +11,10 @@ use std::fmt;
 use std::io::Read;
 use std::net::SocketAddr;
 
-pub const MAX_CONFIG_BYTES: usize = 65_536;
+pub const MAX_CONFIG_BYTES: usize = 1_048_576;
 pub const MAX_ROUTE_RULES: usize = 64;
 pub const MAX_SITES: usize = 16;
-pub const MAX_PUBLICATIONS: usize = 256;
+pub const MAX_PUBLICATIONS: usize = 4096;
 pub const MAX_REDIRECTS: usize = 64;
 pub const MAX_HEADERS: usize = 32;
 
@@ -93,7 +93,7 @@ impl ParsedConfig {
             .read_to_end(&mut bytes)
             .map_err(|_| error("", 0, "could not read configuration"))?;
         if bytes.len() > MAX_CONFIG_BYTES {
-            return Err(error("", 0, "configuration exceeds 65536 bytes"));
+            return Err(error("", 0, "configuration exceeds 1048576 bytes"));
         }
         let text =
             std::str::from_utf8(&bytes).map_err(|_| error("", 0, "configuration must be UTF-8"))?;
@@ -102,7 +102,7 @@ impl ParsedConfig {
 
     pub fn parse(source: &str) -> Result<Self, ConfigError> {
         if source.len() > MAX_CONFIG_BYTES {
-            return Err(error(source, 0, "configuration exceeds 65536 bytes"));
+            return Err(error(source, 0, "configuration exceeds 1048576 bytes"));
         }
         surface::check(source)?;
         let document = KdlDocument::parse_v2(source).map_err(|failure| {
@@ -165,6 +165,7 @@ impl ParsedConfig {
                             &mut proxy_paths
                         };
                         if !pathward::valid_path(value.as_bytes())
+                            || (value.len() > 1 && value.ends_with('/'))
                             || list.len() == MAX_ROUTE_RULES
                             || list.contains(&value)
                         {
@@ -232,7 +233,9 @@ impl ParsedConfig {
                         if root.is_some() {
                             return Err(self.at(child, "duplicate root directive"));
                         }
-                        if !pathward::valid_path(values[0].as_bytes()) {
+                        if !pathward::valid_path(values[0].as_bytes())
+                            || (values[0].len() > 1 && values[0].ends_with('/'))
+                        {
                             return Err(
                                 self.at(child, "root must be an absolute canonical Unix path")
                             );
@@ -254,7 +257,7 @@ impl ParsedConfig {
                     "publish" => {
                         let values = self.arguments(child, 2)?;
                         if publications.len() == MAX_PUBLICATIONS {
-                            return Err(self.at(child, "a site may publish at most 256 URLs"));
+                            return Err(self.at(child, "a site may publish at most 4096 URLs"));
                         }
                         let publication = Publication {
                             path: values[0].as_bytes(),
@@ -293,7 +296,10 @@ impl ParsedConfig {
                             || !pathward::valid_path(v[0].as_bytes())
                             || !valid_host(v[1])
                             || !pathward::valid_path(v[2].as_bytes())
-                            || (prefix && v[0] == "/")
+                            || (prefix
+                                && (v[0] == "/"
+                                    || v[0].ends_with('/')
+                                    || (v[2] != "/" && v[2].ends_with('/'))))
                         {
                             return Err(self.at(child, "invalid or excessive redirect"));
                         }
@@ -364,7 +370,7 @@ impl ParsedConfig {
             if (!publications.is_empty() && rules::compile(&publications).is_none())
                 || (publications.is_empty() && redirects.is_empty() && upstream.is_none())
             {
-                return Err(self.at(node, "site requires 1 to 256 valid, distinct publish URLs"));
+                return Err(self.at(node, "site requires 1 to 4096 valid, distinct publish URLs"));
             }
             if publications.iter().any(|p| {
                 redirects

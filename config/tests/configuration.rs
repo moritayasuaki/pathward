@@ -230,14 +230,14 @@ fn size_utf8_and_structure_are_bounded_before_parsing() {
 
 #[test]
 fn site_and_publication_count_limits_are_enforced() {
-    for count in [256, 257] {
+    for count in [4096, 4097] {
         let pubs = (0..count)
             .map(|n| format!("publish \"/f{n}\" \"f{n}\"\n"))
             .collect::<String>();
         let text = site(&format!("root \"/srv/www\"\ntls \"auto\"\n{pubs}"));
         assert_eq!(
             ParsedConfig::parse(&text).is_ok_and(|p| p.compile().is_ok()),
-            count == 256
+            count == 4096
         );
     }
     for count in [16, 17] {

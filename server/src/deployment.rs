@@ -29,13 +29,13 @@ pub fn generate(
 ) -> io::Result<String> {
     if base.site(host).is_none_or(|site| site.root().is_none())
         || !pathward::valid_path(root.as_bytes())
-        || manifest.len() > 65_536
+        || manifest.len() > 1_048_576
     {
         return Err(error());
     }
     let files: Vec<_> = manifest.lines().collect();
     if files.is_empty()
-        || files.len() + usize::from(index.is_some()) > 256
+        || files.len() + usize::from(index.is_some()) > pathward_config::MAX_PUBLICATIONS
         || files
             .iter()
             .any(|f| !pathward::rules::valid_target(f.as_bytes()))
@@ -417,7 +417,7 @@ impl Managed {
                             return Err(error());
                         }
                         let length: usize = fields[3].parse().map_err(|_| error())?;
-                        if length > 65_536 {
+                        if length > 1_048_576 {
                             return Err(error());
                         }
                         let bytes = if fields[0] == "ROLLBACK" {

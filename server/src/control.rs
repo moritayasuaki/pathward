@@ -61,7 +61,7 @@ pub fn read_bytes(path: &Path) -> io::Result<Vec<u8>> {
             Mode::empty(),
         )?);
         let before = pin.metadata()?;
-        if !before.is_file() || before.len() > 65_536 {
+        if !before.is_file() || before.len() > 1_048_576 {
             return Err(io::Error::other("invalid configuration file"));
         }
         let fd_path = format!("/proc/self/fd/{}", pin.as_raw_fd());
@@ -79,14 +79,15 @@ pub fn read_bytes(path: &Path) -> io::Result<Vec<u8>> {
     #[cfg(not(target_os = "linux"))]
     let file = File::open(path)?;
     let meta = file.metadata()?;
-    if !meta.is_file() || meta.len() > 65_536 {
+    if !meta.is_file() || meta.len() > 1_048_576 {
         return Err(io::Error::other("invalid configuration file"));
     }
     use std::io::Read;
     let mut bytes = Vec::new();
-    file.take(65_537).read_to_end(&mut bytes)?;
-    if bytes.len() > 65_536 {
-        return Err(io::Error::other("input exceeds 65536 bytes"));
+    file.take(pathward_config::MAX_CONFIG_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 1_048_576 {
+        return Err(io::Error::other("input exceeds 1048576 bytes"));
     }
     Ok(bytes)
 }

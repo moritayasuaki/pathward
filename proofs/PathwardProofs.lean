@@ -25,7 +25,7 @@ def next (s : State) (b : U8) : State :=
   | .Reject => .Reject
 
 def accepts : State → Bool
-  | .Root | .Segment => true
+  | .Root | .Segment | .Separator => true
   | _ => false
 
 def run (s : State) (bytes : List U8) : State := bytes.foldl next s
@@ -121,7 +121,7 @@ theorem listed_eq (p : Slice U8) (pub : Slice (Slice U8)) (i : Usize)
 termination_by pub.val.length - i.val
 
 theorem is_public_eq (p : Slice U8) (pub : Slice (Slice U8)) :
-    is_public p pub = ok (decide (pub.val.length ≤ 256) && canonical p.val &&
+    is_public p pub = ok (decide (pub.val.length ≤ 4096) && canonical p.val &&
       pub.val.any (fun entry => p.val == entry.val)) := by
   unfold is_public
   rw [valid_path_eq, listed_eq p pub 0#usize (by simp)]
@@ -130,7 +130,7 @@ theorem is_public_eq (p : Slice U8) (pub : Slice (Slice U8)) :
 
 /-- Complete authorization contract, including both positive and negative cases. -/
 theorem authorization_iff (p : Slice U8) (pub : Slice (Slice U8)) :
-    is_public p pub = ok true ↔ pub.val.length ≤ 256 ∧ canonical p.val = true ∧
+    is_public p pub = ok true ↔ pub.val.length ≤ 4096 ∧ canonical p.val = true ∧
       ∃ entry ∈ pub.val, p.val = entry.val := by
   rw [is_public_eq]
   simp [Bool.and_assoc]
@@ -243,5 +243,19 @@ theorem published_no_traversal (p : Slice U8) (pub : Slice (Slice U8))
   have hc := ((authorization_iff p pub).mp h).2.1
   rw [heq, no_hidden_or_traversal] at hc
   contradiction
+
+theorem next_not_start (s : State) (b : U8) : next s b ≠ .Start := by
+  cases s <;> simp [next] <;> split_ifs <;> simp_all
+
+theorem run_not_start (xs : List U8) (s : State) (h : s ≠ .Start) : run s xs ≠ .Start := by
+  induction xs generalizing s with
+  | nil => exact h
+  | cons b xs ih => exact ih (next s b) (next_not_start s b)
+
+theorem directory_suffix_allowed (xs : List U8)
+    (h : run .Start xs = .Segment) (bound : xs.length < 4096) :
+    canonical (xs ++ [47#u8]) = true := by
+  simp [canonical, run_append, h, next, nameByte, accepts]
+  omega
 
 end PathwardProofs

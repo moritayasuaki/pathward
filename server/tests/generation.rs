@@ -112,3 +112,30 @@ fn generation_preserves_stream_opt_ins_and_every_stream_budget() {
         config_new.sites()[0].proxy_limits()
     );
 }
+
+#[test]
+fn generated_configuration_round_trips_more_than_256_publications() {
+    let p=ParsedConfig::parse("site \"example.com\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}\n").unwrap();
+    let manifest = (0..1500)
+        .map(|i| format!("page-{i}.html\n"))
+        .collect::<String>();
+    let result = generate(
+        &p.compile().unwrap(),
+        "example.com",
+        "/srv/new",
+        &manifest,
+        None,
+    )
+    .unwrap();
+    let parsed = ParsedConfig::parse(&result).unwrap();
+    assert_eq!(
+        parsed
+            .compile()
+            .unwrap()
+            .site("example.com")
+            .unwrap()
+            .publications()
+            .len(),
+        1500
+    );
+}

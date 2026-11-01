@@ -37,7 +37,7 @@ fn with_server(test: impl FnOnce(SocketAddr)) {
     symlink(tree.0.join("secret"), tree.0.join("public/link")).unwrap();
     fs::hard_link(tree.0.join("secret"), tree.0.join("public/hardlink")).unwrap();
     let text = format!(
-        "site \"example.com\" {{\nroot \"{}\"\npublish \"/\" \"index.html\"\npublish \"/link\" \"link\"\npublish \"/hardlink\" \"hardlink\"\ntls \"auto\"\n}}\nsite \"other.example\" {{\nroot \"{}\"\npublish \"/\" \"index.html\"\ntls \"auto\"\n}}",
+        "site \"example.com\" {{\nroot \"{}\"\npublish \"/\" \"index.html\"\npublish \"/guide/\" \"index.html\"\npublish \"/link\" \"link\"\npublish \"/hardlink\" \"hardlink\"\ntls \"auto\"\n}}\nsite \"other.example\" {{\nroot \"{}\"\npublish \"/\" \"index.html\"\ntls \"auto\"\n}}",
         tree.0.join("public").display(),
         tree.0.join("other").display()
     );
@@ -369,6 +369,23 @@ fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
         worker.join().unwrap().unwrap();
         if let Err(e) = result {
             std::panic::resume_unwind(e);
+        }
+    });
+}
+
+#[test]
+fn directory_url_requires_exact_explicit_publication() {
+    with_server(|address| {
+        assert!(get(address, "GET", "example.com", "/guide/?v=1").ends_with(b"PUBLIC INDEX"));
+        for path in [
+            "/guide",
+            "/guide//",
+            "/guide/../",
+            "/guide/.env",
+            "/guide/secret",
+        ] {
+            let response = get(address, "GET", "example.com", path);
+            assert!(response.starts_with(b"HTTP/1.1 404"), "{path}");
         }
     });
 }

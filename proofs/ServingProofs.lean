@@ -114,7 +114,7 @@ def getBytes : List U8 := [71#u8, 69#u8, 84#u8]
 def headBytes : List U8 := [72#u8, 69#u8, 65#u8, 68#u8]
 
 def lookupResult (p : Slice U8) (rs : Slice rules.Publication) : Option (Slice U8) :=
-  if rs.val.length ≤ 256 ∧ canonical p.val = true then lookupSpec p.val rs.val else none
+  if rs.val.length ≤ 4096 ∧ canonical p.val = true then lookupSpec p.val rs.val else none
 
 def grantResult (send : Bool) (t : Slice U8) (rs : Slice rules.Publication) : Option serving.Grant := do
   let p ← requestSpec t
