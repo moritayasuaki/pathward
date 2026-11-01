@@ -126,3 +126,8 @@ authorization/gone statuses. The complete axiom audit covers 246 statements.
 Socket orchestration, header parsing, filesystem metadata and application ownership
 semantics are tested/audited adapters, outside those proofs. The discovery gate's
 GET/credential flags are tied to the fixed constructed probe in that adapter.
+
+Active static responses receive a five-second drain window after they observe
+shutdown, capped by their original total deadline. A write already in progress
+retains its five-second deadline; stopping acceptance does not truncate a small
+active response immediately. Linux signal/drain integration tests cover this.

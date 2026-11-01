@@ -495,9 +495,12 @@ impl Server {
             opened.file.seek(SeekFrom::Start(plan.start))?;
             let mut left = plan.count;
             let mut buffer = [0u8; 16_384];
+            let mut drain_deadline = None;
             while left > 0 {
-                if stopping() {
-                    return Err(io::Error::new(io::ErrorKind::Interrupted, "draining"));
+                // Preserve the active response during graceful shutdown, but
+                // do not let a large/slow transfer retain its full 120s budget.
+                if stopping() && drain_deadline.is_none() {
+                    drain_deadline = Some(Instant::now() + Duration::from_secs(5));
                 }
                 let size = buffer.len().min(left as usize);
                 let n = opened.file.read(&mut buffer[..size])?;
@@ -507,7 +510,9 @@ impl Server {
                 http::write_all(
                     stream,
                     &buffer[..n],
-                    deadline.min(Instant::now() + Duration::from_secs(5)),
+                    deadline
+                        .min(drain_deadline.unwrap_or(deadline))
+                        .min(Instant::now() + Duration::from_secs(5)),
                 )?;
                 left -= n as u64;
             }
