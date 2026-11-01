@@ -3,30 +3,54 @@ use crate::http::{self, Rejection, Request, Transport};
 use pathward::streaming as gate;
 use pathward_config::ProxyLimits;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     io::{self, Read, Write},
-    net::TcpStream,
-    sync::Mutex,
+    net::{IpAddr, TcpStream},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 #[derive(Default)]
-pub(crate) struct Quota(Mutex<u64>);
-pub(crate) struct Permit<'a>(&'a Quota);
+struct Counts {
+    active: u64,
+    peers: HashMap<Option<IpAddr>, u64>,
+}
+#[derive(Clone, Default)]
+pub(crate) struct Quota(Arc<Mutex<Counts>>);
+pub(crate) struct Permit {
+    quota: Quota,
+    peer: Option<IpAddr>,
+}
 impl Quota {
-    pub fn acquire(&self, stopped: bool) -> Option<Permit<'_>> {
-        let mut active = self.0.lock().ok()?;
-        if !gate::admission(*active, stopped) {
+    pub fn acquire_for(&self, peer: Option<IpAddr>, stopped: bool) -> Option<Permit> {
+        let peer = peer.map(crate::admission::key);
+        let mut state = self.0.lock().ok()?;
+        let count = state.peers.get(&peer).copied().unwrap_or(0);
+        if !gate::peer_admission(state.active, count, stopped) {
             return None;
         }
-        *active += 1;
-        Some(Permit(self))
+        state.active += 1;
+        *state.peers.entry(peer).or_default() += 1;
+        Some(Permit {
+            quota: self.clone(),
+            peer,
+        })
+    }
+    #[cfg(test)]
+    pub fn acquire(&self, stopped: bool) -> Option<Permit> {
+        self.acquire_for(None, stopped)
     }
 }
-impl Drop for Permit<'_> {
+impl Drop for Permit {
     fn drop(&mut self) {
-        if let Ok(mut n) = self.0.0.lock() {
-            *n = n.saturating_sub(1);
+        if let Ok(mut state) = self.quota.0.lock() {
+            state.active = state.active.saturating_sub(1);
+            if let Some(n) = state.peers.get_mut(&self.peer) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    state.peers.remove(&self.peer);
+                }
+            }
         }
     }
 }
@@ -48,10 +72,75 @@ pub(crate) fn websocket_field(name: &str) -> bool {
     name.starts_with("sec-websocket-")
 }
 
+pub(crate) const DEFLATE: &str =
+    "permessage-deflate; server_no_context_takeover; client_no_context_takeover";
+type Extension<'a> = (&'a str, Vec<(&'a str, Option<&'a str>)>);
+fn extensions(value: &str) -> io::Result<Vec<Extension<'_>>> {
+    if value.len() > 4096 {
+        return Err(invalid());
+    }
+    let mut result = Vec::new();
+    for offer in value.split(',') {
+        if result.len() == 8 {
+            return Err(invalid());
+        }
+        let mut parts = offer.split(';').map(str::trim);
+        let name = parts.next().ok_or_else(invalid)?;
+        if !token(name) {
+            return Err(invalid());
+        }
+        let mut params = Vec::new();
+        for part in parts {
+            let (key, value) = match part.split_once('=') {
+                Some((key, value)) => {
+                    let v = value.trim();
+                    let v = if v.starts_with('"') && v.ends_with('"') && v.len() >= 2 {
+                        &v[1..v.len() - 1]
+                    } else {
+                        v
+                    };
+                    if !token(v) {
+                        return Err(invalid());
+                    }
+                    (key.trim(), Some(v))
+                }
+                None => (part, None),
+            };
+            if !token(key) || params.len() == 4 || params.iter().any(|(k, _)| *k == key) {
+                return Err(invalid());
+            }
+            params.push((key, value));
+        }
+        result.push((name, params));
+    }
+    Ok(result)
+}
+fn deflate_offer(value: &str) -> io::Result<bool> {
+    Ok(extensions(value)?.iter().any(|(name, params)| {
+        *name == "permessage-deflate"
+            && params.iter().all(|(k, v)| match *k {
+                "server_no_context_takeover" | "client_no_context_takeover" => v.is_none(),
+                "client_max_window_bits" => v.is_none() || *v == Some("15"),
+                _ => false,
+            })
+    }))
+}
+fn deflate_selection(value: &str) -> bool {
+    extensions(value).is_ok_and(|offers| {
+        offers.len() == 1
+            && offers[0].0 == "permessage-deflate"
+            && offers[0].1.len() == 2
+            && ["server_no_context_takeover", "client_no_context_takeover"]
+                .iter()
+                .all(|key| offers[0].1.contains(&(*key, None)))
+    })
+}
+
 pub(crate) struct Upgrade {
     pub key: String,
     pub protocols: Vec<String>,
     pub accept: String,
+    pub deflate: bool,
 }
 fn key_valid(s: &[u8]) -> bool {
     s.len() == 24
@@ -86,10 +175,13 @@ fn accept_key(key: &str) -> String {
     }
     out
 }
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn request(
     req: &Request<'_>,
     prefetched: usize,
     enabled: bool,
+    deflate: bool,
+    origins: &[String],
     encrypted: bool,
     port: u16,
 ) -> Result<Option<Upgrade>, Rejection> {
@@ -106,7 +198,8 @@ pub(crate) fn request(
     let mut seen = BTreeSet::new();
     let mut key = "";
     let mut version = false;
-    let mut origin = true;
+    let mut origin = gate::origin_allowed(false, false, false);
+    let mut compression = false;
     let mut protocols = Vec::new();
     let scheme = if encrypted { "https" } else { "http" };
     let default = if encrypted { 443 } else { 80 };
@@ -124,7 +217,13 @@ pub(crate) fn request(
         match name.as_str() {
             "sec-websocket-key" => key = value,
             "sec-websocket-version" => version = value == "13",
-            "origin" => origin = value == expected_origin,
+            "origin" => {
+                origin = gate::origin_allowed(
+                    true,
+                    value == expected_origin,
+                    origins.iter().any(|o| o == value),
+                )
+            }
             "sec-websocket-protocol" => {
                 for p in value.split(',').map(str::trim) {
                     if p.len() > 64
@@ -137,8 +236,9 @@ pub(crate) fn request(
                     protocols.push(p.to_owned());
                 }
             }
-            // Never forward offers; compression/extensions are not negotiated.
-            "sec-websocket-extensions" => {}
+            "sec-websocket-extensions" => {
+                compression = deflate_offer(value).map_err(|_| Rejection(400))? && deflate;
+            }
             _ if websocket_field(&name) => return Err(Rejection(400)),
             _ => {}
         }
@@ -162,6 +262,7 @@ pub(crate) fn request(
         key: key.to_owned(),
         accept: accept_key(key),
         protocols,
+        deflate: compression,
     }))
 }
 
@@ -169,6 +270,7 @@ pub(crate) enum Mode {
     WebSocket {
         accept: String,
         protocol: Option<String>,
+        deflate: bool,
     },
     Sse {
         length: Option<u64>,
@@ -202,7 +304,16 @@ pub(crate) fn response_upgrade(
     let offered = protocol
         .as_ref()
         .is_none_or(|p| request.protocols.contains(p));
-    let extensions = get("sec-websocket-extensions").is_some();
+    let selected = get("sec-websocket-extensions");
+    let valid = selected.is_none_or(|v| std::str::from_utf8(v).is_ok_and(deflate_selection));
+    let extensions_valid = gate::deflate_allowed(
+        request.deflate,
+        request.deflate,
+        selected.is_some(),
+        valid,
+        valid,
+        valid,
+    );
     if !gate::upgrade_response(
         true,
         version == 1,
@@ -210,7 +321,7 @@ pub(crate) fn response_upgrade(
         upgraded,
         accepted,
         offered,
-        extensions,
+        extensions_valid,
         length,
         transfer,
     ) || get("sec-websocket-version").is_some()
@@ -222,6 +333,7 @@ pub(crate) fn response_upgrade(
     Ok(Mode::WebSocket {
         accept: request.accept.clone(),
         protocol,
+        deflate: selected.is_some(),
     })
 }
 

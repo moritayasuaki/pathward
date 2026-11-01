@@ -402,19 +402,33 @@ fn idle_total_and_shutdown_bound_long_lived_connections() {
 #[test]
 fn stream_quota_is_shared_and_released_on_drop() {
     let q = Quota::default();
-    let a = q.acquire(false).unwrap();
-    let b = q.acquire(false).unwrap();
+    let mut leases: Vec<_> = (0..8).map(|_| q.acquire(false).unwrap()).collect();
     assert!(q.acquire(false).is_none());
-    drop(a);
-    let c = q.acquire(false).unwrap();
+    leases.pop();
+    leases.push(q.acquire(false).unwrap());
+    let ipv6 = "2001:db8::1".parse().unwrap();
+    let other = q.clone();
+    for _ in 0..8 {
+        leases.push(other.acquire_for(Some(ipv6), false).unwrap());
+    }
+    assert!(
+        q.acquire_for(Some("127.0.0.2".parse().unwrap()), false)
+            .is_none()
+    );
+    assert!(
+        q.acquire_for(Some("2001:db8::2".parse().unwrap()), false)
+            .is_none()
+    );
     assert!(q.acquire(true).is_none());
-    drop((b, c));
+    drop(leases);
+    assert_eq!(q.0.lock().unwrap().active, 0);
+    assert!(q.0.lock().unwrap().peers.is_empty());
     assert!(q.acquire(false).is_some());
 }
 #[test]
-fn websocket_reload_keeps_service_slot_and_shutdown_releases_it() {
+fn websocket_reload_keeps_stream_slot_and_shutdown_releases_it() {
     let upstream = listener();
-    let options = "proxy-stream \"websocket\"\nproxy-limit \"connections\" \"1\"";
+    let options = "proxy-stream \"websocket\"\nproxy-limit \"streams\" \"1\"";
     with_server(
         upstream.local_addr().unwrap(),
         options,
@@ -430,12 +444,9 @@ fn websocket_reload_keeps_service_slot_and_shutdown_releases_it() {
                 });
                 let mut c = connect(addr, WS);
                 assert!(head(&mut c).starts_with(b"HTTP/1.1 101 "));
-                let new = configured(
-                    upstream.local_addr().unwrap(),
-                    "proxy-limit \"connections\" \"1\"",
-                );
+                let new = configured(upstream.local_addr().unwrap(), options);
                 server.reload(&new.compile().unwrap(), stop).unwrap();
-                let mut other = connect(addr, GET);
+                let mut other = connect(addr, WS);
                 assert!(tail(&mut other).starts_with(b"HTTP/1.1 503 "));
                 assert!(upstream.accept().is_err());
                 server.begin_shutdown();
@@ -684,40 +695,32 @@ fn occupied_stream_quota_rejects_before_upgrade_and_survives_reload() {
     let upstream = listener();
     let parsed = configured(upstream.local_addr().unwrap(), "proxy-stream \"websocket\"");
     let server = Server::new(&parsed.compile().unwrap()).unwrap();
-    let a = server.stream_quota.acquire(false).unwrap();
-    let b = server.stream_quota.acquire(false).unwrap();
+    let leases: Vec<_> = (0..8)
+        .map(|_| server.stream_quota.acquire(false).unwrap())
+        .collect();
     server
         .reload(&parsed.compile().unwrap(), &AtomicBool::new(false))
         .unwrap();
-    thread::scope(|scope| {
-        let origin = scope.spawn(|| {
-            let mut s = accept(&upstream);
-            head(&mut s);
-            s.write_all(SWITCH).unwrap();
-            let mut byte = [0];
-            assert_eq!(s.read(&mut byte).unwrap(), 0);
-        });
-        let snapshot = server.state.read().unwrap().snapshot.clone();
-        let mut client = Exchange {
-            input: io::Cursor::new(WS.to_vec()),
-            output: Vec::new(),
-        };
-        let result = Server::respond(
-            &snapshot,
-            &mut client,
-            Instant::now(),
-            None,
-            false,
-            &server.stream_quota,
-            &|| false,
-        )
-        .unwrap();
-        assert_eq!(result.0, 503);
-        assert!(client.output.starts_with(b"HTTP/1.1 503 "));
-        assert!(!client.output.windows(3).any(|s| s == b"101"));
-        origin.join().unwrap();
-    });
-    drop((a, b));
+    let snapshot = server.state.read().unwrap().snapshot.clone();
+    let mut client = Exchange {
+        input: io::Cursor::new(WS.to_vec()),
+        output: Vec::new(),
+    };
+    let result = Server::respond(
+        &snapshot,
+        &mut client,
+        Instant::now(),
+        None,
+        false,
+        &server.stream_quota,
+        &|| false,
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.0, 503);
+    assert!(client.output.starts_with(b"HTTP/1.1 503 "));
+    assert!(upstream.accept().is_err());
+    drop(leases);
     assert!(server.stream_quota.acquire(false).is_some());
 }
 #[test]
@@ -743,4 +746,282 @@ fn rejected_websocket_handshake_is_an_ordinary_bounded_http_response() {
             })
         },
     );
+}
+
+#[test]
+fn deflate_grammar_bounds_offers_and_restricts_selected_profile() {
+    for offer in [
+        "permessage-deflate",
+        "permessage-deflate; client_max_window_bits",
+        "permessage-deflate; client_max_window_bits=\"15\"",
+        DEFLATE,
+        "unknown, permessage-deflate",
+    ] {
+        assert!(deflate_offer(offer).unwrap(), "{offer}");
+    }
+    for offer in [
+        "unknown",
+        "permessage-deflate; client_max_window_bits=14",
+        "permessage-deflate; server_max_window_bits=15",
+        "permessage-deflate; unknown",
+        "permessage-deflate; server_no_context_takeover=1",
+    ] {
+        assert!(!deflate_offer(offer).unwrap(), "{offer}");
+    }
+    for offer in [
+        "",
+        ",",
+        "permessage-deflate;",
+        "permessage-deflate; a; a",
+        "permessage-deflate; a=\"bad\\escape\"",
+        "permessage-deflate; a=",
+        "a;b;c;d;e;f",
+        "a,a,a,a,a,a,a,a,a",
+    ] {
+        assert!(deflate_offer(offer).is_err(), "{offer}");
+    }
+    assert!(deflate_selection(DEFLATE));
+    assert!(deflate_selection(
+        "permessage-deflate; client_no_context_takeover; server_no_context_takeover"
+    ));
+    for response in [
+        "permessage-deflate",
+        "permessage-deflate; server_no_context_takeover",
+        "permessage-deflate; client_no_context_takeover",
+        "permessage-deflate; server_no_context_takeover=1; client_no_context_takeover",
+        "permessage-deflate; client_no_context_takeover; server_no_context_takeover; client_max_window_bits=15",
+        "permessage-deflate, permessage-deflate",
+    ] {
+        assert!(!deflate_selection(response), "{response}");
+    }
+}
+
+#[test]
+fn deflate_negotiation_relays_rsv1_frames_without_rewriting_payloads() {
+    let upstream = listener();
+    with_server(
+        upstream.local_addr().unwrap(),
+        "proxy-stream \"websocket\"\nwebsocket-compression \"permessage-deflate\"",
+        |addr, _, _| {
+            thread::scope(|scope| {
+                let origin = scope.spawn(|| {
+                    let mut s = accept(&upstream);
+                    let req = String::from_utf8(head(&mut s)).unwrap();
+                    assert!(req.contains(&format!("Sec-WebSocket-Extensions: {DEFLATE}\r\n")));
+                    let response = String::from_utf8(SWITCH.to_vec()).unwrap().replace(
+                        "\r\n\r\n",
+                        &format!("\r\nSec-WebSocket-Extensions: {DEFLATE}\r\n\r\n"),
+                    );
+                    s.write_all(response.as_bytes()).unwrap();
+                    // RFC 7692 compressed "Hello". RSV1 and masking pass through untouched.
+                    s.write_all(b"\xc1\x07\xf2\x48\xcd\xc9\xc9\x07\x00")
+                        .unwrap();
+                    let mut echoed = [0; 13];
+                    s.read_exact(&mut echoed).unwrap();
+                    assert_eq!(&echoed, b"\xc1\x87\0\0\0\0\xf2\x48\xcd\xc9\xc9\x07\x00");
+                });
+                let mut c = connect(addr, WS);
+                assert!(
+                    String::from_utf8(head(&mut c))
+                        .unwrap()
+                        .contains(&format!("Sec-WebSocket-Extensions: {DEFLATE}\r\n"))
+                );
+                let mut bytes = [0; 9];
+                c.read_exact(&mut bytes).unwrap();
+                assert_eq!(&bytes, b"\xc1\x07\xf2\x48\xcd\xc9\xc9\x07\x00");
+                c.write_all(b"\xc1\x87\0\0\0\0\xf2\x48\xcd\xc9\xc9\x07\x00")
+                    .unwrap();
+                assert!(tail(&mut c).is_empty());
+                origin.join().unwrap();
+            })
+        },
+    );
+}
+
+#[test]
+fn deflate_response_must_be_offered_and_reset_both_histories() {
+    for (offer, selected, status) in [
+        ("permessage-deflate", "", 101),
+        ("unknown", DEFLATE, 502),
+        (
+            "permessage-deflate; server_max_window_bits=10",
+            DEFLATE,
+            502,
+        ),
+        ("permessage-deflate", "permessage-deflate", 502),
+        (
+            "permessage-deflate",
+            "permessage-deflate; server_no_context_takeover",
+            502,
+        ),
+        (
+            "permessage-deflate",
+            "permessage-deflate; client_no_context_takeover",
+            502,
+        ),
+    ] {
+        let upstream = listener();
+        with_server(
+            upstream.local_addr().unwrap(),
+            "proxy-stream \"websocket\"\nwebsocket-compression \"permessage-deflate\"",
+            |addr, _, _| {
+                thread::scope(|scope| {
+                    let origin = scope.spawn(|| {
+                        let mut s = accept(&upstream);
+                        head(&mut s);
+                        let response = String::from_utf8(SWITCH.to_vec()).unwrap();
+                        let response = if selected.is_empty() {
+                            response
+                        } else {
+                            response.replace(
+                                "\r\n\r\n",
+                                &format!("\r\nSec-WebSocket-Extensions: {selected}\r\n\r\n"),
+                            )
+                        };
+                        s.write_all(response.as_bytes()).unwrap();
+                    });
+                    let req = String::from_utf8(WS.to_vec())
+                        .unwrap()
+                        .replace("permessage-deflate", offer);
+                    let mut c = connect(addr, req.as_bytes());
+                    assert!(tail(&mut c).starts_with(format!("HTTP/1.1 {status} ").as_bytes()));
+                    origin.join().unwrap();
+                })
+            },
+        );
+    }
+}
+
+#[test]
+fn explicit_origin_is_exact_and_reload_revokes_new_handshakes() {
+    let upstream = listener();
+    let options = "proxy-stream \"websocket\"\nwebsocket-origin \"https://console.example\"";
+    with_server(
+        upstream.local_addr().unwrap(),
+        options,
+        |addr, server, stop| {
+            thread::scope(|scope| {
+                let origin = scope.spawn(|| {
+                    let mut s = accept(&upstream);
+                    let h = head(&mut s);
+                    assert!(
+                        h.windows(b"origin: https://console.example\r".len())
+                            .any(|x| x == b"origin: https://console.example\r")
+                    );
+                    s.write_all(SWITCH).unwrap();
+                });
+                let req = |origin: &str| {
+                    String::from_utf8(WS.to_vec())
+                        .unwrap()
+                        .replace("\r\n\r\n", &format!("\r\nOrigin: {origin}\r\n\r\n"))
+                };
+                let mut c = connect(addr, req("https://console.example").as_bytes());
+                assert!(head(&mut c).starts_with(b"HTTP/1.1 101 "));
+                origin.join().unwrap();
+                for o in [
+                    "https://console.example.evil",
+                    "https://console.example/",
+                    "https://console.example:443",
+                    "http://console.example",
+                    "null",
+                ] {
+                    let mut c = connect(addr, req(o).as_bytes());
+                    assert!(tail(&mut c).starts_with(b"HTTP/1.1 403 "));
+                }
+                let new = configured(upstream.local_addr().unwrap(), "proxy-stream \"websocket\"");
+                server.reload(&new.compile().unwrap(), stop).unwrap();
+                let mut c = connect(addr, req("https://console.example").as_bytes());
+                assert!(tail(&mut c).starts_with(b"HTTP/1.1 403 "));
+                assert!(upstream.accept().is_err());
+            })
+        },
+    );
+}
+
+#[test]
+fn eight_live_streams_leave_ordinary_http_workers_available_and_drain_on_stop() {
+    let upstream = listener();
+    with_server(
+        upstream.local_addr().unwrap(),
+        "proxy-stream \"websocket\"\nproxy-stream \"sse\"\nproxy-limit \"connections\" \"1\"",
+        |addr, server, stop| {
+            thread::scope(|scope| {
+                let (tx, rx) = mpsc::channel();
+                let upstream = &upstream;
+                let origin = scope.spawn(move || {
+            let mut held = Vec::new();
+            for i in 0..8 {
+                let mut s = accept(upstream); head(&mut s);
+                s.write_all(if i % 2 == 0 { SWITCH } else { b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n" }).unwrap(); held.push(s);
+            }
+            let mut ordinary = accept(upstream); head(&mut ordinary); ordinary.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK").unwrap(); drop(ordinary);
+            rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        });
+                let mut clients = Vec::new();
+                for i in 0..8 {
+                    let mut c = connect(addr, if i % 2 == 0 { WS } else { GET });
+                    let h = head(&mut c);
+                    assert!(h.starts_with(if i % 2 == 0 {
+                        b"HTTP/1.1 101 "
+                    } else {
+                        b"HTTP/1.1 200 "
+                    }));
+                    clients.push(c);
+                }
+                let mut excess = connect(addr, WS);
+                assert!(tail(&mut excess).starts_with(b"HTTP/1.1 503 "));
+                let mut ordinary = connect(addr, GET);
+                assert!(tail(&mut ordinary).ends_with(b"OK"));
+                server.begin_shutdown();
+                for c in &mut clients {
+                    assert!(tail(c).is_empty());
+                }
+                let until = Instant::now() + Duration::from_secs(1);
+                while server.stream_quota.0.lock().unwrap().active != 0 {
+                    assert!(Instant::now() < until);
+                    thread::sleep(Duration::from_millis(5));
+                }
+                stop.store(true, Ordering::Release);
+                tx.send(()).unwrap();
+                origin.join().unwrap();
+            })
+        },
+    );
+}
+
+#[test]
+fn stream_service_caps_share_generations_but_preparation_cannot_change_them() {
+    use crate::runtime::Snapshot;
+    let upstream = "127.0.0.1:3000".parse().unwrap();
+    let original = configured(
+        upstream,
+        "proxy-stream \"websocket\"\nproxy-limit \"streams\" \"2\"",
+    );
+    let reduced = configured(
+        upstream,
+        "proxy-stream \"websocket\"\nproxy-limit \"streams\" \"1\"",
+    );
+    let off = configured(upstream, "");
+    let old = Snapshot::prepare(&original.compile().unwrap(), None).unwrap();
+    let one = old.sites[0].acquire_stream().unwrap();
+    let mut new = Snapshot::prepare(&reduced.compile().unwrap(), None).unwrap();
+    new.inherit_budgets(&old);
+    drop(old.sites[0].acquire_stream().unwrap()); // failed persistence/preparation has no effect
+    new.install_limits();
+    assert!(old.sites[0].acquire_stream().is_none());
+    assert!(new.sites[0].acquire_stream().is_none());
+    drop(one);
+    let one = old.sites[0].acquire_stream().unwrap();
+    assert!(new.sites[0].acquire_stream().is_none());
+    let mut restored = Snapshot::prepare(&original.compile().unwrap(), None).unwrap();
+    restored.inherit_budgets(&new);
+    restored.install_limits();
+    drop(restored.sites[0].acquire_stream().unwrap());
+    assert!(new.sites[0].acquire_stream().is_none());
+    let mut disabled = Snapshot::prepare(&off.compile().unwrap(), None).unwrap();
+    disabled.inherit_budgets(&restored);
+    disabled.install_limits();
+    assert!(old.sites[0].acquire_stream().is_none());
+    drop(one);
+    assert!(restored.sites[0].acquire_stream().is_none());
 }

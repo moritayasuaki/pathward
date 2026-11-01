@@ -143,3 +143,64 @@ fn streams_require_explicit_opt_in_and_bounded_budget_settings() {
         "site \"app.example\" {\ntls \"auto\"\nredirect \"/old\" \"app.example\" \"/new\" \"308\"\nproxy-stream \"sse\"\n}\n"
     ));
 }
+
+#[test]
+fn stream_capacity_compression_and_origins_are_explicit_and_bounded() {
+    let base = "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-stream \"websocket\"\nEXTRA\n}";
+    let text = base.replace("EXTRA", "proxy-limit \"streams\" \"16\"\nwebsocket-compression \"permessage-deflate\"\nwebsocket-origin \"https://console.example\"\nwebsocket-origin \"http://localhost:3001\"");
+    let p = ParsedConfig::parse(&text).unwrap();
+    let c = p.compile().unwrap();
+    let s = &c.sites()[0];
+    assert_eq!(s.proxy_limits().streams, 16);
+    assert!(s.proxy_limits().deflate);
+    assert_eq!(
+        s.websocket_origins(),
+        ["https://console.example", "http://localhost:3001"]
+    );
+    for extra in [
+        "proxy-limit \"streams\" \"0\"",
+        "proxy-limit \"streams\" \"17\"",
+        "proxy-limit \"streams\" \"01\"",
+        "websocket-compression \"gzip\"",
+        "websocket-compression \"permessage-deflate\"\nwebsocket-compression \"permessage-deflate\"",
+        "websocket-origin \"https://a.example\"\nwebsocket-origin \"https://a.example\"",
+    ] {
+        assert!(!valid(&base.replace("EXTRA", extra)), "{extra}");
+    }
+    for origin in [
+        "*",
+        "null",
+        "https://*.example",
+        "https://EXAMPLE.com",
+        "https://example.com/",
+        "https://example.com:443",
+        "http://example.com:080",
+        "http://example.com:65536",
+        "http://example.com:0",
+        "https://user@example.com",
+        "https://example.com?x",
+        "https://example.com#x",
+        "https://example.com.",
+        "wss://example.com",
+    ] {
+        assert!(
+            !valid(&base.replace("EXTRA", &format!("websocket-origin \"{origin}\""))),
+            "{origin}"
+        );
+    }
+    let origins = (0..17)
+        .map(|i| format!("websocket-origin \"https://o{i}.example\"\n"))
+        .collect::<String>();
+    assert!(!valid(&base.replace("EXTRA", &origins)));
+    for directive in [
+        "websocket-compression \"permessage-deflate\"",
+        "websocket-origin \"https://console.example\"",
+        "proxy-limit \"streams\" \"1\"",
+    ] {
+        assert!(!valid(
+            &base
+                .replace("proxy-stream \"websocket\"", "")
+                .replace("EXTRA", directive)
+        ));
+    }
+}

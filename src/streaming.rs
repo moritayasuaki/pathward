@@ -22,7 +22,7 @@ pub fn upgrade_response(
     upgrade: bool,
     accept: bool,
     protocol: bool,
-    extensions: bool,
+    extensions_valid: bool,
     length: bool,
     transfer: bool,
 ) -> bool {
@@ -32,7 +32,7 @@ pub fn upgrade_response(
         && upgrade
         && accept
         && protocol
-        && !extensions
+        && extensions_valid
         && !length
         && !transfer
 }
@@ -62,5 +62,28 @@ pub fn running(stopped: bool, elapsed: u64, quiet: u64, idle: u64, total: u64) -
     !stopped && time_limits(idle, total) && elapsed < total && quiet < idle
 }
 pub fn admission(active: u64, stopped: bool) -> bool {
-    !stopped && active < 2
+    !stopped && active < 16
+}
+
+pub fn peer_admission(active: u64, peer: u64, stopped: bool) -> bool {
+    admission(active, stopped) && peer < 8
+}
+pub fn service_limit(limit: u64) -> bool {
+    limit > 0 && limit <= 16
+}
+pub fn service_admission(active: u64, captured: u64, current: u64) -> bool {
+    service_limit(captured) && service_limit(current) && active < captured && active < current
+}
+pub fn origin_allowed(present: bool, same: bool, listed: bool) -> bool {
+    !present || same || listed
+}
+pub fn deflate_allowed(
+    enabled: bool,
+    offered: bool,
+    selected: bool,
+    server_reset: bool,
+    client_reset: bool,
+    parameters: bool,
+) -> bool {
+    !selected || (enabled && offered && server_reset && client_reset && parameters)
 }

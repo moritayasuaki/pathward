@@ -101,7 +101,7 @@ input allocation. A linear, nonrecursive preflight admits only:
   before `}`. A top-level closing brace may be followed by EOF.
 - `//` line comments, including Unicode text. Comment/newline handling uses the
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
-- A single children level (sites only); at most 16 sites and 496 directives per
+- A single children level (sites only); at most 16 sites and 514 directives per
   site before the upstream parser runs. Compilation separately enforces 256 URLs,
   64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials, 64 proxy scopes and
   seven distinct budget settings. Publications require a root.
@@ -146,3 +146,8 @@ serving decisions verified in Lean; OS operations remain trusted. See [HTTP serv
 WebSocket and SSE require explicit `proxy-stream` opt-ins. See
 [streaming configuration and audit](streaming.md) for handshake policy, per-session
 capacity/time budgets, concurrency and shutdown behavior.
+
+WebSocket streaming also supports `proxy-limit "streams"` (1–16), optional
+`websocket-compression "permessage-deflate"`, and up to 16 exact
+`websocket-origin "https://console.example"` entries. Compression and additional
+origins require `proxy-stream "websocket"`. See [streaming policy](streaming.md).

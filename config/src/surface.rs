@@ -25,7 +25,7 @@ pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
         while input.peek() != Some(b'}') {
             directives += 1;
             if directives
-                > MAX_PUBLICATIONS + MAX_REDIRECTS + MAX_HEADERS + 2 * MAX_ROUTE_RULES + 16
+                > MAX_PUBLICATIONS + MAX_REDIRECTS + MAX_HEADERS + 2 * MAX_ROUTE_RULES + 34
             {
                 return input.fail("too many site directives");
             }
@@ -37,7 +37,14 @@ pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
                 input.pos += 1;
             }
             let arguments = match &source[start..input.pos] {
-                "root" | "tls" | "reverse-proxy" | "deny" | "proxy-path" | "proxy-stream" => 1,
+                "root"
+                | "tls"
+                | "reverse-proxy"
+                | "deny"
+                | "proxy-path"
+                | "proxy-stream"
+                | "websocket-origin"
+                | "websocket-compression" => 1,
                 "publish" | "proxy-limit" | "proxy-timeout" => 2,
                 "redirect" | "redirect-prefix" => 4,
                 "header" => 3,

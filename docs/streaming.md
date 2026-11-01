@@ -15,6 +15,10 @@ site "app.example" {
     proxy-stream "websocket"
     proxy-stream "sse"
     proxy-limit "connections" "2"
+    proxy-limit "streams" "8"
+    // Optional; enable only for applications reviewed for compression risks.
+    websocket-compression "permessage-deflate"
+    websocket-origin "https://console.example"
     proxy-limit "stream-upload" "16MiB"
     proxy-limit "stream-download" "64MiB"
     proxy-timeout "stream-idle" "30s"
@@ -37,24 +41,54 @@ CONNECT and connection options that nominate arbitrary headers are rejected.
 
 If Origin is present, it must exactly match the canonical external origin
 (`https://app.example` for TLS, or the direct HTTP listener's origin including its
-nondefault port). `null`, cross-origin and noncanonical spellings are refused with
-403 before upstream contact. An absent Origin is permitted for non-browser
-clients. This is not authentication: the upstream must still authorize users,
-cookies, operations and application-specific path aliases. Cross-origin browser
-allowlists are not implemented.
+nondefault port), or an explicitly configured `websocket-origin`. Up to 16 unique
+additional origins are allowed. Each must be a lowercase ASCII http/https origin
+with a DNS-style hostname and optional canonical nondefault port (1–65535).
+Paths, queries, fragments, userinfo, wildcard, `null`, IPv6 literals and trailing
+slashes/dots are rejected. No suffix matching or URL decoding occurs. Noncanonical
+or unlisted origins receive 403 before upstream contact. See
+[RFC 6454 §7](https://www.rfc-editor.org/rfc/rfc6454.html#section-7).
+
+An absent Origin is permitted for non-browser clients. Origin is not authentication:
+the upstream must still authorize users, cookies, operations and application-specific
+path aliases. This allowlist affects only WebSocket handshakes, not CORS or SSE.
+Removing an origin affects new handshakes; already established connections keep
+running under their captured policy until expiry or shutdown.
 
 Before sending 101 downstream, PathWard checks the HTTP version, status,
 Upgrade/Connection pair, challenge response and any selected subprotocol.
 The selection must be one of at most 16 distinct offered tokens (64 bytes each).
-A 101 containing Content-Length, Transfer-Encoding or an extension is rejected.
+A 101 containing Content-Length, Transfer-Encoding or an unapproved extension is rejected.
 Unsolicited 101 responses cannot start a tunnel. Non-101 responses retain ordinary
 bounded HTTP handling, so application rejections can reach the client.
 
-Extension offers are removed and extension responses are refused. In particular,
-permessage-deflate is not negotiated. The challenge uses the existing `ring`
-SHA-1 primitive solely for the fixed RFC handshake; no cryptographic primitive or
-third-party WebSocket parser was added. The protocol baseline is
-[RFC 6455 §4](https://www.rfc-editor.org/rfc/rfc6455.html#section-4).
+Compression is disabled by default. `websocket-compression "permessage-deflate"`
+requires WebSocket opt-in and enables a restricted, end-to-end negotiation profile:
+**both `server_no_context_takeover` and `client_no_context_takeover` are required**.
+PathWard emits a canonical offer only when a compatible client offer exists.
+The common `permessage-deflate; client_max_window_bits` browser offer is supported.
+Optional client window bits may be absent, valueless or 15. Offers requiring
+server window bits or other parameters are not selected. Upstream selection must
+contain exactly permessage-deflate and the two valueless reset parameters; unknown,
+unsolicited, duplicate or additional selections fail with 502 before downstream 101.
+The upstream may decline compression. No raw extension field is forwarded.
+
+Extension parsing is limited to 4096 bytes, eight alternatives and four unique
+parameters each. Token or quoted-token values are accepted; escaping and broader
+quoted-string syntax are deliberately rejected. Unsupported well-formed offers
+are ignored, while malformed/duplicate parameters cause 400. This is a bounded
+subset of [RFC 7692 §7.1](https://www.rfc-editor.org/rfc/rfc7692.html#section-7.1),
+not support for every extension or compression profile.
+
+The relay does not compress, decompress or inspect frames. RSV1 and compressed
+payloads pass unchanged; **caps measure compressed wire bytes, not expanded sizes**.
+Endpoints must cap decompressed messages and CPU usage. History reset reduces
+cross-message compression exposure but does not remove same-message secret/data
+compression side channels. Keep compression disabled when the application cannot
+safely combine secrets and attacker-controlled content; see
+[RFC 7692 §8](https://www.rfc-editor.org/rfc/rfc7692.html#section-8).
+No compression library was added. The challenge continues to use existing `ring`
+SHA-1 solely for [RFC 6455 §4](https://www.rfc-editor.org/rfc/rfc6455.html#section-4).
 
 After successful Upgrade, frames are opaque bytes relayed in both directions,
 including bytes arriving with the upstream handshake. Ping/pong, close frames,
@@ -95,6 +129,7 @@ EventSource reconnection is described in the linked HTML specification.
 
 | Setting | Default | Hard range |
 | --- | --- | --- |
+| `proxy-limit "streams"` | `8` | 1–16 per hostname |
 | `proxy-limit "stream-upload"` | `16MiB` | 1 B–1024 MiB |
 | `proxy-limit "stream-download"` | `64MiB` | 1 B–1024 MiB |
 | `proxy-timeout "stream-idle"` | `30s` | 100 ms–300 s; no greater than stream-total |
@@ -114,20 +149,43 @@ resets, even with heartbeat traffic. Before hostname selection, the existing
 fixed unauthenticated head/TLS budgets apply; a smaller service deadline is checked
 once the host can be selected. Error responses retain the one-second write budget.
 
-There are at most **two active streaming responses per Server**, shared by all
-hostnames and configuration generations. A full stream quota returns 503 before
-downstream success headers. The existing per-host proxy exchange cap and global/
-per-peer admission limits also apply. The per-host permit is held until the stream
-ends, so reload/rollback cannot reset its count. Two of four worker slots remain
-available beyond established streams, although other traffic can still consume
-them. This is a small bounded server, not a high-concurrency streaming runtime.
+There are at most **16 reserved/active streams per Server**, **eight per transport
+peer** (IPv4-mapped addresses normalized; IPv6 grouped by /64), and the configured
+per-host stream cap. Counts include queued handoffs and are shared across reload
+and rollback generations. A full quota returns 503 before downstream success.
+WebSocket reserves capacity before connecting upstream. SSE is identified from its
+upstream response, so a capacity rejection can occur after an upstream operation
+has executed. There are no automatic retries; clients must account for side effects.
+
+Four ordinary HTTP workers and 16 fixed stream workers have separate bounded
+queues. After handshake validation, a single-owner socket/TLS object and owned
+quota leases move to a stream worker. The ordinary per-service `connections` cap,
+pre-handshake admission permit and per-peer dispatch slot are released at handoff.
+Thus established streams cannot occupy all ordinary workers. A single host may
+still consume all stream capacity when configured for 16 and reached by multiple
+peers; this is a resource bound, not a fair per-host scheduler. The peer cap uses
+the transport address, never forwarded headers; users behind NAT share a cap.
+
+Pre-handshake global 12/per-peer six admission, token buckets, pending queue eight
+and dispatch limits remain unchanged. The combined bound is 12 ordinary/admitted
+plus 16 reserved or established streams (upstream sockets and monitors are separate).
+The process allocates 20 serving threads even without active streams. This remains
+a small bounded server, not an event-loop runtime for thousands of streams.
+
+Candidate preparation does not modify active caps. Only successful configuration
+commit installs new limits. Admission checks both the captured and current host
+caps; lowering a cap blocks new reservations until enough old streams finish.
+Existing streams are not evicted. Disabling all stream types installs a zero live
+cap; rollback reuses counts rather than resetting them. Completion, failed
+handshake, failed handoff and shutdown release leases by ownership. The connection
+metric's owner moves with the socket, avoiding gaps or double counting at handoff.
 
 Each WebSocket direction buffers at most 16 KiB of pending payload; SSE uses one 16 KiB
 input buffer and one output fragment with bounded chunk framing. TLS plaintext
 output buffering is explicitly capped at 32 KiB for streaming. TLS records and
 allocator capacity and socket/kernel buffers add overhead. Backpressure stops further reads into an
 occupied buffer. The worker owns TLS state in both directions; no thread, task,
-queue or socket is spawned per stream. Nonblocking I/O polls with a five-millisecond
+queue is spawned per stream; each stream still owns its client and upstream sockets. Nonblocking I/O polls with a five-millisecond
 sleep when no relay progress is made. Choose limits for the deployed memory,
 latency and concurrency requirements and measure real application behavior.
 
@@ -157,16 +215,28 @@ chunk parser boundaries, partial nonblocking writes and flushes, TLS record
 ownership, fixed buffers, quota lifetime and cancellation. RFC HTTP framing rules
 remain the baseline in [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3).
 
-[StreamingProofs.lean](../proofs/StreamingProofs.lean) adds 22 statements, bringing
-the full axiom audit to 207. Charon/Aeneas extracts the actual dependency-free Rust
-request/response upgrade gates, SSE selection, cumulative byte arithmetic,
-idle/total validity, continuation and global admission predicates. Proofs establish
-no unrequested upgrade, no HTTP framing/extensions on an accepted 101, bodyless
-upgrade requests, bounded sums, stop/expiry refusal and a maximum two admissions.
+[StreamingProofs.lean](../proofs/StreamingProofs.lean) now contains 36 statements,
+bringing the full axiom audit to **221**. Charon/Aeneas extracts the actual
+dependency-free Rust request/response upgrade gates, SSE selection, cumulative byte
+arithmetic, idle/total validity, continuation, global/peer/service admission,
+Origin decision and deflate selection gates. Proofs establish no unrequested
+upgrade or HTTP framing on an accepted 101, bodyless upgrade requests, bounded
+sums, stop/expiry refusal, global 16/peer eight/captured-and-live service bounds,
+foreign-Origin allowlist necessity, and explicit opt-in/offered compression with
+both history resets and valid parameters.
 
 The HTTP/KDL parsers and field wiring, SHA-1/base64 adapter, TLS, socket scheduling,
-SSE incremental decoder and RAII/Mutex lifetimes remain reviewed/tested trusted
+extension and Origin parsing, worker handoff, SSE incremental decoder and RAII/Mutex lifetimes remain reviewed/tested trusted
 code. Lean does not prove WebSocket application semantics, TLS, actual elapsed
 time, every byte copy or end-to-end protocol correctness. TCP/TLS tests cover
 prefetched/bidirectional data, invalid handshakes, early SSE delivery, split chunks,
 capacity violations, timeout/stop, reload accounting and partial writes/flushes.
+
+The capacity/extension change was reviewed for permit ownership on every early
+return, poisoned/closed queue behavior, shutdown and worker-start failure cleanup,
+configuration serialization, exact Origin comparison, offer-to-response binding,
+header ownership and integer/count bounds. Tests cover eight mixed live streams
+plus ordinary HTTP, a Linux release test of 16 communicating relays across two peers,
+peer/global quota exhaustion, generation-shared caps,
+compressed RSV1 bytes in both directions, declined/unsolicited/unsafe compression,
+Origin near-misses/revocation and policy-preserving configuration generation.

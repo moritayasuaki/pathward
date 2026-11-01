@@ -180,7 +180,7 @@ absolute deadline edges and the two runtime commit paths. The relevant protocol
 framing baseline remains [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3).
 
 [RoutingProofs.lean](../proofs/RoutingProofs.lean) adds 32 audited statements,
-bringing that milestone to 185; the streaming extension brings the total to 207. Proofs apply to extracted Rust route selection,
+bringing that milestone to 185; the streaming extension brings the total to 221. Proofs apply to extracted Rust route selection,
 canonical stem/unchanged-or-final-slash shape, admitted path bytes, subtree
 boundary, body/chunk bounds, dynamic-limit framing, time bounds and admission
 under captured/live connection caps. The earlier exclusive-mode theorem is
@@ -193,3 +193,7 @@ Lean does not prove thread scheduling, actual elapsed time, application semantic
 or end-to-end HTTP safety. Rust/TCP tests cover the corresponding adapters.
 Linux tests additionally cover mixed local files with no fallback, durable
 activation failure and rollback while an old upstream connection remains active.
+
+Established WebSocket/SSE sessions use the separate `proxy-limit "streams"`
+budget (default eight, range 1–16). Ordinary `connections` capacity is released at
+stream handoff; see [streaming admission](streaming.md#finite-resources-and-shutdown).

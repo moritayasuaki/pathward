@@ -7,6 +7,10 @@ site "app.example" {
     proxy-stream "websocket"
     proxy-stream "sse"
     proxy-limit "connections" "2"
+    proxy-limit "streams" "8"
+    // Optional, after reviewing application compression and credential risks:
+    // websocket-compression "permessage-deflate"
+    // websocket-origin "https://console.example"
     proxy-limit "stream-upload" "16MiB"
     proxy-limit "stream-download" "64MiB"
     proxy-timeout "stream-idle" "30s"
