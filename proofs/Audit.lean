@@ -269,3 +269,9 @@ import ReleaseProofs
 #print axioms UpstreamProofs.server_error_is_not_owner
 #print axioms UpstreamProofs.query_eq
 #print axioms UpstreamProofs.encoded_query_applies
+#print axioms ResponseProofs.forwarded_port_eq
+#print axioms ResponseProofs.forwarded_port_trusted
+#print axioms ResponseProofs.forwarded_port_omitted
+#print axioms ResponseProofs.forwarded_port_mismatch
+#print axioms ResponseProofs.forwarded_port_standard
+#print axioms ResponseProofs.forwarded_port_total

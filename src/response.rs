@@ -24,6 +24,25 @@ pub fn authority_port_allowed(explicit: Option<u16>, expected: u16) -> bool {
     }
 }
 
+/// Preserve only a validated, explicit, nondefault authority port upstream.
+/// Zero means omit the suffix; neither Forwarded nor an upstream selects it.
+pub fn forwarded_port(explicit: Option<u16>, expected: u16, encrypted: bool) -> u16 {
+    if !authority_port_allowed(explicit, expected) {
+        return 0;
+    }
+    let standard = if encrypted { 443 } else { 80 };
+    match explicit {
+        Some(port) => {
+            if port == standard {
+                0
+            } else {
+                port
+            }
+        }
+        None => 0,
+    }
+}
+
 #[allow(clippy::manual_range_contains)]
 pub fn visible(bytes: &[u8]) -> bool {
     let mut i = 0;

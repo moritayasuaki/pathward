@@ -38,6 +38,33 @@ theorem authority_port_total (l e : U16) (t r : Bool) (p : Option U16) :
     (∃ b, response.authority_port_allowed p e = ok b) :=
   ⟨⟨_, authority_port_eq l t r⟩, ⟨_, authority_port_allowed_eq p e⟩⟩
 
+theorem forwarded_port_eq (p : Option U16) (e : U16) (t : Bool) :
+    response.forwarded_port p e t = ok
+      (if e ≠ 0#u16 ∧ p = some e ∧ e ≠ (if t then 443#u16 else 80#u16)
+       then e else 0#u16) := by
+  cases p <;> cases t <;>
+    simp [response.forwarded_port, authority_port_allowed_eq] <;>
+    split_ifs <;> simp_all
+
+theorem forwarded_port_trusted (p : Option U16) (e v : U16) (t : Bool)
+    (h : response.forwarded_port p e t = ok v) (hv : v ≠ 0#u16) :
+    v = e ∧ p = some e := by
+  rw [forwarded_port_eq] at h
+  split_ifs at h with gate <;> simp_all
+
+theorem forwarded_port_omitted (e : U16) (t : Bool) :
+    response.forwarded_port none e t = ok 0#u16 := by simp [forwarded_port_eq]
+
+theorem forwarded_port_mismatch (p e : U16) (t : Bool) (h : p ≠ e) :
+    response.forwarded_port (some p) e t = ok 0#u16 := by simp [forwarded_port_eq, h]
+
+theorem forwarded_port_standard (e : U16) (t : Bool) :
+    response.forwarded_port (some (if t then 443#u16 else 80#u16)) e t = ok 0#u16 := by
+  cases t <;> simp [response.forwarded_port, authority_port_allowed_eq]
+
+theorem forwarded_port_total (p : Option U16) (e : U16) (t : Bool) :
+    ∃ v, response.forwarded_port p e t = ok v := ⟨_, forwarded_port_eq p e t⟩
+
 def visibleByte (b : U8) : Bool := decide (32 ≤ b.val ∧ b.val ≤ 126)
 theorem visible_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :
     response.visible_loop p i = ok ((p.val.drop i.val).all visibleByte) := by

@@ -43,6 +43,7 @@ def main():
                         "--start-from", "pathward::response::route_matches",
                         "--start-from", "pathward::response::authority_port",
                         "--start-from", "pathward::response::authority_port_allowed",
+                        "--start-from", "pathward::response::forwarded_port",
                         "--start-from", "pathward::release::generated_rule",
                         "--start-from", "pathward::release::commit_allowed",
                         "--start-from", "pathward::release::admission_allowed",

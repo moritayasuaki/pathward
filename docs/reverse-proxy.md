@@ -49,7 +49,14 @@ Probe a representative application URL separately before switching traffic.
   response-header matching is exact on the raw path before `?`; use `header "*"`
   for protections that must cover every spelling accepted by the application.
 - Host selection and TLS SNI/Host agreement precede forwarding. Host is rebuilt
-  from the validated configured name. Incoming `Forwarded`, all `X-Forwarded-*`,
+  from the validated configured name. An explicit nondefault port is preserved
+  in both Host and X-Forwarded-Host, including anonymous resource probes. It must
+  match the trusted frontend port; omitted and scheme-default ports have no suffix.
+  This lets applications validate an origin such as `http://app.example:8080`.
+  The extracted Rust policy and six Lean statements prove that a nonzero suffix
+  can only be the validated explicit frontend port, and prove omission, mismatch
+  rejection, default-port normalization and totality. String formatting remains
+  a tested adapter. Incoming `Forwarded`, all `X-Forwarded-*`,
   `X-Real-IP`, `X-Original-URL`, `X-Rewrite-URL` and `Proxy` are removed. PathWard
   generates X-Forwarded-Host/Proto/Port from the validated frontend authority and
   transport, and X-Forwarded-For from the actual socket peer. There is no trusted
