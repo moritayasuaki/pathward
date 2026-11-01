@@ -19,7 +19,7 @@ proof-check:
 	cd proofs && lake build
 	python3 scripts/audit.py
 
-check: rust-check config-check server-check proof-check
+check: rust-check config-check server-check proof-check soak-check
 
 .PHONY: config-setup config-check
 
@@ -66,9 +66,12 @@ acme-test-setup:
 acme-integration:
 	python3 scripts/acme_integration.py
 
-.PHONY: soak
+.PHONY: soak soak-check
+soak-check:
+	python3 -m unittest discover -s scripts -p 'test_soak_checks.py'
+
 SOAK_SECONDS ?= 3600
 SOAK_REPORT ?= .tools/soak-latest.json
-soak: server-build
+soak: server-build soak-check
 	cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml --example soak_server
 	python3 scripts/acme_integration.py --soak-seconds $(SOAK_SECONDS) --report "$(SOAK_REPORT)"

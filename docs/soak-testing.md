@@ -37,6 +37,17 @@ introduced. Final reports are printed into the Actions job logs.
   filenames, response headers and redirect targets switch together. Opposite
   roots contain sentinel content at the wrong filename, detecting mixed snapshots.
   Explicitly unlisted secret sentinels must never appear in a response.
+- After **every acknowledged** activation or rollback, the switching thread
+  opens ten new TLS connections before its next switch: GET/HEAD `/`, the new
+  published URL, the revoked URL, and the configured redirect, for each host.
+  Expected content/headers/redirects come from the acknowledged configuration
+  digest, not the response's release header. Revoked URLs must return 404; the
+  status digest must remain unchanged through these probes. Concurrent requests
+  that began before a switch may still finish on their old coherent snapshot.
+  Rollback acknowledgements must match the previous successful release.
+- Traffic alternates omitted Host ports with explicit public 443/80 while the
+  actual sockets use ephemeral internal ports. Initial negative probes reject
+  internal/wrong ports even with a forged X-Forwarded-Port header.
 - Stale-generation and private-control-root candidates are repeatedly rejected,
   with active generation/digest unchanged. SIGHUP reloads overlap the traffic,
   managed switches and renewal. Logs count commits while an ACME order is active;
@@ -48,6 +59,8 @@ introduced. Final reports are printed into the Actions job logs.
 - `/proc` samples server RSS, FD count and thread count every two seconds. The
   gate allows at most 128 MiB RSS, 128 FDs and 32 threads, with median final RSS no
   more than 16 MiB above the 20–40-second warm window. Latency histograms are bounded.
+  A final sample is taken before stopping the server, and the final RSS growth
+  and resource ceilings are checked again **before writing any passed report**.
 - Completion requires zero ordinary request errors, at least 10 completed
   requests/second, sustained switch/rollback progress, multiple real renewals and
   observed configuration commits during issuance. The server then drains and
@@ -92,6 +105,33 @@ and the queue uses std Mutex/Condvar/VecDeque. The fresh graph/RustSec audit fou
 no advisories/warnings against database
 `2295466c4e9df26647fd67d8fa1c705ac2fc7f81`; see
 [the machine-readable audit](../server/audit-result.json).
+
+## Review follow-up — 2026-11-01
+
+The public-port adapter previously compared Host ports with the internal socket
+port. Valid `Host: example.com:443` behind 443→8443 forwarding (and :80 behind
+80→8080) received 400. The adapter now calls the extracted `authority_port` and
+`authority_port_allowed` gates. Nine new Lean statements establish TLS/redirect
+port selection independent of the internal port, exact optional-port matching,
+zero-port rejection and totality. The axiom audit covers 116 statements. Header
+parsing and selecting trusted transport-mode inputs remain tested adapter code.
+No forwarded header affects endpoint selection, and wrong explicit ports still
+fail closed. Native Linux response tests and the actual local-CA TLS lifecycle
+exercise the adapter, in addition to the soak.
+
+The review also found two test blind spots: coherent responses from a stale
+release passed the concurrent-load oracle, and the final minute's RSS growth
+was reported without an end-of-run assertion. The acknowledged-release probes
+and final resource gate above close these gaps. `make soak-check` runs five
+stdlib-only regressions that reject stale content/headers/redirects, retained
+revoked URLs, missing samples and final-minute growth above 16 MiB. It is part
+of both `make check` and `make soak`. These were test weaknesses, not observed
+stale serving or a measured memory leak in the preceding one-hour run.
+
+No package, feature, lockfile or vendored source changed. Fresh dependency
+graph/RustSec audit results remain in `server/audit-result.json`. The earlier
+one-hour record below is retained as historical evidence; new results are
+recorded separately after the revised workload completes.
 
 ## Completed one-hour run — 2026-10-31
 

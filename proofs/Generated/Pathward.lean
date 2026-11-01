@@ -368,8 +368,33 @@ def release.dispatch_allowed
        then ok (peer_running < 2#u64)
        else ok false
 
+/-- [pathward::response::authority_port]:
+    Source: 'src/response.rs', lines 6:0-14:1
+    Visibility: public -/
+def response.authority_port
+  («local» : Std.U16) (encrypted : Bool) (redirect : Bool) :
+  RustM Std.U16
+  := do
+  if encrypted
+  then ok 443#u16
+  else if redirect
+       then ok 80#u16
+       else ok «local»
+
+/-- [pathward::response::authority_port_allowed]:
+    Source: 'src/response.rs', lines 17:0-25:1
+    Visibility: public -/
+def response.authority_port_allowed
+  (explicit : Option Std.U16) (expected : Std.U16) : RustM Bool := do
+  if expected = 0#u16
+  then ok false
+  else
+    match explicit with
+    | none => ok true
+    | some port => ok (port = expected)
+
 /-- [pathward::response::visible]: loop 0:
-    Source: 'src/response.rs', lines 7:4-14:1
+    Source: 'src/response.rs', lines 30:4-37:1
     Visibility: public -/
 @[rust_loop]
 def response.visible_loop
@@ -389,14 +414,14 @@ def response.visible_loop
 partial_fixpoint
 
 /-- [pathward::response::visible]:
-    Source: 'src/response.rs', lines 5:0-14:1
+    Source: 'src/response.rs', lines 28:0-37:1
     Visibility: public -/
 @[reducible]
 def response.visible (bytes : Slice Std.U8) : RustM Bool := do
   response.visible_loop bytes 0#usize
 
 /-- [pathward::response::header_name]:
-    Source: 'src/response.rs', lines 16:0-24:1
+    Source: 'src/response.rs', lines 39:0-47:1
     Visibility: public -/
 def response.header_name («name» : Slice Std.U8) : RustM Bool := do
   let s ←
@@ -468,7 +493,7 @@ def response.header_name («name» : Slice Std.U8) : RustM Bool := do
               same_path «name» s6
 
 /-- [pathward::response::header_allowed]:
-    Source: 'src/response.rs', lines 26:0-28:1
+    Source: 'src/response.rs', lines 49:0-51:1
     Visibility: public -/
 def response.header_allowed
   («name» : Slice Std.U8) (value : Slice Std.U8) : RustM Bool := do
@@ -486,7 +511,7 @@ def response.header_allowed
   else ok false
 
 /-- [pathward::response::host_bytes]: loop 0:
-    Source: 'src/response.rs', lines 36:4-44:1
+    Source: 'src/response.rs', lines 59:4-67:1
     Visibility: public -/
 @[rust_loop]
 def response.host_bytes_loop
@@ -552,7 +577,7 @@ def response.host_bytes_loop
 partial_fixpoint
 
 /-- [pathward::response::host_bytes]:
-    Source: 'src/response.rs', lines 31:0-44:1
+    Source: 'src/response.rs', lines 54:0-67:1
     Visibility: public -/
 def response.host_bytes (host : Slice Std.U8) : RustM Bool := do
   let b ← core.slice.Slice.is_empty host
@@ -637,7 +662,7 @@ def serving.request_path
     else ok none
 
 /-- [pathward::response::redirect_allowed]:
-    Source: 'src/response.rs', lines 48:0-54:1
+    Source: 'src/response.rs', lines 71:0-77:1
     Visibility: public -/
 def response.redirect_allowed
   (host : Slice Std.U8) (configured_host : Slice Std.U8)
@@ -680,7 +705,7 @@ def response.redirect_allowed
     else ok false
 
 /-- [pathward::response::route_matches]:
-    Source: 'src/response.rs', lines 57:0-63:1
+    Source: 'src/response.rs', lines 80:0-86:1
     Visibility: public -/
 def response.route_matches
   (path : Slice Std.U8) («from» : Slice Std.U8) («prefix» : Bool) :

@@ -95,6 +95,15 @@ import ReleaseProofs
 #print axioms ResponseProofs.route_eq
 #print axioms ResponseProofs.route_contract
 #print axioms ResponseProofs.response_total
+#print axioms ResponseProofs.authority_port_eq
+#print axioms ResponseProofs.authority_port_tls
+#print axioms ResponseProofs.authority_port_redirect
+#print axioms ResponseProofs.authority_port_direct
+#print axioms ResponseProofs.authority_port_allowed_eq
+#print axioms ResponseProofs.authority_port_contract
+#print axioms ResponseProofs.authority_port_no_mismatch
+#print axioms ResponseProofs.authority_port_no_zero
+#print axioms ResponseProofs.authority_port_total
 #print axioms ReleaseProofs.generated_eq
 #print axioms ReleaseProofs.generated_contract
 #print axioms ReleaseProofs.generated_exact_entry

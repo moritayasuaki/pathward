@@ -16,11 +16,11 @@ import re
 import signal
 import socket
 import ssl
-import statistics
 import subprocess
 import tempfile
 import threading
 import time
+from soak_checks import check_release, payload, resource_report
 
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / "server/target/release/pathward-server"
@@ -105,9 +105,6 @@ def response(port, request, context=None, host=HOSTS[0], peer="127.0.0.20"):
 def request(method, target, host=HOSTS[0]):
     return f"{method} {target} HTTP/1.1\r\nHost: {host}\r\n\r\n".encode()
 
-def payload(host, release):
-    return (f"PUBLIC:{host}:{release}:".encode() * 3000)[:65536]
-
 def config(root, release):
     name = "a" if release == "A" else "b"
     return "".join(
@@ -172,14 +169,8 @@ def report(state, extra=None):
                 "platform": platform.platform(), "counters": dict(counts),
                 "latency_bucket_upper_ms": list(BUCKETS), "latency_bucket_counts": latencies.copy(),
                 "distinct_certificates": len(certificates), "failures": failures.copy()}
-        if resources:
-            data["resources"] = {field: {"min": min(s[field] for s in resources),
-                                          "max": max(s[field] for s in resources), "last": resources[-1][field]}
-                                 for field in ("rss_kib", "threads", "fds")}
-            warm = [s["rss_kib"] for s in resources if 20 <= s["elapsed"] <= 40]
-            end = [s["rss_kib"] for s in resources[-10:]]
-            if warm:
-                data["rss_growth_kib"] = statistics.median(end) - statistics.median(warm)
+        # Validate before writing any final passed report, including the last minute.
+        data.update(resource_report(resources, final=state == "passed"))
     if extra:
         data.update(extra)
     args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -221,6 +212,13 @@ try:
                     raise RuntimeError("initial certificate timeout")
                 time.sleep(.25)
         account = (cache / ".account").read_bytes()
+        for encrypted, external in ((True, 443), (False, 80)):
+            port = ports["tls"] if encrypted else ports["http"]
+            assert port != external
+            for wrong in (port, 80 if encrypted else 443):
+                wire = request("GET", "/", f"{HOSTS[0]}:{wrong}")[:-2] + f"X-Forwarded-Port: {external}\r\n\r\n".encode()
+                rejected = response(port, wire, context if encrypted else None, peer="127.0.0.40")
+                assert rejected[0] == 400 and rejected[2] == b"", "untrusted authority port accepted"
         started = time.monotonic()
         measuring = True
         certificates.add(first[3])
@@ -235,6 +233,8 @@ try:
                 method = "HEAD" if case == 1 else "GET"
                 authority = HOSTS[1] if case == 5 and host == HOSTS[0] else (HOSTS[0] if case == 5 else host)
                 plain = case == 6
+                if iteration // 8 % 2:
+                    authority += ":80" if plain else ":443"
                 try:
                     code, headers, body, fingerprint, elapsed = response(
                         ports["http"] if plain else ports["tls"], request(method, target, authority),
@@ -248,14 +248,7 @@ try:
                         assert code == 404 and body == b""
                     else:
                         release = headers["x-robots-tag"].removeprefix("release-")
-                        assert release in configs and headers["strict-transport-security"] == "max-age=60"
-                        expected = payload(host, release)
-                        if case == 2:
-                            name = "a" if release == "A" else "b"
-                            assert code == 308 and headers["location"] == f"https://{host}/{name}?q=%0d%0a" and body == b""
-                        else:
-                            assert code == 200 and int(headers["content-length"]) == len(expected)
-                            assert body == (b"" if method == "HEAD" else expected), "mixed generation/content"
+                        check_release(code, headers, body, host, release, method, target)
                     assert b"FORBIDDEN_" not in body, "unpublished content leaked"
                     with lock:
                         counts["requests_ok"] += 1
@@ -294,6 +287,7 @@ try:
                 stop.wait(.15)
         def switches():
             turn = 0
+            rollback_revision = None
             while not stop.is_set():
                 began = time.monotonic()
                 try:
@@ -307,8 +301,25 @@ try:
                         assert result[0] > previous[0] and result[1] in digests
                         if action == "APPLY":
                             assert result[1] == hashlib.sha256(data).hexdigest()
+                        else:
+                            assert result[1] == rollback_revision, "rollback did not restore the previous release"
+                        rollback_revision = previous[1]
                         counted("config_commits")
                         if action == "ROLLBACK": counted("rollbacks")
+                        # Only this thread switches the config. Delay its next switch
+                        # until fresh connections for BOTH hosts verify the ACKed release.
+                        # Pending SIGHUP may increment generation, but reads the same bytes.
+                        expected_release = digests[result[1]]
+                        live, revoked = (("/a", "/b") if expected_release == "A" else ("/b", "/a"))
+                        for number, host in enumerate(HOSTS):
+                            for method, target in (("GET", "/"), ("HEAD", "/"), ("GET", live), ("GET", revoked), ("GET", "/legacy?q=%0d%0a")):
+                                observed = response(ports["tls"], request(method, target, host+":443"), context, host, f"127.0.0.{30+number}")
+                                check_release(*observed[:3], host, expected_release, method, target)
+                                counted("post_commit_requests")
+                                if target == revoked: counted("revoked_url_checks")
+                        status = command(control)
+                        assert status[0] >= result[0] and status[1] == result[1], "release changed during ACK probes"
+                        counted("post_commit_batches")
                     else:
                         counted("concurrent_rejections")
                     if turn % 5 == 0:
@@ -360,9 +371,14 @@ try:
         assert counts["requests_ok"] >= args.seconds * 10, "offered load fell below 10 completed requests/s"
         assert counts["config_commits"] >= args.seconds*.7, "configuration churn stalled"
         assert counts["rollbacks"] >= args.seconds*.15
+        assert counts["post_commit_batches"] == counts["config_commits"], "missing acknowledged-release probes"
+        assert counts["post_commit_requests"] == counts["config_commits"] * 10
+        assert counts["revoked_url_checks"] == counts["config_commits"] * 2
         assert counts["commits_during_acme_order"] >= 2, "ACME and commits did not overlap"
         assert len(certificates) >= max(3, args.seconds//60), "too few observed renewed certificates"
         assert (cache / ".account").read_bytes() == account, "account unexpectedly replaced"
+        with lock: resources.append(sample(process.pid))
+        resource_report(resources, final=True)
         for directory, files in [(cache, (".account", ".certificate")), (control, (".config", ".previous"))]:
             assert directory.stat().st_mode & 0o7777 == 0o700
             for name in files:

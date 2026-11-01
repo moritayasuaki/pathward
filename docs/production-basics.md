@@ -29,6 +29,13 @@ that address. The optional public plaintext listener only issues same-host HTTPS
 bounded worker pool. Ordinary `serve-http` remains loopback-only. Public TCP/443
 must reach the TLS listener for certificates and HTTPS. Redirect destinations
 always use the public HTTPS default port, even when local listeners use 8080/8443.
+The Host authority may omit its port or explicitly use **443 for TLS** and
+**80 for the redirect listener**. These are fixed external ports, independent of
+the local socket or forwarding destination. Other explicit ports (including the
+internal 8443/8080 ports) are refused in those modes. Direct loopback `serve-http`
+and monitoring instead validate against their local listener port. Forwarded
+headers cannot change this policy; nonstandard public TLS/redirect ports remain
+unsupported.
 
 Configured redirects accept four quoted arguments: source path, destination DNS
 host, destination path and status (`"301"` or `"308"`). Every destination host

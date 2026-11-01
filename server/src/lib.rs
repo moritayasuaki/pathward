@@ -225,7 +225,12 @@ impl Server {
                 );
             }
         };
-        let req = match http::parse(&head, stream.local_port()?) {
+        let authority_port = pathward::response::authority_port(
+            stream.local_port()?,
+            sni.is_some(),
+            automatic_redirect,
+        );
+        let req = match http::parse(&head, authority_port) {
             Ok(req) => req,
             Err(http::Rejection(status)) => return Self::reject(stream, status),
         };

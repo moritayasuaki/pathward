@@ -69,6 +69,26 @@ fn ambiguous_framing_and_authority_are_rejected() {
 }
 
 #[test]
+fn explicit_external_port_is_checked_without_trusting_forwarded_headers() {
+    for (expected, port, accepted) in [
+        (443, 443, true),
+        (443, 8443, false),
+        (443, 80, false),
+        (80, 80, true),
+        (80, 8080, false),
+        (80, 443, false),
+        (8080, 8080, true),
+        (8080, 80, false),
+    ] {
+        let text = format!(
+            "GET / HTTP/1.1\r\nHost: example.com:{port}\r\nForwarded: host=example.com:{expected};proto=https\r\nX-Forwarded-Port: {expected}\r\n\r\n"
+        );
+        assert_eq!(parse(text.as_bytes(), expected).is_ok(), accepted);
+    }
+    assert!(parse(request("").as_bytes(), 0).is_err());
+}
+
+#[test]
 fn strict_request_line_crlf_and_single_request() {
     for text in [
         "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n",

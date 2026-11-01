@@ -3,6 +3,41 @@ open Aeneas Aeneas.Std RustM
 open pathward PathwardProofs RulesProofs ServingProofs
 namespace ResponseProofs
 
+theorem authority_port_eq (l : U16) (e r : Bool) :
+    response.authority_port l e r = ok (if e then 443#u16 else if r then 80#u16 else l) := by
+  simp [response.authority_port]
+  split_ifs <;> rfl
+
+theorem authority_port_tls (l : U16) (r : Bool) :
+    response.authority_port l true r = ok 443#u16 := by simp [authority_port_eq]
+
+theorem authority_port_redirect (l : U16) :
+    response.authority_port l false true = ok 80#u16 := by simp [authority_port_eq]
+
+theorem authority_port_direct (l : U16) :
+    response.authority_port l false false = ok l := by simp [authority_port_eq]
+
+theorem authority_port_allowed_eq (p : Option U16) (e : U16) :
+    response.authority_port_allowed p e = ok (decide (e ≠ 0#u16 ∧ (p = none ∨ p = some e))) := by
+  cases p <;> simp [response.authority_port_allowed] <;> split_ifs <;> simp_all
+
+theorem authority_port_contract (p : Option U16) (e : U16) :
+    response.authority_port_allowed p e = ok true ↔ e ≠ 0#u16 ∧ (p = none ∨ p = some e) := by
+  simp [authority_port_allowed_eq]
+
+theorem authority_port_no_mismatch (p e : U16)
+    (h : response.authority_port_allowed (some p) e = ok true) : p = e := by
+  have := (authority_port_contract (some p) e).mp h
+  simpa using this.2
+
+theorem authority_port_no_zero (p : Option U16) :
+    response.authority_port_allowed p 0#u16 = ok false := by simp [authority_port_allowed_eq]
+
+theorem authority_port_total (l e : U16) (t r : Bool) (p : Option U16) :
+    (∃ port, response.authority_port l t r = ok port) ∧
+    (∃ b, response.authority_port_allowed p e = ok b) :=
+  ⟨⟨_, authority_port_eq l t r⟩, ⟨_, authority_port_allowed_eq p e⟩⟩
+
 def visibleByte (b : U8) : Bool := decide (32 ≤ b.val ∧ b.val ≤ 126)
 theorem visible_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :
     response.visible_loop p i = ok ((p.val.drop i.val).all visibleByte) := by

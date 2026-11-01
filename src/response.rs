@@ -1,6 +1,29 @@
 //! Pure HTTP response policy; serialization and I/O stay in the adapter.
 use crate::{same_path, serving::request_path, valid_path};
 
+/// Public TLS/redirect modes use their fixed external ports, even behind DNAT.
+/// Direct loopback HTTP uses its listening port. Forwarded headers are ignored.
+pub fn authority_port(local: u16, encrypted: bool, redirect: bool) -> u16 {
+    if encrypted {
+        443
+    } else if redirect {
+        80
+    } else {
+        local
+    }
+}
+
+/// An omitted port is accepted; an explicit port must match the trusted endpoint.
+pub fn authority_port_allowed(explicit: Option<u16>, expected: u16) -> bool {
+    if expected == 0 {
+        return false;
+    }
+    match explicit {
+        Some(port) => port == expected,
+        None => true,
+    }
+}
+
 #[allow(clippy::manual_range_contains)]
 pub fn visible(bytes: &[u8]) -> bool {
     let mut i = 0;

@@ -146,7 +146,7 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
             .set_read_timeout(Some(Duration::from_secs(3)))
             .unwrap();
         plain
-            .write_all(b"GET /?q=kept HTTP/1.1\r\nHost: one.pathward.test\r\n\r\n")
+            .write_all(b"GET /?q=kept HTTP/1.1\r\nHost: one.pathward.test:80\r\n\r\n")
             .unwrap();
         let mut reply = String::new();
         plain.read_to_string(&mut reply).unwrap();
@@ -155,6 +155,14 @@ fn real_acme_issue_renew_restart_and_fail_closed() {
         scope.spawn(|| manager.run(&stop));
         let first = wait_for(port, issued.clone(), None);
         assert!(first.0.starts_with(b"HTTP/1.1 200"));
+        for (authority, status) in [
+            ("one.pathward.test:443".to_owned(), 200),
+            (format!("one.pathward.test:{port}"), 400),
+            ("one.pathward.test:80".to_owned(), 400),
+        ] {
+            let response = fetch(port, issued.clone(), "GET", &authority).unwrap().0;
+            assert!(response.starts_with(format!("HTTP/1.1 {status}").as_bytes()));
+        }
         let head = fetch(port, issued.clone(), "HEAD", "one.pathward.test")
             .unwrap()
             .0;

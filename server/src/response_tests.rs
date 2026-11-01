@@ -9,6 +9,7 @@ use std::{
 struct Exchange {
     input: io::Cursor<Vec<u8>>,
     output: Vec<u8>,
+    port: u16,
 }
 impl Read for Exchange {
     fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
@@ -28,17 +29,29 @@ impl http::Transport for Exchange {
         Ok(())
     }
     fn local_port(&self) -> io::Result<u16> {
-        Ok(80)
+        Ok(self.port)
     }
 }
 fn exchange(server: &Server, target: &str, host: &str, sni: Option<&str>) -> String {
+    exchange_mode(server, target, host, sni, 80, false)
+}
+fn exchange_mode(
+    server: &Server,
+    target: &str,
+    host: &str,
+    sni: Option<&str>,
+    port: u16,
+    redirect: bool,
+) -> String {
     let mut stream = Exchange {
         input: io::Cursor::new(
             format!("HEAD {target} HTTP/1.1\r\nHost: {host}\r\n\r\n").into_bytes(),
         ),
         output: Vec::new(),
+        port,
     };
-    server.handle(&mut stream, Instant::now(), sni).unwrap();
+    let snapshot = server.state.read().unwrap().snapshot.clone();
+    Server::respond(&snapshot, &mut stream, Instant::now(), sni, redirect).unwrap();
     String::from_utf8(stream.output).unwrap()
 }
 #[test]
@@ -67,6 +80,25 @@ fn configured_locations_headers_and_reload_use_one_checked_policy() {
     );
     let p = ParsedConfig::parse(&text).unwrap();
     let server = Server::new(&p.compile().unwrap()).unwrap();
+    for (local, sni, redirect, authority, status) in [
+        (8443, Some("example.com"), false, "example.com:443", 200),
+        (8443, Some("example.com"), false, "example.com:8443", 400),
+        (8443, Some("example.com"), false, "example.com:80", 400),
+        (8080, None, true, "example.com:80", 308),
+        (8080, None, true, "example.com:8080", 400),
+        (8080, None, true, "example.com:443", 400),
+        (8080, None, false, "example.com:8080", 200),
+        (8080, None, false, "example.com:80", 400),
+    ] {
+        let response = exchange_mode(&server, "/", authority, sni, local, redirect);
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{authority}: {response}"
+        );
+        if status == 308 {
+            assert!(response.contains("Location: https://example.com/\r\n"));
+        }
+    }
     for (target, status, location) in [
         ("/old?q=%20", 301, "https://example.com/base?q=%20"),
         ("/old/file", 301, "https://example.com/base/file"),

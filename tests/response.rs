@@ -1,5 +1,19 @@
 use pathward::response::*;
 #[test]
+fn external_authority_is_independent_of_forwarded_socket_port() {
+    for local in 0..=u16::MAX {
+        assert_eq!(authority_port(local, true, false), 443);
+        assert_eq!(authority_port(local, true, true), 443);
+        assert_eq!(authority_port(local, false, true), 80);
+        assert_eq!(authority_port(local, false, false), local);
+        assert_eq!(authority_port_allowed(Some(local), 443), local == 443);
+        assert_eq!(authority_port_allowed(Some(local), 80), local == 80);
+        assert_eq!(authority_port_allowed(None, local), local != 0);
+        assert_eq!(authority_port_allowed(Some(local), local), local != 0);
+    }
+    assert!(!authority_port_allowed(Some(1), 0));
+}
+#[test]
 fn redirects_and_header_boundaries() {
     assert!(redirect_allowed(
         b"example.com",

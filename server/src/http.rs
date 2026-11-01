@@ -32,7 +32,7 @@ pub struct Request<'a> {
     pub host: String,
 }
 
-fn authority(value: &[u8], local_port: u16) -> Result<String, Rejection> {
+fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
     let value = std::str::from_utf8(value).map_err(|_| Rejection(400))?;
     let (host, port) = value
         .split_once(':')
@@ -51,19 +51,26 @@ fn authority(value: &[u8], local_port: u16) -> Result<String, Rejection> {
     {
         return Err(Rejection(400));
     }
-    if let Some(port) = port
-        && (port.is_empty()
+    let explicit = if let Some(port) = port {
+        if port.is_empty()
             || port.len() > 5
             || port.starts_with('0')
             || !port.bytes().all(|b| b.is_ascii_digit())
-            || port.parse::<u16>().ok() != Some(local_port))
-    {
+        {
+            return Err(Rejection(400));
+        }
+        Some(port.parse::<u16>().map_err(|_| Rejection(400))?)
+    } else {
+        None
+    };
+    if !pathward::response::authority_port_allowed(explicit, authority_port) {
         return Err(Rejection(400));
     }
     Ok(host.to_ascii_lowercase())
 }
 
-pub fn parse(head: &[u8], local_port: u16) -> Result<Request<'_>, Rejection> {
+/// `authority_port` is the trusted external port, not necessarily the socket port.
+pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection> {
     if head.len() > MAX_HEAD_BYTES {
         return Err(Rejection(431));
     }
@@ -114,7 +121,7 @@ pub fn parse(head: &[u8], local_port: u16) -> Result<Request<'_>, Rejection> {
             if host.is_some() {
                 return Err(Rejection(400));
             }
-            host = Some(authority(h.value, local_port)?);
+            host = Some(authority(h.value, authority_port)?);
         } else if h.name.eq_ignore_ascii_case("content-length") {
             if content_length || h.value != b"0" {
                 return Err(Rejection(400));
