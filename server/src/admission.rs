@@ -50,7 +50,7 @@ pub(crate) struct Permit {
     admission: Arc<Admission>,
     peer: IpAddr,
 }
-fn key(ip: IpAddr) -> IpAddr {
+pub(crate) fn key(ip: IpAddr) -> IpAddr {
     match ip {
         IpAddr::V6(ip) => match ip.to_ipv4_mapped() {
             Some(v4) => IpAddr::V4(v4),

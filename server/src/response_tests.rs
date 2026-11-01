@@ -59,6 +59,7 @@ fn exchange_mode(
         redirect,
         &server.stream_quota,
         &|| false,
+        None,
     )
     .unwrap();
     String::from_utf8(stream.output).unwrap()

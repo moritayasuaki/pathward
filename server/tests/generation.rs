@@ -90,7 +90,7 @@ fn generation_preserves_mixed_route_policies_and_every_service_budget() {
 
 #[test]
 fn generation_preserves_stream_opt_ins_and_every_stream_budget() {
-    let text = "site \"app.example\" {\ntls \"auto\"\nroot \"/srv/old\"\npublish \"/\" \"old.html\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-stream \"websocket\"\nproxy-stream \"sse\"\nproxy-limit \"stream-upload\" \"8KiB\"\nproxy-limit \"stream-download\" \"2MiB\"\nproxy-timeout \"stream-idle\" \"5s\"\nproxy-timeout \"stream-total\" \"60s\"\n}\n";
+    let text = "site \"app.example\" {\ntls \"auto\"\nroot \"/srv/old\"\npublish \"/\" \"old.html\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-stream \"websocket\"\nproxy-stream \"sse\"\nproxy-limit \"streams\" \"12\"\nwebsocket-compression \"permessage-deflate\"\nwebsocket-origin \"https://console.example\"\nproxy-limit \"stream-upload\" \"8KiB\"\nproxy-limit \"stream-download\" \"2MiB\"\nproxy-timeout \"stream-idle\" \"5s\"\nproxy-timeout \"stream-total\" \"60s\"\n}\n";
     let parsed = ParsedConfig::parse(text).unwrap();
     let config = parsed.compile().unwrap();
     let new = generate(
@@ -103,6 +103,10 @@ fn generation_preserves_stream_opt_ins_and_every_stream_budget() {
     .unwrap();
     let parsed_new = ParsedConfig::parse(&new).unwrap();
     let config_new = parsed_new.compile().unwrap();
+    assert_eq!(
+        config.sites()[0].websocket_origins(),
+        config_new.sites()[0].websocket_origins()
+    );
     assert_eq!(
         config.sites()[0].proxy_limits(),
         config_new.sites()[0].proxy_limits()

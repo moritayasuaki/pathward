@@ -57,7 +57,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 207 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 221 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving
@@ -101,8 +101,8 @@ advisory scan does not replace integration review.
 
 ## Deliberate limitations
 
-No upstream health checks, general-purpose streaming, WebSocket compression/extensions,
-cross-origin browser WebSocket allowlists, multiple upstreams within one hostname,
+No upstream health checks, general-purpose streaming, arbitrary WebSocket extensions,
+context-takeover compression, multiple upstreams within one hostname,
 remote HTTPS upstreams, authentication, wildcard
 domains, environment expansion, includes, directory grants or implicit indexes.
 The KDL profile supports ordinary quoted values and line comments, with 64 KiB,
@@ -119,4 +119,4 @@ milestone is deployment-specific public DNS/443 and CA validation with a dedicat
 service UID, external collectors/alerts and an explicitly reviewed route scope.
 
 The [streaming guide and audit](streaming.md) records the WebSocket/SSE opt-ins,
-two-stream global cap, finite session budgets and trusted implementation boundary.
+global 16/per-peer eight stream caps, finite session budgets and trusted implementation boundary.

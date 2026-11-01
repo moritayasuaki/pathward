@@ -54,6 +54,7 @@ pub(crate) fn forward(
     encrypted: bool,
     external_port: u16,
     limits: ProxyLimits,
+    origins: &[String],
 ) -> Result<Response, Rejection> {
     if !limits.valid() {
         return Err(Rejection(502));
@@ -70,6 +71,8 @@ pub(crate) fn forward(
         req,
         prefetched.len(),
         limits.websocket,
+        limits.deflate,
+        origins,
         encrypted,
         external_port,
     )?;
@@ -173,6 +176,12 @@ pub(crate) fn forward(
     let mut head = format!("{method} {target} HTTP/1.1\r\nHost: {}\r\n", req.host);
     if let Some(ws) = &upgrade {
         head.push_str(&format!("Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: {}\r\nSec-WebSocket-Version: 13\r\n", ws.key));
+        if ws.deflate {
+            head.push_str(&format!(
+                "Sec-WebSocket-Extensions: {}\r\n",
+                streaming::DEFLATE
+            ));
+        }
         if !ws.protocols.is_empty() {
             head.push_str(&format!(
                 "Sec-WebSocket-Protocol: {}\r\n",

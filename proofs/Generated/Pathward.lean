@@ -1702,7 +1702,7 @@ def streaming.upgrade_request
     Visibility: public -/
 def streaming.upgrade_response
   (requested : Bool) (version : Bool) (status : Std.U16) (upgrade : Bool)
-  (accept : Bool) (protocol : Bool) (extensions : Bool) (length : Bool)
+  (accept : Bool) (protocol : Bool) (extensions_valid : Bool) (length : Bool)
   (transfer : Bool) :
   RustM Bool
   := do
@@ -1718,11 +1718,11 @@ def streaming.upgrade_response
           then
             if protocol
             then
-              if extensions
-              then ok false
-              else if length
+              if extensions_valid
+              then if length
                    then ok false
                    else ok (¬ transfer)
+              else ok false
             else ok false
           else ok false
         else ok false
@@ -1809,7 +1809,77 @@ def streaming.running
 def streaming.admission (active : Std.U64) (stopped : Bool) : RustM Bool := do
   if stopped
   then ok false
-  else ok (active < 2#u64)
+  else ok (active < 16#u64)
+
+/-- [pathward::streaming::peer_admission]:
+    Source: 'src/streaming.rs', lines 68:0-70:1
+    Visibility: public -/
+def streaming.peer_admission
+  (active : Std.U64) (peer : Std.U64) (stopped : Bool) : RustM Bool := do
+  let b ← streaming.admission active stopped
+  if b
+  then ok (peer < 8#u64)
+  else ok false
+
+/-- [pathward::streaming::service_limit]:
+    Source: 'src/streaming.rs', lines 71:0-73:1
+    Visibility: public -/
+def streaming.service_limit (limit : Std.U64) : RustM Bool := do
+  if limit > 0#u64
+  then ok (limit <= 16#u64)
+  else ok false
+
+/-- [pathward::streaming::service_admission]:
+    Source: 'src/streaming.rs', lines 74:0-76:1
+    Visibility: public -/
+def streaming.service_admission
+  (active : Std.U64) (captured : Std.U64) (current : Std.U64) :
+  RustM Bool
+  := do
+  let b ← streaming.service_limit captured
+  if b
+  then
+    let b1 ← streaming.service_limit current
+    if b1
+    then if active < captured
+         then ok (active < current)
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::streaming::origin_allowed]:
+    Source: 'src/streaming.rs', lines 77:0-79:1
+    Visibility: public -/
+def streaming.origin_allowed
+  (present : Bool) (same : Bool) (listed1 : Bool) : RustM Bool := do
+  if present
+  then if same
+       then ok true
+       else ok listed1
+  else ok true
+
+/-- [pathward::streaming::deflate_allowed]:
+    Source: 'src/streaming.rs', lines 80:0-89:1
+    Visibility: public -/
+def streaming.deflate_allowed
+  (enabled : Bool) (offered : Bool) (selected : Bool) (server_reset : Bool)
+  (client_reset : Bool) (parameters : Bool) :
+  RustM Bool
+  := do
+  if selected
+  then
+    if enabled
+    then
+      if offered
+      then
+        if server_reset
+        then if client_reset
+             then ok parameters
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok true
 
 /-- [pathward::tls::identity_allowed]:
     Source: 'src/tls.rs', lines 5:0-7:1

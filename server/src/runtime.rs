@@ -11,6 +11,7 @@ pub(crate) struct Site {
     pub root: Option<DocumentRoot>,
     pub upstream: Option<SocketAddr>,
     pub limits: ProxyLimits,
+    pub websocket_origins: Vec<String>,
     budget: Arc<ServiceBudget>,
     denies: Vec<String>,
     proxy_paths: Vec<String>,
@@ -30,23 +31,46 @@ struct Header {
     name: String,
     value: String,
 }
-struct ServiceBudget(Mutex<(u64, u64)>);
-pub(crate) struct ServicePermit<'a>(&'a ServiceBudget);
-impl Drop for ServicePermit<'_> {
+// (ordinary active, ordinary live cap, stream active, stream live cap).
+struct ServiceBudget(Mutex<(u64, u64, u64, u64)>);
+pub(crate) struct ServicePermit {
+    budget: Arc<ServiceBudget>,
+    stream: bool,
+}
+impl Drop for ServicePermit {
     fn drop(&mut self) {
-        if let Ok(mut state) = self.0.0.lock() {
-            state.0 = state.0.saturating_sub(1);
+        if let Ok(mut state) = self.budget.0.lock() {
+            let active = if self.stream {
+                &mut state.2
+            } else {
+                &mut state.0
+            };
+            *active = active.saturating_sub(1);
         }
     }
 }
 impl Site {
-    pub fn acquire(&self) -> Option<ServicePermit<'_>> {
+    pub fn acquire(&self) -> Option<ServicePermit> {
         let mut state = self.budget.0.lock().ok()?;
         if !pathward::routing::service_admit(state.0, self.limits.connections, state.1) {
             return None;
         }
         state.0 += 1;
-        Some(ServicePermit(&self.budget))
+        Some(ServicePermit {
+            budget: self.budget.clone(),
+            stream: false,
+        })
+    }
+    pub fn acquire_stream(&self) -> Option<ServicePermit> {
+        let mut state = self.budget.0.lock().ok()?;
+        if !pathward::streaming::service_admission(state.2, self.limits.streams, state.3) {
+            return None;
+        }
+        state.2 += 1;
+        Some(ServicePermit {
+            budget: self.budget.clone(),
+            stream: true,
+        })
     }
     pub fn route(&self, target: &[u8]) -> pathward::routing::Route {
         let raw = &target[..pathward::serving::path_length(target)];
@@ -129,10 +153,20 @@ impl Site {
         );
         if let Some(live) = &response.live {
             match &live.mode {
-                crate::streaming::Mode::WebSocket { accept, protocol } => {
+                crate::streaming::Mode::WebSocket {
+                    accept,
+                    protocol,
+                    deflate,
+                } => {
                     out = format!(
                         "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: {accept}\r\nX-Content-Type-Options: nosniff\r\n"
                     );
+                    if *deflate {
+                        out.push_str(&format!(
+                            "Sec-WebSocket-Extensions: {}\r\n",
+                            crate::streaming::DEFLATE
+                        ));
+                    }
                     if let Some(p) = protocol {
                         out.push_str(&format!("Sec-WebSocket-Protocol: {p}\r\n"));
                     }
@@ -234,6 +268,11 @@ impl Snapshot {
                 } else {
                     0
                 };
+                state.3 = if site.upstream.is_some() && (site.limits.websocket || site.limits.sse) {
+                    site.limits.streams
+                } else {
+                    0
+                };
             }
         }
     }
@@ -269,10 +308,23 @@ impl Snapshot {
                     root: site.root().map(DocumentRoot::open).transpose()?,
                     upstream: site.upstream(),
                     limits: site.proxy_limits(),
+                    websocket_origins: site
+                        .websocket_origins()
+                        .iter()
+                        .map(|o| (*o).to_owned())
+                        .collect(),
                     budget: Arc::new(ServiceBudget(Mutex::new((
                         0,
                         if site.upstream().is_some() {
                             site.proxy_limits().connections
+                        } else {
+                            0
+                        },
+                        0,
+                        if site.upstream().is_some()
+                            && (site.proxy_limits().websocket || site.proxy_limits().sse)
+                        {
+                            site.proxy_limits().streams
                         } else {
                             0
                         },

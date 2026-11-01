@@ -146,6 +146,7 @@ impl ParsedConfig {
             let mut upstream = None;
             let mut denies = Vec::new();
             let mut proxy_paths = Vec::new();
+            let mut websocket_origins = Vec::new();
             let mut limits = ProxyLimits::default();
             let mut limit_names = std::collections::BTreeSet::new();
             let mut publications = Vec::new();
@@ -172,6 +173,25 @@ impl ParsedConfig {
                             );
                         }
                         list.push(value);
+                    }
+                    "websocket-origin" => {
+                        let value = self.arguments(child, 1)?[0];
+                        if !valid_origin(value)
+                            || websocket_origins.len() == 16
+                            || websocket_origins.contains(&value)
+                        {
+                            return Err(
+                                self.at(child, "invalid, duplicate or excessive WebSocket origin")
+                            );
+                        }
+                        websocket_origins.push(value);
+                    }
+                    "websocket-compression" => {
+                        let value = self.arguments(child, 1)?[0];
+                        if value != "permessage-deflate" || limits.deflate {
+                            return Err(self.at(child, "expected one permessage-deflate setting"));
+                        }
+                        limits.deflate = true;
                     }
                     "proxy-stream" => {
                         let value = self.arguments(child, 1)?[0];
@@ -327,11 +347,12 @@ impl ParsedConfig {
                     "publications require a root; site requires publications, redirects or a proxy",
                 ));
             }
-            if (!limits.websocket
-                && !limits.sse
-                && limit_names
-                    .iter()
-                    .any(|(_, key)| key.starts_with("stream-")))
+            if (!limits.websocket && (limits.deflate || !websocket_origins.is_empty()))
+                || (!limits.websocket
+                    && !limits.sse
+                    && limit_names
+                        .iter()
+                        .any(|(_, key)| key.starts_with("stream-") || *key == "streams"))
                 || !limits.valid()
                 || (upstream.is_none() && (!proxy_paths.is_empty() || !limit_names.is_empty()))
             {
@@ -369,6 +390,7 @@ impl ParsedConfig {
                 upstream,
                 denies,
                 proxy_paths,
+                websocket_origins,
                 limits,
                 publications,
                 redirects,
@@ -443,6 +465,7 @@ pub struct CompiledSite<'a> {
     upstream: Option<SocketAddr>,
     denies: Vec<&'a str>,
     proxy_paths: Vec<&'a str>,
+    websocket_origins: Vec<&'a str>,
     limits: ProxyLimits,
     tls: TlsPolicy,
     publications: Vec<Publication<'a>>,
@@ -451,6 +474,9 @@ pub struct CompiledSite<'a> {
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn websocket_origins(&self) -> &[&'a str] {
+        &self.websocket_origins
+    }
     pub fn denies(&self) -> &[&'a str] {
         &self.denies
     }
@@ -520,6 +546,8 @@ pub struct ProxyLimits {
     pub total_ms: u64,
     pub connections: u64,
     pub websocket: bool,
+    pub deflate: bool,
+    pub streams: u64,
     pub sse: bool,
     pub stream_upload_bytes: u64,
     pub stream_download_bytes: u64,
@@ -537,6 +565,8 @@ impl Default for ProxyLimits {
             total_ms: 15000,
             connections: 2,
             websocket: false,
+            deflate: false,
+            streams: 8,
             sse: false,
             stream_upload_bytes: 16777216,
             stream_download_bytes: 67108864,
@@ -579,12 +609,14 @@ impl ProxyLimits {
                 self.total_ms,
             )
             && pathward::routing::connection_limit(self.connections)
+            && pathward::streaming::service_limit(self.streams)
             && pathward::streaming::byte_limit(self.stream_upload_bytes)
             && pathward::streaming::byte_limit(self.stream_download_bytes)
             && pathward::streaming::time_limits(self.stream_idle_ms, self.stream_total_ms)
     }
     fn set(&mut self, kind: &str, key: &str, value: &str) -> bool {
         let (destination, parsed) = match (kind, key) {
+            ("proxy-limit", "streams") => (&mut self.streams, number(value)),
             ("proxy-limit", "stream-upload") => {
                 (&mut self.stream_upload_bytes, quantity(value, false))
             }
@@ -608,5 +640,21 @@ impl ProxyLimits {
         } else {
             false
         }
+    }
+}
+
+/// Canonical serialized origin only: no URL parsing, decoding, wildcard or path.
+pub fn valid_origin(value: &str) -> bool {
+    let (host, default) = if let Some(host) = value.strip_prefix("https://") {
+        (host, 443)
+    } else if let Some(host) = value.strip_prefix("http://") {
+        (host, 80)
+    } else {
+        return false;
+    };
+    if let Some((host, port)) = host.split_once(':') {
+        valid_host(host) && number(port).is_some_and(|n| n > 0 && n <= 65535 && n != default)
+    } else {
+        valid_host(host)
     }
 }

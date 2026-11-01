@@ -106,7 +106,7 @@ Late surplus bytes cannot become another exchange because sockets are not reused
 A slow downstream can still interrupt delivery after validation.
 
 Buffered HTTP data is bounded per worker. WebSocket/SSE adds finite streaming
-budgets, backpressure, cancellation and a two-stream global quota. Slow ordinary
+budgets, backpressure, cancellation and a 16-stream global quota. Slow ordinary
 applications can still occupy the shared workers. Backend-aware admission and
 real application load tests remain required before migration.
 
@@ -144,7 +144,7 @@ Framing and intermediary handling were checked against
 The intentionally smaller interoperability profile is listed above.
 
 [ProxyProofs.lean](../proofs/ProxyProofs.lean) adds 29 audited statements, bringing
-the original proxy milestone total to 153; the mixed-routing extension raises it to 185 and streaming to 207. Charon/Aeneas extracts the actual dependency-free Rust predicates:
+the original proxy milestone total to 153; the mixed-routing extension raises it to 185 and streaming to 221. Charon/Aeneas extracts the actual dependency-free Rust predicates:
 site-mode/root requirements, exact loopback endpoint/port admission, method/status ranges,
 request/response framing gates, bounded target grammar, hop/forwarding exclusions,
 header-value control exclusion and plaintext HSTS suppression. Totality covers
@@ -168,8 +168,8 @@ ordinary Linux file, managed deployment, TLS/ACME and soak suites remain require
 1. Inventory the real applications' routes, auth, upload sizes, cookies, redirects,
    SSE and WebSocket requirements; rehearse against those applications in isolation.
 2. Rehearse the implemented opt-in WebSocket/SSE paths, finite budgets, stop/reconnect
-   behavior and the two-stream quota against real applications. Compression,
-   cross-origin browser allowlists and general streaming need separate extensions.
+   behavior and the 16-stream quota against real applications. Restricted compression
+   and explicit Origin allowlists are implemented; general streaming remains separate.
 3. Add application-aware readiness/failure telemetry and backend load testing.
    Mixed routing and per-service limits are implemented in the linked guide.
    HTTP/2/keep-alive and remote HTTPS upstreams need their own

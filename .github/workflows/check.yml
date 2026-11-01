@@ -40,6 +40,7 @@ jobs:
           python3 scripts/deployment_smoke.py
           python3 scripts/load_smoke.py
           python3 scripts/fairness_smoke.py
+          python3 scripts/stream_smoke.py
           cargo +1.99.1 run --offline --locked --release --manifest-path server/Cargo.toml --example fuzz_http -- 100000
       - name: Install pinned local test CA
         run: make acme-test-setup

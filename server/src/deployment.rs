@@ -77,6 +77,13 @@ pub fn generate(
         }
         if site.upstream().is_some() {
             let l = site.proxy_limits();
+            for origin in site.websocket_origins() {
+                out.push_str(&format!("    websocket-origin {}\n", quoted(origin)));
+            }
+            if l.deflate {
+                out.push_str("    websocket-compression \"permessage-deflate\"\n");
+            }
+
             for (enabled, name) in [(l.websocket, "websocket"), (l.sse, "sse")] {
                 if enabled {
                     out.push_str(&format!("    proxy-stream {}\n", quoted(name)));
@@ -94,6 +101,7 @@ pub fn generate(
                 ));
             }
             if l.websocket || l.sse {
+                out.push_str(&format!("    proxy-limit \"streams\" \"{}\"\n", l.streams));
                 for (name, value) in [
                     ("stream-upload", l.stream_upload_bytes),
                     ("stream-download", l.stream_download_bytes),

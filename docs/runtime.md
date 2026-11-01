@@ -57,8 +57,9 @@ same validated cache pathname to `Server::new_with_cache` and `Manager::new`.
 ## Graceful shutdown
 
 SIGTERM/SIGINT set an atomic flag. The accept loop closes the serving listener,
-marks the server draining, discards queued sockets, and joins the four active
-workers. The bounded dispatcher runs at most two jobs per peer, skips busy peers
+marks the server draining, discards queued sockets, and joins the four ordinary and 16 stream
+workers. Established streams have separate global/peer/host leases and release
+ordinary admission/dispatch slots at handoff. The bounded dispatcher runs at most two jobs per peer, skips busy peers
 without dropping their queued work, and wakes waiting workers during shutdown.
 Active HTTP/TLS exchanges finish under their existing total deadlines:
 5 seconds for TLS handshake, 5 seconds for HTTP headers, 10 seconds for a

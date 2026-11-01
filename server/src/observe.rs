@@ -2,7 +2,7 @@
 use std::{
     io::{self, Write},
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{self, SyncSender},
     },
@@ -134,9 +134,9 @@ impl Observability {
         };
         self.event(event, 0, retry);
     }
-    pub(crate) fn connection(&self) -> Active<'_> {
+    pub(crate) fn connection(self: &Arc<Self>) -> Active {
         self.active.fetch_add(1, Ordering::Relaxed);
-        Active(self)
+        Active(self.clone())
     }
     pub(crate) fn metrics(
         &self,
@@ -248,8 +248,8 @@ impl Observability {
         out
     }
 }
-pub(crate) struct Active<'a>(&'a Observability);
-impl Drop for Active<'_> {
+pub(crate) struct Active(Arc<Observability>);
+impl Drop for Active {
     fn drop(&mut self) {
         self.0.active.fetch_sub(1, Ordering::Relaxed);
     }

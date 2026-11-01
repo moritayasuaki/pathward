@@ -209,7 +209,7 @@ import ReleaseProofs
 #print axioms StreamingProofs.request_bodyless
 #print axioms StreamingProofs.upgrade_no_http_framing
 #print axioms StreamingProofs.invalid_accept
-#print axioms StreamingProofs.no_extensions
+#print axioms StreamingProofs.invalid_extensions
 #print axioms StreamingProofs.sse_eq
 #print axioms StreamingProofs.no_encoded_sse
 #print axioms StreamingProofs.byte_limit_eq
@@ -224,3 +224,18 @@ import ReleaseProofs
 #print axioms StreamingProofs.admission_bounded
 #print axioms StreamingProofs.no_admission_stopped
 #print axioms StreamingProofs.limits_total
+
+#print axioms StreamingProofs.peer_eq
+#print axioms StreamingProofs.peer_bounded
+#print axioms StreamingProofs.service_limit_eq
+#print axioms StreamingProofs.service_eq
+#print axioms StreamingProofs.service_bounded_across_reload
+#print axioms StreamingProofs.revoked_service
+#print axioms StreamingProofs.origin_eq
+#print axioms StreamingProofs.foreign_origin_requires_allowlist
+#print axioms StreamingProofs.origin_denied
+#print axioms StreamingProofs.deflate_eq
+#print axioms StreamingProofs.deflate_requires_opt_in_offer_and_resets
+#print axioms StreamingProofs.no_unsolicited_deflate
+#print axioms StreamingProofs.no_context_takeover
+#print axioms StreamingProofs.optional_uncompressed
