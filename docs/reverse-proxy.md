@@ -74,12 +74,13 @@ Probe a representative application URL separately before switching traffic.
 | Request framing | One canonical Content-Length; at most 1 MiB |
 | Request body deadline | 5 seconds from acceptance, including queue/TLS/head |
 | Upstream connect | At most 2 seconds, within total exchange budget |
-| Total exchange | 15 seconds from acceptance through downstream writes |
+| Successful exchange | 15 seconds from acceptance through downstream writes |
+| Error response | At most 1 additional second to report failure |
 | Upstream protocol | HTTP/1.0 or HTTP/1.1, final 200–599 response |
 | Response framing | One Content-Length, finite chunked, or connection-close |
 | Response body | At most 8 MiB, including cumulative decoded chunks |
-| Headers | 16 KiB / 32 fields each direction; individual values ≤4096 bytes |
-| Header values | Printable ASCII; duplicate names rejected except response Set-Cookie |
+| Parsed client/upstream heads | 16 KiB / 32 fields each; individual values ≤4096 bytes |
+| Parsed header values | Printable ASCII; duplicate names rejected except response Set-Cookie |
 | Concurrency | Existing four workers, bounded queue and per-peer admission gates |
 
 Request Transfer-Encoding, Expect, Upgrade and Trailer are rejected. There are no
@@ -91,7 +92,10 @@ Metadata Content-Length on HEAD/304 is also subject to the 8 MiB bound.
 The full request is buffered before connecting, and the full upstream response
 is validated before downstream success headers are emitted. Invalid/truncated or
 oversized upstream messages receive generic 502; upstream timeout receives 504.
-No request is automatically retried, including after a POST may have reached the
+Standard surrounding header whitespace is trimmed by the parser. Regenerated
+forwarding/Via fields and configured response headers can make outgoing heads
+larger than the input-head limit; both additions remain bounded by input/config
+limits. No request is automatically retried, including after a POST may have reached the
 application. A lost response therefore does not imply a failed application write.
 Late surplus bytes cannot become another exchange because sockets are not reused.
 A slow downstream can still interrupt delivery after validation.
