@@ -77,6 +77,11 @@ pub fn generate(
         }
         if site.upstream().is_some() {
             let l = site.proxy_limits();
+            for (enabled, name) in [(l.websocket, "websocket"), (l.sse, "sse")] {
+                if enabled {
+                    out.push_str(&format!("    proxy-stream {}\n", quoted(name)));
+                }
+            }
             for (name, value, unit) in [
                 ("request-body", l.request_bytes, "B"),
                 ("response-body", l.response_bytes, "B"),
@@ -87,6 +92,28 @@ pub fn generate(
                     quoted(name),
                     quoted(&format!("{value}{unit}"))
                 ));
+            }
+            if l.websocket || l.sse {
+                for (name, value) in [
+                    ("stream-upload", l.stream_upload_bytes),
+                    ("stream-download", l.stream_download_bytes),
+                ] {
+                    out.push_str(&format!(
+                        "    proxy-limit {} {}\n",
+                        quoted(name),
+                        quoted(&format!("{value}B"))
+                    ));
+                }
+                for (name, value) in [
+                    ("stream-idle", l.stream_idle_ms),
+                    ("stream-total", l.stream_total_ms),
+                ] {
+                    out.push_str(&format!(
+                        "    proxy-timeout {} {}\n",
+                        quoted(name),
+                        quoted(&format!("{value}ms"))
+                    ));
+                }
             }
             for (name, value) in [
                 ("request-body", l.body_ms),

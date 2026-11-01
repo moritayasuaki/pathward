@@ -127,6 +127,21 @@ impl Site {
             "HTTP/1.1 {} Upstream Response\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\n",
             response.status
         );
+        if let Some(live) = &response.live {
+            match &live.mode {
+                crate::streaming::Mode::WebSocket { accept, protocol } => {
+                    out = format!(
+                        "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: {accept}\r\nX-Content-Type-Options: nosniff\r\n"
+                    );
+                    if let Some(p) = protocol {
+                        out.push_str(&format!("Sec-WebSocket-Protocol: {p}\r\n"));
+                    }
+                }
+                crate::streaming::Mode::Sse { .. } => {
+                    out.push_str("Transfer-Encoding: chunked\r\n")
+                }
+            }
+        }
         if let Some(length) = response.length {
             out.push_str(&format!("Content-Length: {length}\r\n"));
         }
@@ -391,7 +406,9 @@ mod tests {
             output: Vec::new(),
             before_read,
         };
-        server.handle(&mut stream, Instant::now(), None).unwrap();
+        server
+            .handle(&mut stream, Instant::now(), None, &AtomicBool::new(false))
+            .unwrap();
         stream.output
     }
     #[test]

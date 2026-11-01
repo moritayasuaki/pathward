@@ -288,7 +288,7 @@ fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
     let backend = TcpListener::bind("127.0.0.1:0").unwrap();
     backend.set_nonblocking(true).unwrap();
     let text = format!(
-        "site \"app.example\" {{\ntls \"auto\"\nroot \"{}\"\npublish \"/robots.txt\" \"robots.txt\"\npublish \"/missing.txt\" \"missing.txt\"\npublish \"/link.txt\" \"link.txt\"\npublish \"/private/visible\" \"robots.txt\"\ndeny \"/private\"\nreverse-proxy \"{}\"\nproxy-limit \"response-body\" \"2B\"\nheader \"*\" \"x-frame-options\" \"DENY\"\n}}",
+        "site \"app.example\" {{\ntls \"auto\"\nroot \"{}\"\npublish \"/robots.txt\" \"robots.txt\"\npublish \"/missing.txt\" \"missing.txt\"\npublish \"/link.txt\" \"link.txt\"\npublish \"/private/visible\" \"robots.txt\"\ndeny \"/private\"\nreverse-proxy \"{}\"\nproxy-stream \"websocket\"\nproxy-limit \"response-body\" \"2B\"\nheader \"*\" \"x-frame-options\" \"DENY\"\n}}",
         tree.0.display(),
         backend.local_addr().unwrap()
     );
@@ -303,6 +303,16 @@ fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
             assert!(get(addr, "GET", "app.example", "/robots.txt").ends_with(b"LOCAL ROBOTS"));
             assert!(get(addr, "HEAD", "app.example", "/robots.txt").ends_with(b"\r\n\r\n"));
             assert!(get(addr, "POST", "app.example", "/robots.txt").starts_with(b"HTTP/1.1 405 "));
+            for (path, status) in [("/robots.txt", 400), ("/private", 404)] {
+                let request = format!(
+                    "GET {path} HTTP/1.1\r\nHost: app.example\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+                );
+                assert!(
+                    exchange(addr, request.as_bytes())
+                        .starts_with(format!("HTTP/1.1 {status} ").as_bytes())
+                );
+                assert!(backend.accept().is_err());
+            }
             for path in [
                 "/private",
                 "/private/",

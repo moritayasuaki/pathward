@@ -1,3 +1,4 @@
+import StreamingProofs
 import RoutingProofs
 import ProxyProofs
 import PathwardProofs
@@ -200,3 +201,26 @@ import ReleaseProofs
 #print axioms RoutingProofs.stem_input_bytes
 #print axioms RoutingProofs.route_total
 #print axioms RoutingProofs.limits_total
+
+#print axioms StreamingProofs.request_eq
+#print axioms StreamingProofs.response_eq
+#print axioms StreamingProofs.disabled_request
+#print axioms StreamingProofs.no_unrequested_upgrade
+#print axioms StreamingProofs.request_bodyless
+#print axioms StreamingProofs.upgrade_no_http_framing
+#print axioms StreamingProofs.invalid_accept
+#print axioms StreamingProofs.no_extensions
+#print axioms StreamingProofs.sse_eq
+#print axioms StreamingProofs.no_encoded_sse
+#print axioms StreamingProofs.byte_limit_eq
+#print axioms StreamingProofs.bytes_eq
+#print axioms StreamingProofs.bytes_bounded
+#print axioms StreamingProofs.time_eq
+#print axioms StreamingProofs.running_eq
+#print axioms StreamingProofs.stop_ends_stream
+#print axioms StreamingProofs.expired_total
+#print axioms StreamingProofs.expired_idle
+#print axioms StreamingProofs.admission_eq
+#print axioms StreamingProofs.admission_bounded
+#print axioms StreamingProofs.no_admission_stopped
+#print axioms StreamingProofs.limits_total

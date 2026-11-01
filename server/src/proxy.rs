@@ -1,6 +1,7 @@
 //! Bounded, one-exchange HTTP/1 proxy to a configured numeric loopback address.
-//! No DNS, pooling, retries, redirects, tunnels or automatic decompression.
+//! No DNS, pooling, retries, redirects, arbitrary tunnels or decompression.
 use crate::http::{self, Rejection, Request, Transport};
+use crate::streaming::{self, Live, Mode};
 use pathward::proxy as policy;
 use pathward_config::ProxyLimits;
 use std::{
@@ -15,6 +16,7 @@ pub(crate) struct Response {
     pub length: Option<u64>,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+    pub live: Option<Live>,
 }
 
 fn invalid() -> io::Error {
@@ -64,6 +66,13 @@ pub(crate) fn forward(
     if !policy::target_allowed(req.target) {
         return Err(Rejection(400));
     }
+    let upgrade = streaming::request(
+        req,
+        prefetched.len(),
+        limits.websocket,
+        encrypted,
+        external_port,
+    )?;
     // Repeat the extraction-backed gate at the only connect call's boundary.
     if !policy::endpoint_allowed(upstream.ip().to_string().as_bytes(), upstream.port())
         || upstream.port() == client.local_port().map_err(|_| Rejection(502))?
@@ -107,7 +116,7 @@ pub(crate) fn forward(
             }
             continue;
         }
-        if policy::request_header(name.as_bytes(), h.value) {
+        if !streaming::websocket_field(&name) && policy::request_header(name.as_bytes(), h.value) {
             forwarded.push((
                 name,
                 std::str::from_utf8(h.value)
@@ -119,6 +128,7 @@ pub(crate) fn forward(
     if local_options {
         return Ok(Response {
             status: 204,
+            live: None,
             length: None,
             body: Vec::new(),
             headers: vec![(
@@ -160,11 +170,21 @@ pub(crate) fn forward(
     let mut socket = TcpStream::connect_timeout(&upstream, timeout).map_err(failure)?;
     let method = std::str::from_utf8(req.method).map_err(|_| Rejection(400))?;
     let target = std::str::from_utf8(req.target).map_err(|_| Rejection(400))?;
-    let mut head = format!(
-        "{method} {target} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Length: {}\r\n",
-        req.host,
-        body.len()
-    );
+    let mut head = format!("{method} {target} HTTP/1.1\r\nHost: {}\r\n", req.host);
+    if let Some(ws) = &upgrade {
+        head.push_str(&format!("Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: {}\r\nSec-WebSocket-Version: 13\r\n", ws.key));
+        if !ws.protocols.is_empty() {
+            head.push_str(&format!(
+                "Sec-WebSocket-Protocol: {}\r\n",
+                ws.protocols.join(", ")
+            ));
+        }
+    } else {
+        head.push_str(&format!(
+            "Connection: close\r\nContent-Length: {}\r\n",
+            body.len()
+        ));
+    }
     for (name, value) in forwarded {
         head.push_str(&format!("{name}: {value}\r\n"));
     }
@@ -182,7 +202,8 @@ pub(crate) fn forward(
         req.method == b"HEAD",
         deadline,
         deadline.min(Instant::now() + Duration::from_millis(limits.head_ms)),
-        limits.response_bytes,
+        limits,
+        upgrade.as_ref(),
     )
     .map_err(failure)
 }
@@ -250,8 +271,10 @@ fn receive(
     head_only: bool,
     deadline: Instant,
     head_deadline: Instant,
-    limit: u64,
+    limits: ProxyLimits,
+    upgrade: Option<&streaming::Upgrade>,
 ) -> io::Result<Response> {
+    let limit = limits.response_bytes;
     let raw = http::read_head(&mut socket, head_deadline)?;
     http::remaining(head_deadline)?;
     let end = raw
@@ -283,7 +306,7 @@ fn receive(
         return Err(invalid());
     }
     let status = response.code.ok_or_else(invalid)?;
-    if !policy::status_allowed(status) {
+    if !policy::status_allowed(status) && status != 101 {
         return Err(invalid());
     }
     let mut length = None;
@@ -305,7 +328,8 @@ fn receive(
                 }
                 chunked = true;
             }
-            "trailer" | "upgrade" => return Err(invalid()),
+            "trailer" => return Err(invalid()),
+            "upgrade" if status != 101 => return Err(invalid()),
             "connection" => {
                 for item in std::str::from_utf8(h.value)
                     .map_err(|_| invalid())?
@@ -321,16 +345,58 @@ fn receive(
             _ => {}
         }
     }
-    if !pathward::routing::response_framing(length, limit, chunked, false)
-        || (status == 204 && (length.is_some() || chunked))
-    {
+    let event_type = response.headers.iter().any(|h| {
+        h.name.eq_ignore_ascii_case("content-type")
+            && std::str::from_utf8(h.value).is_ok_and(|v| {
+                v.split(';')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .eq_ignore_ascii_case("text/event-stream")
+            })
+    });
+    let encoded = response.headers.iter().any(|h| {
+        h.name.eq_ignore_ascii_case("content-encoding")
+            && !h.value.eq_ignore_ascii_case(b"identity")
+    });
+    if limits.sse && !head_only && status == 200 && event_type && encoded {
         return Err(invalid());
     }
+    let mode = if status == 101 {
+        Some(streaming::response_upgrade(
+            upgrade,
+            version,
+            status,
+            response.headers,
+            length.is_some(),
+            chunked,
+        )?)
+    } else if upgrade.is_none()
+        && pathward::streaming::sse_response(limits.sse, head_only, status, event_type, encoded)
+    {
+        if encoded
+            || nominated.contains("content-type")
+            || (length.is_some() && chunked)
+            || length.is_some_and(|n| {
+                !pathward::streaming::bytes_fit(0, n, limits.stream_download_bytes)
+            })
+        {
+            return Err(invalid());
+        }
+        Some(Mode::Sse { length, chunked })
+    } else {
+        if !pathward::routing::response_framing(length, limit, chunked, false)
+            || (status == 204 && (length.is_some() || chunked))
+        {
+            return Err(invalid());
+        }
+        None
+    };
     let mut outgoing = Vec::new();
     let mut via = String::new();
     for h in response.headers.iter() {
         let name = h.name.to_ascii_lowercase();
-        if nominated.contains(&name) {
+        if nominated.contains(&name) || streaming::websocket_field(&name) {
             continue;
         }
         let value = std::str::from_utf8(h.value)
@@ -349,6 +415,15 @@ fn receive(
         "1.0 pathward"
     });
     outgoing.push(("via".to_owned(), via));
+    if let Some(mode) = mode {
+        return Ok(Response {
+            status,
+            length: None,
+            headers: outgoing,
+            body: Vec::new(),
+            live: Some(Live::new(mode, socket, prefix.to_vec())),
+        });
+    }
     let mut wire = Wire {
         socket,
         prefix: prefix.to_vec(),
@@ -419,6 +494,7 @@ fn receive(
     http::remaining(deadline)?;
     Ok(Response {
         status,
+        live: None,
         length: declared,
         headers: outgoing,
         body,

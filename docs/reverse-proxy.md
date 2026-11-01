@@ -85,15 +85,17 @@ Probe a representative application URL separately before switching traffic.
 | Parsed header values | Printable ASCII; duplicate names rejected except response Set-Cookie |
 | Concurrency | Default 2 active proxy exchanges per host; existing global/per-peer gates |
 
-Request Transfer-Encoding, Expect, Upgrade and Trailer are rejected. There are no
-WebSockets, SSE/streaming responses, informational responses, chunk extensions or
-trailers. OPTIONS with Max-Forwards zero is answered locally; positive values
+Request Transfer-Encoding, Expect and Trailer are rejected. Upgrade is accepted
+only through the opt-in [WebSocket handshake](streaming.md). Other informational
+responses, chunk extensions and trailers remain unsupported. OPTIONS with Max-Forwards zero is answered locally; positive values
 are decremented. HEAD/204/304 never forward a body. A 205 with a body is rejected.
 Metadata Content-Length on HEAD/304 also follows the configured response bound.
 The [limits guide](routing-and-limits.md) specifies the allowed budgets and units.
 
-The full request is buffered before connecting, and the full upstream response
-is validated before downstream success headers are emitted. Invalid/truncated or
+For ordinary HTTP, the full request is buffered before connecting and the full
+upstream response is validated before downstream success headers are emitted.
+Opt-in WebSocket/SSE validates the head before committing, then relays with bounded
+buffers; a later error closes the connection as described in the streaming guide. Invalid/truncated or
 oversized upstream messages receive generic 502; upstream timeout receives 504.
 Standard surrounding header whitespace is trimmed by the parser. Regenerated
 forwarding/Via fields and configured response headers can make outgoing heads
@@ -103,9 +105,10 @@ application. A lost response therefore does not imply a failed application write
 Late surplus bytes cannot become another exchange because sockets are not reused.
 A slow downstream can still interrupt delivery after validation.
 
-Buffered data is bounded per worker, but this is not streaming and large or slow
-applications can occupy the shared workers. Backend-aware admission, streaming
-backpressure and real application load tests are still required before migration.
+Buffered HTTP data is bounded per worker. WebSocket/SSE adds finite streaming
+budgets, backpressure, cancellation and a two-stream global quota. Slow ordinary
+applications can still occupy the shared workers. Backend-aware admission and
+real application load tests remain required before migration.
 
 ## Reload and publication generation
 
@@ -141,7 +144,7 @@ Framing and intermediary handling were checked against
 The intentionally smaller interoperability profile is listed above.
 
 [ProxyProofs.lean](../proofs/ProxyProofs.lean) adds 29 audited statements, bringing
-the original proxy milestone total to 153; the mixed-routing extension raises it to 185. Charon/Aeneas extracts the actual dependency-free Rust predicates:
+the original proxy milestone total to 153; the mixed-routing extension raises it to 185 and streaming to 207. Charon/Aeneas extracts the actual dependency-free Rust predicates:
 site-mode/root requirements, exact loopback endpoint/port admission, method/status ranges,
 request/response framing gates, bounded target grammar, hop/forwarding exclusions,
 header-value control exclusion and plaintext HSTS suppression. Totality covers
@@ -164,9 +167,9 @@ ordinary Linux file, managed deployment, TLS/ACME and soak suites remain require
 
 1. Inventory the real applications' routes, auth, upload sizes, cookies, redirects,
    SSE and WebSocket requirements; rehearse against those applications in isolation.
-2. Add a separately reviewed streaming/WebSocket design with cancellation, bounded
-   buffering, graceful drain and appropriate per-service limits. Do not route an
-   application that requires these through the current implementation.
+2. Rehearse the implemented opt-in WebSocket/SSE paths, finite budgets, stop/reconnect
+   behavior and the two-stream quota against real applications. Compression,
+   cross-origin browser allowlists and general streaming need separate extensions.
 3. Add application-aware readiness/failure telemetry and backend load testing.
    Mixed routing and per-service limits are implemented in the linked guide.
    HTTP/2/keep-alive and remote HTTPS upstreams need their own

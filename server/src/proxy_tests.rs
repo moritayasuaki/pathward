@@ -464,7 +464,8 @@ fn a_slow_upstream_body_cannot_reset_the_total_deadline() {
             false,
             start + Duration::from_millis(150),
             start + Duration::from_millis(150),
-            8388608,
+            pathward_config::ProxyLimits::default(),
+            None,
         )
         .err()
         .unwrap();

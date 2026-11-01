@@ -124,7 +124,8 @@ upstream content returns 502 before success headers; timeout returns 408 for the
 request or 504 for the upstream. Content-Length, cumulative decoded chunks and
 connection-close responses all use the configured response bound, including
 metadata Content-Length on HEAD/304. Ambiguous framing remains forbidden. There
-are no automatic retries and no streaming/WebSocket/SSE support.
+are no automatic retries. [WebSocket/SSE](streaming.md) has separate explicit
+opt-ins and finite session budgets.
 
 The connection setting counts the whole proxy exchange from request-body
 consumption through downstream output. Exhaustion returns 503 immediately; there
@@ -179,7 +180,7 @@ absolute deadline edges and the two runtime commit paths. The relevant protocol
 framing baseline remains [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3).
 
 [RoutingProofs.lean](../proofs/RoutingProofs.lean) adds 32 audited statements,
-bringing the total to 185. Proofs apply to extracted Rust route selection,
+bringing that milestone to 185; the streaming extension brings the total to 207. Proofs apply to extracted Rust route selection,
 canonical stem/unchanged-or-final-slash shape, admitted path bytes, subtree
 boundary, body/chunk bounds, dynamic-limit framing, time bounds and admission
 under captured/live connection caps. The earlier exclusive-mode theorem is

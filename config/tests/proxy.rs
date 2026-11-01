@@ -111,3 +111,35 @@ fn mixed_routes_and_human_readable_service_limits_compile_atomically() {
         )));
     }
 }
+
+#[test]
+fn streams_require_explicit_opt_in_and_bounded_budget_settings() {
+    let base =
+        "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:3000\"\nOPTIONS\n}\n";
+    let options = "proxy-stream \"websocket\"\nproxy-stream \"sse\"\nproxy-limit \"stream-upload\" \"1024MiB\"\nproxy-limit \"stream-download\" \"8KiB\"\nproxy-timeout \"stream-idle\" \"300s\"\nproxy-timeout \"stream-total\" \"3600s\"";
+    let parsed = ParsedConfig::parse(&base.replace("OPTIONS", options)).unwrap();
+    let c = parsed.compile().unwrap();
+    let l = c.sites()[0].proxy_limits();
+    assert!(l.websocket && l.sse);
+    assert_eq!(
+        (l.stream_upload_bytes, l.stream_download_bytes),
+        (1073741824, 8192)
+    );
+    assert_eq!((l.stream_idle_ms, l.stream_total_ms), (300000, 3600000));
+    for options in [
+        "proxy-stream \"unknown\"",
+        "proxy-stream \"sse\"\nproxy-stream \"sse\"",
+        "proxy-limit \"stream-upload\" \"1MiB\"",
+        "proxy-stream \"sse\"\nproxy-limit \"stream-download\" \"0B\"",
+        "proxy-stream \"sse\"\nproxy-limit \"stream-upload\" \"1073741825B\"",
+        "proxy-stream \"sse\"\nproxy-timeout \"stream-idle\" \"99ms\"",
+        "proxy-stream \"sse\"\nproxy-timeout \"stream-total\" \"3601s\"",
+        "proxy-stream \"sse\"\nproxy-timeout \"stream-total\" \"1s\"",
+        "proxy-stream \"sse\"\nproxy-limit \"stream-upload\" \"18446744073709551615MiB\"",
+    ] {
+        assert!(!valid(&base.replace("OPTIONS", options)), "{options}");
+    }
+    assert!(!valid(
+        "site \"app.example\" {\ntls \"auto\"\nredirect \"/old\" \"app.example\" \"/new\" \"308\"\nproxy-stream \"sse\"\n}\n"
+    ));
+}

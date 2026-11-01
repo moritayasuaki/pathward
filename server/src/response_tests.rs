@@ -51,7 +51,16 @@ fn exchange_mode(
         port,
     };
     let snapshot = server.state.read().unwrap().snapshot.clone();
-    Server::respond(&snapshot, &mut stream, Instant::now(), sni, redirect).unwrap();
+    Server::respond(
+        &snapshot,
+        &mut stream,
+        Instant::now(),
+        sni,
+        redirect,
+        &server.stream_quota,
+        &|| false,
+    )
+    .unwrap();
     String::from_utf8(stream.output).unwrap()
 }
 #[test]

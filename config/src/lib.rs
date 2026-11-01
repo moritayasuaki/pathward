@@ -173,6 +173,17 @@ impl ParsedConfig {
                         }
                         list.push(value);
                     }
+                    "proxy-stream" => {
+                        let value = self.arguments(child, 1)?[0];
+                        if !limit_names.insert(("proxy-stream", value)) {
+                            return Err(self.at(child, "duplicate stream setting"));
+                        }
+                        match value {
+                            "websocket" => limits.websocket = true,
+                            "sse" => limits.sse = true,
+                            _ => return Err(self.at(child, "expected websocket or sse")),
+                        }
+                    }
                     "proxy-limit" | "proxy-timeout" => {
                         let v = self.arguments(child, 2)?;
                         let kind = child.name().value();
@@ -316,7 +327,12 @@ impl ParsedConfig {
                     "publications require a root; site requires publications, redirects or a proxy",
                 ));
             }
-            if !limits.valid()
+            if (!limits.websocket
+                && !limits.sse
+                && limit_names
+                    .iter()
+                    .any(|(_, key)| key.starts_with("stream-")))
+                || !limits.valid()
                 || (upstream.is_none() && (!proxy_paths.is_empty() || !limit_names.is_empty()))
             {
                 return Err(self.at(
@@ -503,6 +519,12 @@ pub struct ProxyLimits {
     pub head_ms: u64,
     pub total_ms: u64,
     pub connections: u64,
+    pub websocket: bool,
+    pub sse: bool,
+    pub stream_upload_bytes: u64,
+    pub stream_download_bytes: u64,
+    pub stream_idle_ms: u64,
+    pub stream_total_ms: u64,
 }
 impl Default for ProxyLimits {
     fn default() -> Self {
@@ -514,6 +536,12 @@ impl Default for ProxyLimits {
             head_ms: 10000,
             total_ms: 15000,
             connections: 2,
+            websocket: false,
+            sse: false,
+            stream_upload_bytes: 16777216,
+            stream_download_bytes: 67108864,
+            stream_idle_ms: 30000,
+            stream_total_ms: 300000,
         }
     }
 }
@@ -551,9 +579,20 @@ impl ProxyLimits {
                 self.total_ms,
             )
             && pathward::routing::connection_limit(self.connections)
+            && pathward::streaming::byte_limit(self.stream_upload_bytes)
+            && pathward::streaming::byte_limit(self.stream_download_bytes)
+            && pathward::streaming::time_limits(self.stream_idle_ms, self.stream_total_ms)
     }
     fn set(&mut self, kind: &str, key: &str, value: &str) -> bool {
         let (destination, parsed) = match (kind, key) {
+            ("proxy-limit", "stream-upload") => {
+                (&mut self.stream_upload_bytes, quantity(value, false))
+            }
+            ("proxy-limit", "stream-download") => {
+                (&mut self.stream_download_bytes, quantity(value, false))
+            }
+            ("proxy-timeout", "stream-idle") => (&mut self.stream_idle_ms, quantity(value, true)),
+            ("proxy-timeout", "stream-total") => (&mut self.stream_total_ms, quantity(value, true)),
             ("proxy-limit", "request-body") => (&mut self.request_bytes, quantity(value, false)),
             ("proxy-limit", "response-body") => (&mut self.response_bytes, quantity(value, false)),
             ("proxy-limit", "connections") => (&mut self.connections, number(value)),

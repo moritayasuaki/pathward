@@ -11,6 +11,7 @@ pub mod observe;
 mod proxy;
 mod runtime;
 pub mod secrets;
+mod streaming;
 pub mod tls;
 mod work;
 
@@ -41,6 +42,7 @@ struct State {
 pub struct Server {
     state: RwLock<State>,
     reload_lock: Mutex<()>,
+    stream_quota: streaming::Quota,
     cache: Option<PathBuf>,
     protected: RwLock<Vec<PathBuf>>,
     observe: Arc<observe::Observability>,
@@ -59,6 +61,7 @@ impl Server {
                 snapshot: Arc::new(Snapshot::prepare(config, cache)?),
             }),
             reload_lock: Mutex::new(()),
+            stream_quota: streaming::Quota::default(),
             cache: cache.map(Path::to_owned),
             protected: RwLock::new(Vec::new()),
             observe: Arc::new(observe::Observability::default()),
@@ -215,12 +218,15 @@ impl Server {
         Ok((status, 0))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn respond(
         snapshot: &Snapshot,
         stream: &mut impl http::Transport,
         accepted: Instant,
         sni: Option<&str>,
         automatic_redirect: bool,
+        quota: &streaming::Quota,
+        stopping: &dyn Fn() -> bool,
     ) -> io::Result<(u16, u64)> {
         let head = match http::read_head(stream, accepted + http::READ_BUDGET) {
             Ok(head) => head,
@@ -328,7 +334,7 @@ impl Server {
             let Some(_permit) = site.acquire() else {
                 return reject(stream, 503);
             };
-            let response = match proxy::forward(
+            let mut response = match proxy::forward(
                 upstream,
                 &req,
                 prefetched,
@@ -341,16 +347,29 @@ impl Server {
                 Ok(response) => response,
                 Err(http::Rejection(status)) => return reject(stream, status),
             };
+            let _stream_permit = if response.live.is_some() {
+                let Some(permit) = quota.acquire(stopping()) else {
+                    return reject(stream, 503);
+                };
+                Some(permit)
+            } else {
+                None
+            };
             let deadline = accepted + Duration::from_millis(site.limits.total_ms);
             http::write_all(
                 stream,
                 site.proxy_head(&response, path, sni.is_some()).as_bytes(),
                 deadline,
             )?;
+            if let Some(live) = response.live.take() {
+                return live
+                    .run(stream, site.limits, stopping)
+                    .map(|bytes| (response.status, bytes));
+            }
             http::write_all(stream, &response.body, deadline)?;
             return Ok((response.status, response.body.len() as u64));
         }
-        if req.content_length != 0 || !prefetched.is_empty() {
+        if req.upgrade || req.content_length != 0 || !prefetched.is_empty() {
             return Self::reject(stream, 400);
         }
         if req.method != b"GET" && req.method != b"HEAD" {
@@ -428,6 +447,7 @@ impl Server {
         stream: &mut impl http::Transport,
         accepted: Instant,
         sni: Option<&str>,
+        shutdown: &AtomicBool,
     ) -> io::Result<()> {
         let (generation, snapshot) = {
             let state = self
@@ -437,7 +457,15 @@ impl Server {
             (state.generation, state.snapshot.clone())
         };
         let start = Instant::now();
-        let result = Self::respond(&snapshot, stream, accepted, sni, false);
+        let result = Self::respond(
+            &snapshot,
+            stream,
+            accepted,
+            sni,
+            false,
+            &self.stream_quota,
+            &|| shutdown.load(Ordering::Acquire) || self.is_draining(),
+        );
         self.observe.request(generation, start.elapsed(), &result);
         result.map(|_| ())
     }
@@ -528,6 +556,11 @@ impl Server {
                                             accepted,
                                             None,
                                             true,
+                                            &self.stream_quota,
+                                            &|| {
+                                                shutdown.load(Ordering::Acquire)
+                                                    || self.is_draining()
+                                            },
                                         );
                                         self.observe.request(generation, start.elapsed(), &result);
                                     }
@@ -543,6 +576,7 @@ impl Server {
                                                 &mut encrypted,
                                                 Instant::now(),
                                                 Some(&sni),
+                                                shutdown,
                                             );
                                             let _ = encrypted.finish();
                                         }
@@ -551,7 +585,7 @@ impl Server {
                                     }
                                     continue;
                                 }
-                                let _ = self.handle(&mut stream, accepted, None);
+                                let _ = self.handle(&mut stream, accepted, None, shutdown);
                             }
                             let _ = stream.shutdown(Shutdown::Both);
                         }
