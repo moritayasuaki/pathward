@@ -4,12 +4,12 @@ open pathward PathwardProofs RulesProofs ServingProofs ResponseProofs
 namespace ProxyProofs
 
 abbrev modePolicy (r p d x : Bool) : Prop :=
-  if x then r = false ∧ p = false ∧ d = false else r = true ∧ (p = true ∨ d = true)
+  (p = true → r = true) ∧ (p = true ∨ d = true ∨ x = true)
 theorem mode_eq (r p d x : Bool) :
     proxy.site_mode_allowed r p d x = ok (decide (modePolicy r p d x)) := by
   cases r <;> cases p <;> cases d <;> cases x <;> simp [proxy.site_mode_allowed,modePolicy]
-theorem no_mixed_proxy (r p d : Bool) (h : proxy.site_mode_allowed r p d true = ok true) :
-    r = false ∧ p = false ∧ d = false := by simpa [mode_eq,modePolicy] using h
+theorem publications_require_root (r d x : Bool) (h : proxy.site_mode_allowed r true d x = ok true) :
+    r = true := by simpa [mode_eq,modePolicy] using h
 
 def loopback4 : List U8 := [49#u8, 50#u8, 55#u8, 46#u8, 48#u8, 46#u8, 48#u8, 46#u8, 49#u8]
 def loopback6 : List U8 := [58#u8, 58#u8, 49#u8]

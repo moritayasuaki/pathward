@@ -12,6 +12,7 @@ use std::io::Read;
 use std::net::SocketAddr;
 
 pub const MAX_CONFIG_BYTES: usize = 65_536;
+pub const MAX_ROUTE_RULES: usize = 64;
 pub const MAX_SITES: usize = 16;
 pub const MAX_PUBLICATIONS: usize = 256;
 pub const MAX_REDIRECTS: usize = 64;
@@ -143,6 +144,10 @@ impl ParsedConfig {
             let mut root = None;
             let mut tls = None;
             let mut upstream = None;
+            let mut denies = Vec::new();
+            let mut proxy_paths = Vec::new();
+            let mut limits = ProxyLimits::default();
+            let mut limit_names = std::collections::BTreeSet::new();
             let mut publications = Vec::new();
             let mut redirects = Vec::new();
             let mut headers = Vec::new();
@@ -151,6 +156,30 @@ impl ParsedConfig {
                     return Err(self.at(child, "nested directive blocks are not supported"));
                 }
                 match child.name().value() {
+                    "deny" | "proxy-path" => {
+                        let value = self.arguments(child, 1)?[0];
+                        let list = if child.name().value() == "deny" {
+                            &mut denies
+                        } else {
+                            &mut proxy_paths
+                        };
+                        if !pathward::valid_path(value.as_bytes())
+                            || list.len() == MAX_ROUTE_RULES
+                            || list.contains(&value)
+                        {
+                            return Err(
+                                self.at(child, "invalid, duplicate or excessive subtree rule")
+                            );
+                        }
+                        list.push(value);
+                    }
+                    "proxy-limit" | "proxy-timeout" => {
+                        let v = self.arguments(child, 2)?;
+                        let kind = child.name().value();
+                        if !limit_names.insert((kind, v[0])) || !limits.set(kind, v[0], v[1]) {
+                            return Err(self.at(child, "invalid or duplicate proxy limit/timeout"));
+                        }
+                    }
                     "reverse-proxy" => {
                         let values = self.arguments(child, 1)?;
                         let address = values[0].parse::<SocketAddr>().map_err(|_| {
@@ -282,7 +311,18 @@ impl ParsedConfig {
                 !redirects.is_empty(),
                 upstream.is_some(),
             ) {
-                return Err(self.at(node, "site requires either root and publications/redirects, or one exclusive reverse-proxy"));
+                return Err(self.at(
+                    node,
+                    "publications require a root; site requires publications, redirects or a proxy",
+                ));
+            }
+            if !limits.valid()
+                || (upstream.is_none() && (!proxy_paths.is_empty() || !limit_names.is_empty()))
+            {
+                return Err(self.at(
+                    node,
+                    "proxy settings require an upstream and bounded, consistent limits",
+                ));
             }
             if (!publications.is_empty() && rules::compile(&publications).is_none())
                 || (publications.is_empty() && redirects.is_empty() && upstream.is_none())
@@ -311,6 +351,9 @@ impl ParsedConfig {
                 root,
                 tls,
                 upstream,
+                denies,
+                proxy_paths,
+                limits,
                 publications,
                 redirects,
                 headers,
@@ -382,6 +425,9 @@ pub struct CompiledSite<'a> {
     host: &'a str,
     root: Option<&'a str>,
     upstream: Option<SocketAddr>,
+    denies: Vec<&'a str>,
+    proxy_paths: Vec<&'a str>,
+    limits: ProxyLimits,
     tls: TlsPolicy,
     publications: Vec<Publication<'a>>,
     redirects: Vec<Redirect<'a>>,
@@ -389,6 +435,15 @@ pub struct CompiledSite<'a> {
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn denies(&self) -> &[&'a str] {
+        &self.denies
+    }
+    pub fn proxy_paths(&self) -> &[&'a str] {
+        &self.proxy_paths
+    }
+    pub fn proxy_limits(&self) -> ProxyLimits {
+        self.limits
+    }
     pub fn redirects(&self) -> &[Redirect<'a>] {
         &self.redirects
     }
@@ -435,5 +490,84 @@ impl<'a> CompiledConfig<'a> {
     /// Unknown hosts have no fallback to another site's rules.
     pub fn site(&self, host: &str) -> Option<&CompiledSite<'a>> {
         self.sites.iter().find(|site| site.host == host)
+    }
+}
+
+/// Per-host proxy service budgets. All durations are absolute milliseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProxyLimits {
+    pub request_bytes: u64,
+    pub response_bytes: u64,
+    pub body_ms: u64,
+    pub connect_ms: u64,
+    pub head_ms: u64,
+    pub total_ms: u64,
+    pub connections: u64,
+}
+impl Default for ProxyLimits {
+    fn default() -> Self {
+        Self {
+            request_bytes: 1048576,
+            response_bytes: 8388608,
+            body_ms: 5000,
+            connect_ms: 2000,
+            head_ms: 10000,
+            total_ms: 15000,
+            connections: 2,
+        }
+    }
+}
+fn quantity(s: &str, time: bool) -> Option<u64> {
+    let units: &[(&str, u64)] = if time {
+        &[("ms", 1), ("s", 1000)]
+    } else {
+        &[("KiB", 1024), ("MiB", 1048576), ("B", 1)]
+    };
+    for &(suffix, scale) in units {
+        if let Some(n) = s.strip_suffix(suffix) {
+            return number(n)?.checked_mul(scale);
+        }
+    }
+    None
+}
+fn number(s: &str) -> Option<u64> {
+    if s.is_empty()
+        || s.len() > 20
+        || (s.len() > 1 && s.starts_with('0'))
+        || !s.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    s.parse().ok()
+}
+impl ProxyLimits {
+    pub fn valid(self) -> bool {
+        pathward::routing::body_limit(self.request_bytes, false)
+            && pathward::routing::body_limit(self.response_bytes, true)
+            && pathward::routing::time_limits(
+                self.body_ms,
+                self.connect_ms,
+                self.head_ms,
+                self.total_ms,
+            )
+            && pathward::routing::connection_limit(self.connections)
+    }
+    fn set(&mut self, kind: &str, key: &str, value: &str) -> bool {
+        let (destination, parsed) = match (kind, key) {
+            ("proxy-limit", "request-body") => (&mut self.request_bytes, quantity(value, false)),
+            ("proxy-limit", "response-body") => (&mut self.response_bytes, quantity(value, false)),
+            ("proxy-limit", "connections") => (&mut self.connections, number(value)),
+            ("proxy-timeout", "request-body") => (&mut self.body_ms, quantity(value, true)),
+            ("proxy-timeout", "connect") => (&mut self.connect_ms, quantity(value, true)),
+            ("proxy-timeout", "response-head") => (&mut self.head_ms, quantity(value, true)),
+            ("proxy-timeout", "total") => (&mut self.total_ms, quantity(value, true)),
+            _ => return false,
+        };
+        if let Some(value) = parsed {
+            *destination = value;
+            true
+        } else {
+            false
+        }
     }
 }

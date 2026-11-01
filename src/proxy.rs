@@ -1,17 +1,13 @@
-//! Decisions for explicitly delegated, whole-host HTTP proxy sites.
+//! Decisions for explicitly delegated HTTP proxy sites.
 //! The upstream owns URL interpretation; static publication policy is unchanged.
 use crate::{response::visible, same_path};
 
 pub const MAX_REQUEST_BODY: u64 = 1024 * 1024;
 pub const MAX_RESPONSE_BODY: u64 = 8 * 1024 * 1024;
 
-/// Whole-site delegation is mutually exclusive with filesystem publication.
+/// Publications require a root; proxy and local routes may coexist.
 pub fn site_mode_allowed(root: bool, publications: bool, redirects: bool, proxy: bool) -> bool {
-    if proxy {
-        !root && !publications && !redirects
-    } else {
-        root && (publications || redirects)
-    }
+    (!publications || root) && (publications || redirects || proxy)
 }
 
 pub fn endpoint_allowed(address: &[u8], port: u16) -> bool {

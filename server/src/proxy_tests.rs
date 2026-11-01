@@ -12,6 +12,9 @@ fn config(upstream: SocketAddr, marker: &str) -> ParsedConfig {
 }
 fn with_proxy(upstream: SocketAddr, test: impl FnOnce(SocketAddr, &Server)) {
     let config = config(upstream, "version-a");
+    with_config(&config, test);
+}
+fn with_config(config: &ParsedConfig, test: impl FnOnce(SocketAddr, &Server)) {
     let server = Server::new(&config.compile().unwrap()).unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -456,11 +459,338 @@ fn a_slow_upstream_body_cannot_reset_the_total_deadline() {
             }
         });
         let start = Instant::now();
-        let error = receive(client, false, start + Duration::from_millis(150))
-            .err()
-            .unwrap();
+        let error = receive(
+            client,
+            false,
+            start + Duration::from_millis(150),
+            start + Duration::from_millis(150),
+            8388608,
+        )
+        .err()
+        .unwrap();
         assert_eq!(failure(error), Rejection(504));
         assert!(start.elapsed() < Duration::from_millis(600));
         peer.join().unwrap();
+    });
+}
+
+fn configured(upstream: SocketAddr, extra: &str) -> ParsedConfig {
+    ParsedConfig::parse(&format!(
+        "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{upstream}\"\n{extra}\n}}\n"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn subtree_denials_scoped_proxy_and_redirects_never_fall_through() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    backend.set_nonblocking(true).unwrap();
+    let parsed = configured(
+        backend.local_addr().unwrap(),
+        "deny \"/api/private\"\nproxy-path \"/api\"\nredirect \"/old\" \"app.example\" \"/new\" \"308\"",
+    );
+    with_config(&parsed, |address, _| {
+        for path in [
+            "/api/private",
+            "/api/private/",
+            "/api/private/item",
+            "/api/%70rivate",
+            "/api//private",
+            "/api/a/../private",
+            "/api/.env",
+            "/api/private;other",
+            "/api2",
+            "/other",
+            "/old/",
+        ] {
+            let response = exchange(
+                address,
+                format!("GET {path} HTTP/1.1\r\nHost: app.example\r\n\r\n").as_bytes(),
+            );
+            assert!(
+                response.starts_with(b"HTTP/1.1 404 "),
+                "{path}: {response:?}"
+            );
+            assert!(backend.accept().is_err());
+            std::thread::sleep(Duration::from_millis(130));
+        }
+        let response = exchange(
+            address,
+            b"GET /old?q=kept HTTP/1.1\r\nHost: app.example\r\n\r\n",
+        );
+        assert!(
+            response.starts_with(b"HTTP/1.1 308 ")
+                && response
+                    .windows(b"Location: https://app.example/new?q=kept\r\n".len())
+                    .any(|w| w == b"Location: https://app.example/new?q=kept\r\n")
+        );
+        assert!(backend.accept().is_err());
+        backend.set_nonblocking(false).unwrap();
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                let (mut s, _) = backend.accept().unwrap();
+                let req = read_request(&s);
+                assert!(req.starts_with(b"GET /api/public/?q=%2f HTTP/1.1\r\n"));
+                s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+                    .unwrap();
+            });
+            assert!(
+                exchange(
+                    address,
+                    b"GET /api/public/?q=%2f HTTP/1.1\r\nHost: app.example\r\n\r\n"
+                )
+                .ends_with(b"OK")
+            );
+            origin.join().unwrap();
+        });
+    });
+}
+
+#[test]
+fn custom_body_limits_cover_fixed_chunked_close_delimited_and_rejected_uploads() {
+    for response in [
+        &b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nFAIL"[..],
+        &b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n2\r\ncd\r\n0\r\n\r\n"[..],
+        &b"HTTP/1.1 200 OK\r\n\r\nFAIL"[..],
+    ] {
+        let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+        let parsed = configured(
+            backend.local_addr().unwrap(),
+            "proxy-limit \"request-body\" \"4B\"\nproxy-limit \"response-body\" \"3B\"",
+        );
+        with_config(&parsed, |addr, _| {
+            backend.set_nonblocking(true).unwrap();
+            let r = exchange(
+                addr,
+                b"POST /api/ HTTP/1.1\r\nHost: app.example\r\nContent-Length: 5\r\n\r\n12345",
+            );
+            assert!(r.starts_with(b"HTTP/1.1 413 "));
+            assert!(backend.accept().is_err());
+            backend.set_nonblocking(false).unwrap();
+            std::thread::scope(|scope| {
+                let origin = scope.spawn(|| {
+                    let (mut s, _) = backend.accept().unwrap();
+                    assert!(read_request(&s).ends_with(b"1234"));
+                    s.write_all(response).unwrap();
+                });
+                let r = exchange(
+                    addr,
+                    b"POST /api/ HTTP/1.1\r\nHost: app.example\r\nContent-Length: 4\r\n\r\n1234",
+                );
+                assert!(r.starts_with(b"HTTP/1.1 502 ") && r.ends_with(b"\r\n\r\n"));
+                origin.join().unwrap();
+            });
+        });
+    }
+}
+
+#[test]
+fn configured_request_and_upstream_head_timeouts_are_independent_absolute_budgets() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    backend.set_nonblocking(true).unwrap();
+    let settings = "proxy-timeout \"request-body\" \"200ms\"\nproxy-timeout \"connect\" \"100ms\"\nproxy-timeout \"response-head\" \"150ms\"\nproxy-timeout \"total\" \"1s\"";
+    let parsed = configured(backend.local_addr().unwrap(), settings);
+    with_config(&parsed, |addr, _| {
+        let mut client = TcpStream::connect(addr).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        client
+            .write_all(b"POST / HTTP/1.1\r\nHost: app.example\r\nContent-Length: 2\r\n\r\nx")
+            .unwrap();
+        let start = Instant::now();
+        let mut r = Vec::new();
+        client.read_to_end(&mut r).unwrap();
+        assert!(r.starts_with(b"HTTP/1.1 408 ") && start.elapsed() < Duration::from_secs(1));
+        assert!(backend.accept().is_err());
+        backend.set_nonblocking(false).unwrap();
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                let (mut s, _) = backend.accept().unwrap();
+                read_request(&s);
+                std::thread::sleep(Duration::from_millis(400));
+                let _ = s.write_all(b"HTTP/1.1 204 No Content\r\n\r\n");
+            });
+            let start = Instant::now();
+            let r = exchange(addr, GET);
+            assert!(
+                r.starts_with(b"HTTP/1.1 504 ") && start.elapsed() < Duration::from_millis(800)
+            );
+            origin.join().unwrap();
+        });
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                let (mut s, _) = backend.accept().unwrap();
+                read_request(&s);
+                s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n")
+                    .unwrap();
+                std::thread::sleep(Duration::from_millis(300));
+                s.write_all(b"OK").unwrap();
+            });
+            let r = exchange(addr, GET);
+            assert!(r.starts_with(b"HTTP/1.1 200 ") && r.ends_with(b"OK"));
+            origin.join().unwrap();
+        });
+    });
+}
+
+#[test]
+fn live_connection_cap_is_shared_across_snapshots_and_only_installed_at_commit() {
+    use crate::runtime::Snapshot;
+    let a = configured(
+        "127.0.0.1:3000".parse().unwrap(),
+        "proxy-limit \"connections\" \"2\"",
+    );
+    let b = configured(
+        "127.0.0.1:3001".parse().unwrap(),
+        "proxy-limit \"connections\" \"1\"",
+    );
+    let old = Snapshot::prepare(&a.compile().unwrap(), None).unwrap();
+    let mut new = Snapshot::prepare(&b.compile().unwrap(), None).unwrap();
+    new.inherit_budgets(&old);
+    let active = old.sites[0].acquire().unwrap();
+    // Preparing a candidate does not change the live budget.
+    drop(old.sites[0].acquire().unwrap());
+    new.install_limits();
+    assert!(old.sites[0].acquire().is_none());
+    assert!(new.sites[0].acquire().is_none());
+    drop(active);
+    let pending_old = old.sites[0].acquire().unwrap();
+    assert!(new.sites[0].acquire().is_none());
+    drop(pending_old);
+    let one = new.sites[0].acquire().unwrap();
+    let mut restored = Snapshot::prepare(&a.compile().unwrap(), None).unwrap();
+    restored.inherit_budgets(&new);
+    restored.install_limits();
+    // A captured tighter policy cannot borrow the raised live limit.
+    assert!(new.sites[0].acquire().is_none());
+    drop(restored.sites[0].acquire().unwrap());
+    drop(one);
+}
+
+#[test]
+fn reload_cannot_reset_an_active_service_limit_and_overload_never_contacts_upstream() {
+    let a = TcpListener::bind("127.0.0.1:0").unwrap();
+    let b = TcpListener::bind("127.0.0.1:0").unwrap();
+    let parsed = configured(a.local_addr().unwrap(), "proxy-limit \"connections\" \"1\"");
+    with_config(&parsed, |addr, server| {
+        std::thread::scope(|scope| {
+            let pending = scope.spawn(|| exchange(addr, GET));
+            let (mut old, _) = a.accept().unwrap();
+            read_request(&old);
+            let new = configured(b.local_addr().unwrap(), "proxy-limit \"connections\" \"1\"");
+            server
+                .reload(&new.compile().unwrap(), &AtomicBool::new(false))
+                .unwrap();
+            b.set_nonblocking(true).unwrap();
+            assert!(exchange(addr, GET).starts_with(b"HTTP/1.1 503 "));
+            assert!(b.accept().is_err());
+            old.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nOLD")
+                .unwrap();
+            drop(old);
+            assert!(pending.join().unwrap().ends_with(b"OLD"));
+            b.set_nonblocking(false).unwrap();
+            let fresh = scope.spawn(|| exchange(addr, GET));
+            let (mut next, _) = b.accept().unwrap();
+            read_request(&next);
+            next.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nNEW")
+                .unwrap();
+            drop(next);
+            assert!(fresh.join().unwrap().ends_with(b"NEW"));
+        })
+    });
+}
+
+#[test]
+fn a_prefetched_body_does_not_bypass_the_service_request_deadline() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    backend.set_nonblocking(true).unwrap();
+    let parsed = configured(
+        backend.local_addr().unwrap(),
+        "proxy-timeout \"request-body\" \"100ms\"",
+    );
+    with_config(&parsed, |addr, _| {
+        let mut s = TcpStream::connect(addr).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        s.write_all(b"POST / HTTP/1.1\r\nHost: app.example\r\nContent-Length: 2\r\n")
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(250));
+        s.write_all(b"\r\nok").unwrap();
+        let mut out = Vec::new();
+        s.read_to_end(&mut out).unwrap();
+        assert!(out.starts_with(b"HTTP/1.1 408 "));
+        assert!(backend.accept().is_err());
+    });
+}
+
+#[test]
+fn configured_sizes_can_exceed_old_defaults_without_dropping_the_new_ceiling() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    let parsed = configured(
+        backend.local_addr().unwrap(),
+        "proxy-limit \"request-body\" \"2MiB\"\nproxy-limit \"response-body\" \"16MiB\"",
+    );
+    with_config(&parsed, |addr, _| {
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                let (mut socket, _) = backend.accept().unwrap();
+                let req = read_request(&socket);
+                let end = req.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+                assert_eq!(req.len() - end, 1048577);
+                assert!(req[end..].iter().all(|b| *b == b'x'));
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8388609\r\n\r\n")
+                    .unwrap();
+                socket.write_all(&vec![b'y'; 8388609]).unwrap();
+            });
+            let mut request =
+                b"POST /api/ HTTP/1.1\r\nHost: app.example\r\nContent-Length: 1048577\r\n\r\n"
+                    .to_vec();
+            request.extend(vec![b'x'; 1048577]);
+            let out = exchange(addr, &request);
+            assert!(out.starts_with(b"HTTP/1.1 200 "));
+            let end = out.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+            assert_eq!(out.len() - end, 8388609);
+            assert!(out[end..].iter().all(|b| *b == b'y'));
+            origin.join().unwrap();
+        })
+    });
+}
+
+#[test]
+fn independent_hosts_keep_independent_service_capacity() {
+    let a = TcpListener::bind("127.0.0.1:0").unwrap();
+    let b = TcpListener::bind("127.0.0.1:0").unwrap();
+    let one = configured(a.local_addr().unwrap(), "proxy-limit \"connections\" \"1\"");
+    let two = configured(b.local_addr().unwrap(), "proxy-limit \"connections\" \"1\"");
+    let text = format!(
+        "{}{}",
+        one.compile().unwrap().source(),
+        two.compile()
+            .unwrap()
+            .source()
+            .replace("app.example", "other.example")
+    );
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    with_config(&parsed, |addr, _| {
+        std::thread::scope(|scope| {
+            let pending = scope.spawn(|| exchange(addr, GET));
+            let (mut old, _) = a.accept().unwrap();
+            read_request(&old);
+            assert!(exchange(addr, GET).starts_with(b"HTTP/1.1 503 "));
+            let other =
+                scope.spawn(|| exchange(addr, b"GET / HTTP/1.1\r\nHost: other.example\r\n\r\n"));
+            let (mut socket, _) = b.accept().unwrap();
+            read_request(&socket);
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nB")
+                .unwrap();
+            drop(socket);
+            assert!(other.join().unwrap().ends_with(b"B"));
+            old.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nA")
+                .unwrap();
+            drop(old);
+            assert!(pending.join().unwrap().ends_with(b"A"));
+        })
     });
 }

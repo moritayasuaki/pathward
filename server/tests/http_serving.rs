@@ -269,3 +269,96 @@ fn reload_switches_exclusive_proxy_and_file_modes_without_a_fallback() {
         }
     });
 }
+
+#[test]
+fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
+    let root = std::env::temp_dir().join(format!(
+        "pathward-mixed-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let tree = Tree(root);
+    fs::write(tree.0.join("robots.txt"), b"LOCAL ROBOTS").unwrap();
+    fs::write(tree.0.join("secret"), b"PRIVATE DATA").unwrap();
+    symlink(tree.0.join("secret"), tree.0.join("link.txt")).unwrap();
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    backend.set_nonblocking(true).unwrap();
+    let text = format!(
+        "site \"app.example\" {{\ntls \"auto\"\nroot \"{}\"\npublish \"/robots.txt\" \"robots.txt\"\npublish \"/missing.txt\" \"missing.txt\"\npublish \"/link.txt\" \"link.txt\"\npublish \"/private/visible\" \"robots.txt\"\ndeny \"/private\"\nreverse-proxy \"{}\"\nproxy-limit \"response-body\" \"2B\"\nheader \"*\" \"x-frame-options\" \"DENY\"\n}}",
+        tree.0.display(),
+        backend.local_addr().unwrap()
+    );
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    let server = Server::new(&parsed.compile().unwrap()).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let stop = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| server.serve(listener, &stop));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert!(get(addr, "GET", "app.example", "/robots.txt").ends_with(b"LOCAL ROBOTS"));
+            assert!(get(addr, "HEAD", "app.example", "/robots.txt").ends_with(b"\r\n\r\n"));
+            assert!(get(addr, "POST", "app.example", "/robots.txt").starts_with(b"HTTP/1.1 405 "));
+            for path in [
+                "/private",
+                "/private/",
+                "/private/visible",
+                "/private/a",
+                "/%70rivate",
+                "/a/../private",
+                "//private",
+                "/.env",
+                "/missing.txt",
+                "/link.txt",
+                "/robots.txt/",
+            ] {
+                let response = get(addr, "GET", "app.example", path);
+                assert!(
+                    response.starts_with(b"HTTP/1.1 404 ")
+                        || (path == "//private" && response.starts_with(b"HTTP/1.1 400 ")),
+                    "{path}: {response:?}"
+                );
+                assert!(!response.windows(12).any(|w| w == b"PRIVATE DATA"));
+                assert!(backend.accept().is_err());
+            }
+            let origin = scope.spawn(|| {
+                let start = std::time::Instant::now();
+                let mut socket = loop {
+                    match backend.accept() {
+                        Ok((s, _)) => break s,
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(start.elapsed() < Duration::from_secs(3));
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(e) => panic!("{e}"),
+                    }
+                };
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                let mut head = Vec::new();
+                let mut byte = [0];
+                while !head.ends_with(b"\r\n\r\n") {
+                    socket.read_exact(&mut byte).unwrap();
+                    head.push(byte[0]);
+                    assert!(head.len() < 16384);
+                }
+                assert!(head.starts_with(b"GET /privateer/?q=%2f HTTP/1.1\r\n"));
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+                    .unwrap();
+            });
+            assert!(get(addr, "GET", "app.example", "/privateer/?q=%2f").ends_with(b"OK"));
+            origin.join().unwrap();
+        }));
+        stop.store(true, Ordering::Release);
+        worker.join().unwrap().unwrap();
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    });
+}

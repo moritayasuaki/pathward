@@ -27,7 +27,7 @@ pub fn generate(
     manifest: &str,
     index: Option<&str>,
 ) -> io::Result<String> {
-    if base.site(host).is_none_or(|site| site.upstream().is_some())
+    if base.site(host).is_none_or(|site| site.root().is_none())
         || !pathward::valid_path(root.as_bytes())
         || manifest.len() > 65_536
     {
@@ -68,6 +68,38 @@ pub fn generate(
                 "    reverse-proxy {}\n",
                 quoted(&upstream.to_string())
             ));
+        }
+        for path in site.denies() {
+            out.push_str(&format!("    deny {}\n", quoted(path)));
+        }
+        for path in site.proxy_paths() {
+            out.push_str(&format!("    proxy-path {}\n", quoted(path)));
+        }
+        if site.upstream().is_some() {
+            let l = site.proxy_limits();
+            for (name, value, unit) in [
+                ("request-body", l.request_bytes, "B"),
+                ("response-body", l.response_bytes, "B"),
+                ("connections", l.connections, ""),
+            ] {
+                out.push_str(&format!(
+                    "    proxy-limit {} {}\n",
+                    quoted(name),
+                    quoted(&format!("{value}{unit}"))
+                ));
+            }
+            for (name, value) in [
+                ("request-body", l.body_ms),
+                ("connect", l.connect_ms),
+                ("response-head", l.head_ms),
+                ("total", l.total_ms),
+            ] {
+                out.push_str(&format!(
+                    "    proxy-timeout {} {}\n",
+                    quoted(name),
+                    quoted(&format!("{value}ms"))
+                ));
+            }
         }
         let mappings: Vec<(String, String)> = if site.host() == host {
             let mut mappings = Vec::new();
@@ -226,7 +258,9 @@ impl Server {
             {
                 return Err(error());
             }
-            let candidate = Arc::new(Snapshot::prepare(&config, self.cache.as_deref())?);
+            let mut candidate = Snapshot::prepare(&config, self.cache.as_deref())?;
+            candidate.inherit_budgets(&old);
+            let candidate = Arc::new(candidate);
             candidate.check_files()?;
             store.save_previous(old.source.as_bytes())?;
             // Errors may happen AFTER rename. Restore before returning, otherwise stop.
@@ -255,6 +289,7 @@ impl Server {
                 if next == state.generation {
                     return Err(error());
                 }
+                candidate.install_limits();
                 state.snapshot = candidate;
                 state.generation = next;
                 Ok(next)

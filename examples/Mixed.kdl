@@ -1,0 +1,18 @@
+site "app.example" {
+    tls "auto"
+    root "/srv/public"
+    publish "/robots.txt" "robots.txt"
+    publish "/sitemap.xml" "sitemap.xml"
+    deny "/admin"
+    deny "/internal"
+    reverse-proxy "127.0.0.1:3000"
+    proxy-path "/api"
+    proxy-limit "request-body" "16KiB"
+    proxy-limit "response-body" "8MiB"
+    proxy-limit "connections" "2"
+    proxy-timeout "request-body" "5s"
+    proxy-timeout "connect" "3s"
+    proxy-timeout "response-head" "70s"
+    proxy-timeout "total" "90s"
+    header "*" "x-frame-options" "DENY"
+}

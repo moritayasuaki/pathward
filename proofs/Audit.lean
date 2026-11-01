@@ -1,3 +1,4 @@
+import RoutingProofs
 import ProxyProofs
 import PathwardProofs
 import RulesProofs
@@ -138,7 +139,7 @@ import ReleaseProofs
 #print axioms ReleaseProofs.migration_total
 
 #print axioms ProxyProofs.mode_eq
-#print axioms ProxyProofs.no_mixed_proxy
+#print axioms ProxyProofs.publications_require_root
 #print axioms ProxyProofs.endpoint_eq
 #print axioms ProxyProofs.endpoint_contract
 #print axioms ProxyProofs.endpoint_no_zero
@@ -166,3 +167,36 @@ import ReleaseProofs
 #print axioms ProxyProofs.target_bounded
 #print axioms ProxyProofs.target_no_controls
 #print axioms ProxyProofs.proxy_total
+
+#print axioms RoutingProofs.select_eq
+#print axioms RoutingProofs.denial_first
+#print axioms RoutingProofs.malformed_denied
+#print axioms RoutingProofs.static_before_proxy
+#print axioms RoutingProofs.redirect_before_proxy
+#print axioms RoutingProofs.proxy_contract
+#print axioms RoutingProofs.no_proxy_after_denial
+#print axioms RoutingProofs.no_static_fallback
+#print axioms RoutingProofs.body_limit_eq
+#print axioms RoutingProofs.body_fits_eq
+#print axioms RoutingProofs.chunk_eq
+#print axioms RoutingProofs.chunk_bounded
+#print axioms RoutingProofs.request_frame_eq
+#print axioms RoutingProofs.response_frame_eq
+#print axioms RoutingProofs.no_request_transfer
+#print axioms RoutingProofs.no_response_ambiguity
+#print axioms RoutingProofs.no_response_duplicate
+#print axioms RoutingProofs.time_eq
+#print axioms RoutingProofs.times_bounded
+#print axioms RoutingProofs.connection_eq
+#print axioms RoutingProofs.service_eq
+#print axioms RoutingProofs.service_bounded
+#print axioms RoutingProofs.no_admission_at_live_limit
+#print axioms RoutingProofs.no_admission_to_disabled
+#print axioms RoutingProofs.subtree_eq
+#print axioms RoutingProofs.subtree_boundary
+#print axioms RoutingProofs.stem_eq
+#print axioms RoutingProofs.stem_canonical
+#print axioms RoutingProofs.stem_shape
+#print axioms RoutingProofs.stem_input_bytes
+#print axioms RoutingProofs.route_total
+#print axioms RoutingProofs.limits_total
