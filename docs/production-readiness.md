@@ -48,7 +48,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 116 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 124 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving
@@ -99,5 +99,8 @@ encoding, hidden components and trailing slashes other than `/`. Files are limit
 to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL syntax
 need explicit policy/resource extensions.
 
-The next deployment milestone is one reviewed Linux staging deployment with
-collector/alert integration, least-privilege service supervision and load testing.
+The [isolated migration rehearsal](staging-rehearsal.md) now exercises real Linux
+filesystem storage, resource-limited supervision, actual static content/security
+headers and Caddy rollback. Shared proxy replacement remains blocked. The next
+milestone is deployment-specific public DNS/443 and CA validation with a dedicated
+service UID, external collectors/alerts and an explicitly reviewed route scope.

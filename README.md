@@ -57,6 +57,10 @@ mount crossings below the root, special files and observed multiple hard links.
 Read the [HTTP guide](docs/http-serving.md), [historical HTTP audit](docs/http-audit.md),
 and [remaining production gaps](docs/production-readiness.md).
 
+The [isolated Caddy migration rehearsal](docs/staging-rehearsal.md) covers same-port
+TLS handoff, concurrent managed reload/ACME renewal and verified Caddy rollback.
+It does not approve replacing a shared proxy deployment.
+
 ## TLS and automatic renewal
 
 ```sh
@@ -241,14 +245,16 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 116 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 124 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 
 The [response](proofs/ResponseProofs.lean) and [release](proofs/ReleaseProofs.lean)
 proofs add safe header values, fixed-host redirect admission, component-boundary
 routing, exact manifest-entry mapping, durable/prepared commit prerequisites and
-connection-admission bounds. Public authority-port proofs fix TLS/redirect ports
+connection-admission bounds. The staging migration gate requires unchanged
+inspected inputs, candidate/parity evidence, a fallback and isolation; its proofs
+do not extend to the OS handoff. Public authority-port proofs fix TLS/redirect ports
 at 443/80 independently of internal forwarding ports and reject explicit mismatches
 and zero-port endpoints. The adapters establishing the inputs to these gates
 remain reviewed/tested code; filesystem durability and whole-server availability

@@ -1,0 +1,216 @@
+{
+  "artifact_zip_sha256": "49d3931e7dde78813a9f355c5820fa8978f567e881e7f25b9a39537dfa1c557c",
+  "audit": {
+    "configuration_external_packages": 8,
+    "core_external_packages": 0,
+    "lean_statements": 124,
+    "runtime_packages_added": 0,
+    "rustsec_database": "2295466c4e9df26647fd67d8fa1c705ac2fc7f81",
+    "rustsec_findings": 0,
+    "server_external_packages": 104
+  },
+  "binary_source_commit": "82121686d9064d5cebf032aeaa19d70b48ec7d1f",
+  "calibration": {
+    "caddy_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+    "commits_during_acme_order": 37,
+    "content_bytes": 922508,
+    "content_files": 12,
+    "content_manifest_sha256": "b8df32008c31dbbee0ea7872571917e75f705d6e0581c5beb14ef4d483384edd",
+    "counts": {
+      "automatic_rollbacks": 2,
+      "commits": 282,
+      "file_checks": 192,
+      "load_ok": 650,
+      "preflight_rejections": 6,
+      "stale_rejections": 29,
+      "transition_errors": 7
+    },
+    "distinct_certificates_including_caddy": 6,
+    "events": {
+      "acme_activated": 5,
+      "acme_order_started": 5,
+      "certificate_pending": 1,
+      "certificate_ready": 7,
+      "certificate_renewal_due": 4,
+      "draining": 2,
+      "reload_committed": 283,
+      "reload_rejected": 29,
+      "request": 1305,
+      "stopped": 2
+    },
+    "final_serving_process": "caddy",
+    "handoffs": [
+      {
+        "failed_probes": 1,
+        "injected_start_failure": false,
+        "seconds": 0.212,
+        "target": "pathward"
+      },
+      {
+        "failed_probes": 4,
+        "injected_start_failure": false,
+        "seconds": 1.14,
+        "target": "caddy"
+      },
+      {
+        "failed_probes": 1,
+        "injected_start_failure": true,
+        "seconds": 0.362,
+        "target": "pathward"
+      },
+      {
+        "failed_probes": 0,
+        "injected_start_failure": false,
+        "seconds": 0.159,
+        "target": "pathward"
+      },
+      {
+        "injected_crash": true,
+        "seconds": 0.356,
+        "target": "caddy"
+      }
+    ],
+    "mime_differences": {
+      "sitemap.xml": [
+        "text/xml; charset=utf-8",
+        "application/xml; charset=utf-8"
+      ]
+    },
+    "private_storage_checked": true,
+    "resources_peak": {
+      "fds": 14,
+      "rss_kib": 6524,
+      "threads": 12
+    },
+    "scope": "isolated static subset; shared Caddy replacement NO-GO",
+    "seconds": 180,
+    "staging_listeners_removed": true,
+    "state": "passed"
+  },
+  "environment": {
+    "caddy_go_version": "go1.26.10",
+    "limits": {
+      "CPUQuota": "50%",
+      "KillMode": "control-group",
+      "LimitCORE": 0,
+      "MemoryMax": 536870912,
+      "NoNewPrivileges": true,
+      "RuntimeMaxSec": 900,
+      "TasksMax": 128,
+      "TimeoutStopSec": 20,
+      "UMask": "0077"
+    },
+    "os": "Ubuntu 24.04.5 LTS",
+    "service_scope": "unprivileged user service; dedicated production UID not tested"
+  },
+  "final": {
+    "binary_sha256": {
+      "caddy": "47aba15e808296d9bdb8e9aaed636f98226ee5b9f04fbf512a8ab7567d012d1b",
+      "migration_gate": "8b19d9404d7c3352d751c8f6bbfb28748c83088e6b2447d221261e715a2ae627",
+      "pathward-server": "fb6454466c877df4c628e55e64965f9391ac7e5c469b8407178c6c38297970be",
+      "soak_server": "c544740107d9851bccd81023c862384476722cead71e0039eb5cef8cedb7235d"
+    },
+    "caddy_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+    "commits_during_acme_order": 66,
+    "completed_utc": "2026-11-01T10:32:50Z",
+    "content_bytes": 922508,
+    "content_files": 12,
+    "content_manifest_sha256": "b8df32008c31dbbee0ea7872571917e75f705d6e0581c5beb14ef4d483384edd",
+    "counts": {
+      "automatic_rollbacks": 2,
+      "commits": 473,
+      "file_checks": 192,
+      "load_ok": 1048,
+      "monitor_checks": 48,
+      "preflight_rejections": 6,
+      "stale_rejections": 48,
+      "steady_errors": 0,
+      "transition_errors": 4
+    },
+    "distinct_certificates_including_caddy": 9,
+    "events": {
+      "acme_activated": 8,
+      "acme_order_started": 8,
+      "certificate_pending": 1,
+      "certificate_ready": 10,
+      "certificate_renewal_due": 7,
+      "draining": 2,
+      "reload_committed": 474,
+      "reload_rejected": 48,
+      "request": 2089,
+      "stopped": 2
+    },
+    "final_serving_process": "caddy",
+    "handoffs": [
+      {
+        "failed_probes": 1,
+        "injected_start_failure": false,
+        "seconds": 0.274,
+        "target": "pathward"
+      },
+      {
+        "failed_probes": 1,
+        "injected_start_failure": false,
+        "seconds": 0.383,
+        "target": "caddy"
+      },
+      {
+        "failed_probes": 1,
+        "injected_start_failure": true,
+        "seconds": 0.414,
+        "target": "pathward"
+      },
+      {
+        "failed_probes": 1,
+        "injected_start_failure": false,
+        "seconds": 0.225,
+        "target": "pathward"
+      },
+      {
+        "injected_crash": true,
+        "seconds": 0.181,
+        "target": "caddy"
+      }
+    ],
+    "harness_sha256": "c902b9887993d6a3a846564f4af1d6117992b7e07b04d367f0a15771b71c4581",
+    "mime_differences": {
+      "sitemap.xml": [
+        "text/xml; charset=utf-8",
+        "application/xml; charset=utf-8"
+      ]
+    },
+    "private_storage_checked": true,
+    "resources_peak": {
+      "fds": 15,
+      "rss_kib": 6600,
+      "threads": 12
+    },
+    "scope": "isolated static subset; shared Caddy replacement NO-GO",
+    "seconds": 300,
+    "staging_listeners_removed": true,
+    "state": "passed"
+  },
+  "harness_source_commit": "af57cc0dfa53dac86ea6c1abc858c9a630d9ccdc",
+  "linux_build_run": "https://github.com/moritayasuaki/pathward/actions/runs/41296522340",
+  "linux_ci_run": "https://github.com/moritayasuaki/pathward/actions/runs/41297521102",
+  "production_invariants": {
+    "filesystem": "ext4",
+    "isolated_services_inactive": true,
+    "kernel": "6.8.0-147-generic",
+    "ntp_synchronized": true,
+    "openssl": "OpenSSL 3.0.13 30 Jan 2024 (Library: OpenSSL 3.0.13 30 Jan 2024)",
+    "production_caddy_binary_unchanged": true,
+    "production_caddy_config_unchanged": true,
+    "production_caddy_pid_unchanged": true,
+    "production_content_unchanged": true,
+    "production_https_head_status": 200,
+    "production_release_unchanged": true,
+    "production_tcp_listener_count": 31,
+    "production_tcp_listeners_unchanged": true,
+    "python": "Python 3.12.3",
+    "temporary_keys_and_fixtures_removed": true,
+    "uid": "1000"
+  },
+  "public_migration_decision": "NO-GO: shared reverse proxies and unsupported routes, public DNS/443/CA validation, dedicated UID and external alerts remain outside this rehearsal",
+  "state": "passed"
+}

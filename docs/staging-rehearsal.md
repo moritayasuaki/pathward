@@ -8,6 +8,53 @@ and forced candidate termination. It is a test controller, not a production
 failover daemon. The public CA, DNS, public 80/443 and system Caddy service are
 never changed by this controller.
 
+## Completed run — 2026-11-01
+
+[Machine-readable results](staging-result-2026-11-01.json) record a 180-second
+calibration and a 300-second final run on the existing Ubuntu 24.04.5 host,
+Linux 6.8.0-147, ext4, NTP synchronized, with Caddy 2.11.7 built using Go 1.26.10.
+The fixture copied 12 approved files (922,508 bytes) and the actual five security
+header values into the private test area. The shared Caddy inventory had nine
+host names, six file-server handlers and 44 reverse-proxy handler occurrences;
+these are configuration-handler counts, not 44 independently tested services.
+
+The final run passed 1,048 background TLS requests and 192 explicit GET/HEAD file
+checks, 473 configuration changes, 48 stale-CAS rejections and 48 monitoring
+checks. There were eight certificate activations (initial issuance plus seven
+renewals), with 66 config commits while an ACME order was active. Steady-state
+errors were **zero**. Peak PathWard RSS was 6,600 KiB, with 15 FDs and 12 threads.
+
+| Final handoff | Stop-to-ready time |
+| --- | ---: |
+| Caddy → PathWard | 0.274 s |
+| PathWard → Caddy | 0.383 s |
+| Candidate startup failure → verified Caddy | 0.414 s |
+| Caddy → PathWard again | 0.225 s |
+| Candidate SIGKILL → verified Caddy | 0.181 s |
+
+Four background probes failed **during transitions** in the final run. The
+calibration's slowest handoff was **1.140 s** with seven transition failures.
+Plan for an interruption; the smaller final timings are not an availability SLA.
+Both injected failures recovered to verified Caddy content and security headers.
+The production Caddy PID, binary and config hashes, 31 TCP listeners, release
+symlink and approved content stayed unchanged. Production HTTPS still returned
+200. All staging listeners, disposable keys and fixtures were removed.
+
+The compatibility issue fixed in this change was XML delivery: `.xml` previously
+used `application/octet-stream`; it now uses `application/xml; charset=utf-8`.
+Caddy's equivalent `text/xml; charset=utf-8` spelling is the only accepted MIME
+difference. The migration decision and monitored handoff were also added to
+prevent unchecked cutover. Runtime dependencies were not added.
+
+The binaries came from commit `82121686d9064d5cebf032aeaa19d70b48ec7d1f`
+([Linux build](https://github.com/moritayasuaki/pathward/actions/runs/41296522340));
+the final harness is `af57cc0dfa53dac86ea6c1abc858c9a630d9ccdc`
+([Linux integration and Lean CI](https://github.com/moritayasuaki/pathward/actions/runs/41297521102)).
+The Rust source, extracted model and proofs are identical between those commits.
+The report pins the ZIP, executable and harness digests. Local `make check` and
+the refreshed dependency audit passed; RustSec DB
+`2295466c4e9df26647fd67d8fa1c705ac2fc7f81` reported no findings/warnings.
+
 ## Inputs and isolation
 
 Use a Linux host with the production kernel/filesystem and an existing reviewed
@@ -127,11 +174,17 @@ explicit bundle, excludes hidden files, fails on missing files and expires the
 artifact after seven days. This is a focused integration review, not a formal
 verification or full audit of bundled JavaScript dependencies. Installed Caddy is
 an unchanged comparison dependency; its binary and build identity are recorded.
+The official upload-action advisory page had no published advisories at review
+time. The latest reviewed Caddy advisory, GHSA-8qx7-j2v2-x6q5, affects versions
+through 2.11.4 and is fixed in 2.11.5; the comparison binary is 2.11.7. This does
+not constitute a new complete scan of every Go dependency in that existing binary.
 
 Primary references: [Caddy command validation](https://caddyserver.com/docs/command-line),
 [Caddy global options](https://caddyserver.com/docs/caddyfile/options),
 [systemd resource controls](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html),
-[pinned upload action](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9).
+[pinned upload action](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9),
+[upload-action advisories](https://github.com/actions/upload-artifact/security/advisories),
+[Caddy advisory](https://github.com/caddyserver/caddy/security/advisories/GHSA-8qx7-j2v2-x6q5).
 
 ## Public migration remains blocked
 
