@@ -201,7 +201,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let config = parsed.compile()?;
             let server = Server::new_with_cache(&config, Some(&cache))?;
             let domains = config.sites().iter().map(|s| s.host().to_owned()).collect();
-            let roots: Vec<_> = config.sites().iter().map(|s| s.root()).collect();
+            let roots: Vec<_> = config.sites().iter().filter_map(|s| s.root()).collect();
             #[cfg(target_os = "linux")]
             {
                 rustix::process::set_dumpable_behavior(

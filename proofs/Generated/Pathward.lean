@@ -254,6 +254,485 @@ def is_public
     then listed path published 0#usize
     else ok false
 
+/-- [pathward::proxy::MAX_REQUEST_BODY]
+    Source: 'src/proxy.rs', lines 5:0-5:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def proxy.MAX_REQUEST_BODY : RustM Std.U64 := 1024#u64 * 1024#u64
+
+/-- [pathward::proxy::MAX_RESPONSE_BODY]
+    Source: 'src/proxy.rs', lines 6:0-6:51
+    Visibility: public -/
+@[global_simps, irreducible]
+def proxy.MAX_RESPONSE_BODY : RustM Std.U64 := do
+  let i ← 8#u64 * 1024#u64
+  i * 1024#u64
+
+/-- [pathward::proxy::site_mode_allowed]:
+    Source: 'src/proxy.rs', lines 9:0-15:1
+    Visibility: public -/
+def proxy.site_mode_allowed
+  (root : Bool) (publications : Bool) (redirects : Bool) (proxy1 : Bool) :
+  RustM Bool
+  := do
+  if proxy1
+  then
+    if root
+    then ok false
+    else if publications
+         then ok false
+         else ok (¬ redirects)
+  else
+    if root
+    then if publications
+         then ok true
+         else ok redirects
+    else ok false
+
+/-- [pathward::proxy::endpoint_allowed]:
+    Source: 'src/proxy.rs', lines 17:0-19:1
+    Visibility: public -/
+def proxy.endpoint_allowed
+  (address : Slice Std.U8) (port : Std.U16) : RustM Bool := do
+  if port > 0#u16
+  then
+    let s ←
+      lift (Array.to_slice
+        (Array.make 9#usize [
+          49#u8, 50#u8, 55#u8, 46#u8, 48#u8, 46#u8, 48#u8, 46#u8, 49#u8
+          ]))
+    let b ← same_path address s
+    if b
+    then ok true
+    else
+      let s1 ←
+        lift (Array.to_slice (Array.make 3#usize [ 58#u8, 58#u8, 49#u8 ]))
+      same_path address s1
+  else ok false
+
+/-- [pathward::proxy::method_allowed]:
+    Source: 'src/proxy.rs', lines 21:0-29:1
+    Visibility: public -/
+def proxy.method_allowed (method : Slice Std.U8) : RustM Bool := do
+  let s ← lift (Array.to_slice (Array.make 3#usize [ 71#u8, 69#u8, 84#u8 ]))
+  let b ← same_path method s
+  if b
+  then ok true
+  else
+    let s1 ←
+      lift (Array.to_slice (Array.make 4#usize [ 72#u8, 69#u8, 65#u8, 68#u8 ]))
+    let b1 ← same_path method s1
+    if b1
+    then ok true
+    else
+      let s2 ←
+        lift (Array.to_slice
+          (Array.make 4#usize [ 80#u8, 79#u8, 83#u8, 84#u8 ]))
+      let b2 ← same_path method s2
+      if b2
+      then ok true
+      else
+        let s3 ←
+          lift (Array.to_slice (Array.make 3#usize [ 80#u8, 85#u8, 84#u8 ]))
+        let b3 ← same_path method s3
+        if b3
+        then ok true
+        else
+          let s4 ←
+            lift (Array.to_slice
+              (Array.make 5#usize [ 80#u8, 65#u8, 84#u8, 67#u8, 72#u8 ]))
+          let b4 ← same_path method s4
+          if b4
+          then ok true
+          else
+            let s5 ←
+              lift (Array.to_slice
+                (Array.make 6#usize [
+                  68#u8, 69#u8, 76#u8, 69#u8, 84#u8, 69#u8
+                  ]))
+            let b5 ← same_path method s5
+            if b5
+            then ok true
+            else
+              let s6 ←
+                lift (Array.to_slice
+                  (Array.make 7#usize [
+                    79#u8, 80#u8, 84#u8, 73#u8, 79#u8, 78#u8, 83#u8
+                    ]))
+              same_path method s6
+
+/-- [pathward::proxy::status_allowed]:
+    Source: 'src/proxy.rs', lines 32:0-34:1
+    Visibility: public -/
+def proxy.status_allowed (status : Std.U16) : RustM Bool := do
+  if status >= 200#u16
+  then ok (status <= 599#u16)
+  else ok false
+
+/-- [pathward::proxy::request_framing]:
+    Source: 'src/proxy.rs', lines 37:0-39:1
+    Visibility: public -/
+def proxy.request_framing
+  (length : Std.U64) (transfer_encoding : Bool) (duplicate_length : Bool) :
+  RustM Bool
+  := do
+  let i ← proxy.MAX_REQUEST_BODY
+  if length <= i
+  then if transfer_encoding
+       then ok false
+       else ok (¬ duplicate_length)
+  else ok false
+
+/-- [pathward::proxy::response_framing]:
+    Source: 'src/proxy.rs', lines 41:0-49:1
+    Visibility: public -/
+def proxy.response_framing
+  (length : Option Std.U64) (chunked : Bool) (duplicate_length : Bool) :
+  RustM Bool
+  := do
+  if duplicate_length
+  then ok false
+  else
+    match length with
+    | none => ok true
+    | some n =>
+      let i ← proxy.MAX_RESPONSE_BODY
+      if n <= i
+      then ok (¬ chunked)
+      else ok false
+
+/-- [pathward::proxy::target_bytes]: loop 0:
+    Source: 'src/proxy.rs', lines 54:4-62:1 -/
+@[rust_loop]
+def proxy.target_bytes_loop
+  (target : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len target
+  if i < i1
+  then
+    let b ← Slice.index_usize target i
+    if b < 33#u8
+    then ok false
+    else
+      if b > 126#u8
+      then ok false
+      else
+        if b = 35#u8
+        then ok false
+        else
+          if b = 92#u8
+          then ok false
+          else let i2 ← i + 1#usize
+               proxy.target_bytes_loop target i2
+  else ok true
+partial_fixpoint
+
+/-- [pathward::proxy::target_bytes]:
+    Source: 'src/proxy.rs', lines 52:0-62:1 -/
+@[reducible]
+def proxy.target_bytes (target : Slice Std.U8) : RustM Bool := do
+  proxy.target_bytes_loop target 0#usize
+
+/-- [pathward::proxy::target_allowed]:
+    Source: 'src/proxy.rs', lines 65:0-71:1
+    Visibility: public -/
+def proxy.target_allowed (target : Slice Std.U8) : RustM Bool := do
+  let b ← core.slice.Slice.is_empty target
+  if b
+  then ok false
+  else
+    let i := Slice.len target
+    if i <= 8192#usize
+    then
+      let i1 ← Slice.index_usize target 0#usize
+      if i1 = 47#u8
+      then
+        let i2 := Slice.len target
+        if i2 = 1#usize
+        then proxy.target_bytes target
+        else
+          let i3 ← Slice.index_usize target 1#usize
+          if i3 != 47#u8
+          then proxy.target_bytes target
+          else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::proxy::hop_header]:
+    Source: 'src/proxy.rs', lines 73:0-83:1
+    Visibility: public -/
+def proxy.hop_header («name» : Slice Std.U8) : RustM Bool := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 10#usize [
+        99#u8, 111#u8, 110#u8, 110#u8, 101#u8, 99#u8, 116#u8, 105#u8, 111#u8,
+        110#u8
+        ]))
+  let b ← same_path «name» s
+  if b
+  then ok true
+  else
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 10#usize [
+          107#u8, 101#u8, 101#u8, 112#u8, 45#u8, 97#u8, 108#u8, 105#u8, 118#u8,
+          101#u8
+          ]))
+    let b1 ← same_path «name» s1
+    if b1
+    then ok true
+    else
+      let s2 ←
+        lift (Array.to_slice
+          (Array.make 18#usize [
+            112#u8, 114#u8, 111#u8, 120#u8, 121#u8, 45#u8, 97#u8, 117#u8,
+            116#u8, 104#u8, 101#u8, 110#u8, 116#u8, 105#u8, 99#u8, 97#u8,
+            116#u8, 101#u8
+            ]))
+      let b2 ← same_path «name» s2
+      if b2
+      then ok true
+      else
+        let s3 ←
+          lift (Array.to_slice
+            (Array.make 19#usize [
+              112#u8, 114#u8, 111#u8, 120#u8, 121#u8, 45#u8, 97#u8, 117#u8,
+              116#u8, 104#u8, 111#u8, 114#u8, 105#u8, 122#u8, 97#u8, 116#u8,
+              105#u8, 111#u8, 110#u8
+              ]))
+        let b3 ← same_path «name» s3
+        if b3
+        then ok true
+        else
+          let s4 ←
+            lift (Array.to_slice
+              (Array.make 16#usize [
+                112#u8, 114#u8, 111#u8, 120#u8, 121#u8, 45#u8, 99#u8, 111#u8,
+                110#u8, 110#u8, 101#u8, 99#u8, 116#u8, 105#u8, 111#u8, 110#u8
+                ]))
+          let b4 ← same_path «name» s4
+          if b4
+          then ok true
+          else
+            let s5 ←
+              lift (Array.to_slice (Array.make 2#usize [ 116#u8, 101#u8 ]))
+            let b5 ← same_path «name» s5
+            if b5
+            then ok true
+            else
+              let s6 ←
+                lift (Array.to_slice
+                  (Array.make 7#usize [
+                    116#u8, 114#u8, 97#u8, 105#u8, 108#u8, 101#u8, 114#u8
+                    ]))
+              let b6 ← same_path «name» s6
+              if b6
+              then ok true
+              else
+                let s7 ←
+                  lift (Array.to_slice
+                    (Array.make 17#usize [
+                      116#u8, 114#u8, 97#u8, 110#u8, 115#u8, 102#u8, 101#u8,
+                      114#u8, 45#u8, 101#u8, 110#u8, 99#u8, 111#u8, 100#u8,
+                      105#u8, 110#u8, 103#u8
+                      ]))
+                let b7 ← same_path «name» s7
+                if b7
+                then ok true
+                else
+                  let s8 ←
+                    lift (Array.to_slice
+                      (Array.make 7#usize [
+                        117#u8, 112#u8, 103#u8, 114#u8, 97#u8, 100#u8, 101#u8
+                        ]))
+                  same_path «name» s8
+
+/-- [pathward::proxy::forwarding_header]:
+    Source: 'src/proxy.rs', lines 87:0-101:1
+    Visibility: public -/
+def proxy.forwarding_header («name» : Slice Std.U8) : RustM Bool := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 9#usize [
+        102#u8, 111#u8, 114#u8, 119#u8, 97#u8, 114#u8, 100#u8, 101#u8, 100#u8
+        ]))
+  let b ← same_path «name» s
+  if b
+  then ok true
+  else
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 9#usize [
+          120#u8, 45#u8, 114#u8, 101#u8, 97#u8, 108#u8, 45#u8, 105#u8, 112#u8
+          ]))
+    let b1 ← same_path «name» s1
+    if b1
+    then ok true
+    else
+      let s2 ←
+        lift (Array.to_slice
+          (Array.make 14#usize [
+            120#u8, 45#u8, 111#u8, 114#u8, 105#u8, 103#u8, 105#u8, 110#u8,
+            97#u8, 108#u8, 45#u8, 117#u8, 114#u8, 108#u8
+            ]))
+      let b2 ← same_path «name» s2
+      if b2
+      then ok true
+      else
+        let s3 ←
+          lift (Array.to_slice
+            (Array.make 13#usize [
+              120#u8, 45#u8, 114#u8, 101#u8, 119#u8, 114#u8, 105#u8, 116#u8,
+              101#u8, 45#u8, 117#u8, 114#u8, 108#u8
+              ]))
+        let b3 ← same_path «name» s3
+        if b3
+        then ok true
+        else
+          let s4 ←
+            lift (Array.to_slice
+              (Array.make 5#usize [ 112#u8, 114#u8, 111#u8, 120#u8, 121#u8 ]))
+          let b4 ← same_path «name» s4
+          if b4
+          then ok true
+          else
+            let i := Slice.len «name»
+            if i >= 12#usize
+            then
+              let («prefix», _) ←
+                core.slice.Slice.split_at «name» 12#usize
+              let s5 ←
+                lift (Array.to_slice
+                  (Array.make 12#usize [
+                    120#u8, 45#u8, 102#u8, 111#u8, 114#u8, 119#u8, 97#u8,
+                    114#u8, 100#u8, 101#u8, 100#u8, 45#u8
+                    ]))
+              same_path «prefix» s5
+            else ok false
+
+/-- [pathward::response::visible]: loop 0:
+    Source: 'src/response.rs', lines 30:4-37:1
+    Visibility: public -/
+@[rust_loop]
+def response.visible_loop
+  (bytes : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
+  let i1 := Slice.len bytes
+  if i < i1
+  then
+    let i2 ← Slice.index_usize bytes i
+    if i2 < 32#u8
+    then ok false
+    else
+      if i2 > 126#u8
+      then ok false
+      else let i3 ← i + 1#usize
+           response.visible_loop bytes i3
+  else ok true
+partial_fixpoint
+
+/-- [pathward::response::visible]:
+    Source: 'src/response.rs', lines 28:0-37:1
+    Visibility: public -/
+@[reducible]
+def response.visible (bytes : Slice Std.U8) : RustM Bool := do
+  response.visible_loop bytes 0#usize
+
+/-- [pathward::proxy::request_header]:
+    Source: 'src/proxy.rs', lines 103:0-110:1
+    Visibility: public -/
+def proxy.request_header
+  («name» : Slice Std.U8) (value : Slice Std.U8) : RustM Bool := do
+  let i := Slice.len value
+  if i <= 4096#usize
+  then
+    let b ← response.visible value
+    if b
+    then
+      let b1 ← proxy.hop_header «name»
+      if b1
+      then ok false
+      else
+        let s ←
+          lift (Array.to_slice
+            (Array.make 4#usize [ 104#u8, 111#u8, 115#u8, 116#u8 ]))
+        let b2 ← same_path «name» s
+        if b2
+        then ok false
+        else
+          let s1 ←
+            lift (Array.to_slice
+              (Array.make 14#usize [
+                99#u8, 111#u8, 110#u8, 116#u8, 101#u8, 110#u8, 116#u8, 45#u8,
+                108#u8, 101#u8, 110#u8, 103#u8, 116#u8, 104#u8
+                ]))
+          let b3 ← same_path «name» s1
+          if b3
+          then ok false
+          else let b4 ← proxy.forwarding_header «name»
+               ok (¬ b4)
+    else ok false
+  else ok false
+
+/-- [pathward::proxy::response_header]:
+    Source: 'src/proxy.rs', lines 112:0-120:1
+    Visibility: public -/
+def proxy.response_header
+  («name» : Slice Std.U8) (value : Slice Std.U8) (encrypted : Bool) :
+  RustM Bool
+  := do
+  let i := Slice.len value
+  if i <= 4096#usize
+  then
+    let b ← response.visible value
+    if b
+    then
+      let b1 ← proxy.hop_header «name»
+      if b1
+      then ok false
+      else
+        let s ←
+          lift (Array.to_slice
+            (Array.make 14#usize [
+              99#u8, 111#u8, 110#u8, 116#u8, 101#u8, 110#u8, 116#u8, 45#u8,
+              108#u8, 101#u8, 110#u8, 103#u8, 116#u8, 104#u8
+              ]))
+        let b2 ← same_path «name» s
+        if b2
+        then ok false
+        else
+          let s1 ←
+            lift (Array.to_slice
+              (Array.make 6#usize [
+                115#u8, 101#u8, 114#u8, 118#u8, 101#u8, 114#u8
+                ]))
+          let b3 ← same_path «name» s1
+          if b3
+          then ok false
+          else
+            let s2 ←
+              lift (Array.to_slice
+                (Array.make 7#usize [
+                  97#u8, 108#u8, 116#u8, 45#u8, 115#u8, 118#u8, 99#u8
+                  ]))
+            let b4 ← same_path «name» s2
+            if b4
+            then ok false
+            else
+              if encrypted
+              then ok true
+              else
+                let s3 ←
+                  lift (Array.to_slice
+                    (Array.make 25#usize [
+                      115#u8, 116#u8, 114#u8, 105#u8, 99#u8, 116#u8, 45#u8,
+                      116#u8, 114#u8, 97#u8, 110#u8, 115#u8, 112#u8, 111#u8,
+                      114#u8, 116#u8, 45#u8, 115#u8, 101#u8, 99#u8, 117#u8,
+                      114#u8, 105#u8, 116#u8, 121#u8
+                      ]))
+                let b5 ← same_path «name» s3
+                ok (¬ b5)
+    else ok false
+  else ok false
+
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/
@@ -417,33 +896,6 @@ def response.authority_port_allowed
     match explicit with
     | none => ok true
     | some port => ok (port = expected)
-
-/-- [pathward::response::visible]: loop 0:
-    Source: 'src/response.rs', lines 30:4-37:1
-    Visibility: public -/
-@[rust_loop]
-def response.visible_loop
-  (bytes : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
-  let i1 := Slice.len bytes
-  if i < i1
-  then
-    let i2 ← Slice.index_usize bytes i
-    if i2 < 32#u8
-    then ok false
-    else
-      if i2 > 126#u8
-      then ok false
-      else let i3 ← i + 1#usize
-           response.visible_loop bytes i3
-  else ok true
-partial_fixpoint
-
-/-- [pathward::response::visible]:
-    Source: 'src/response.rs', lines 28:0-37:1
-    Visibility: public -/
-@[reducible]
-def response.visible (bytes : Slice Std.U8) : RustM Bool := do
-  response.visible_loop bytes 0#usize
 
 /-- [pathward::response::header_name]:
     Source: 'src/response.rs', lines 39:0-47:1

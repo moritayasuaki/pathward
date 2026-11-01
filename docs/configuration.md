@@ -49,8 +49,9 @@ DNS, certificate eligibility, or root confinement.
 | Node | Meaning | Required constraints |
 | --- | --- | --- |
 | `site "host" { ... }` | Independent virtual-host table | 1–16 sites; unique lowercase ASCII DNS-style hostname, no port, scheme, wildcard, trailing dot, or empty label |
-| `root "/absolute/path"` | Unix document root declaration | Exactly one per site; canonical absolute path, including `/` |
-| `publish "/url" "relative/file"` | One exact URL-to-target pair | 0–256 per site; zero requires a redirect; duplicate URLs rejected even when targets are identical |
+| `root "/absolute/path"` | Unix document root declaration | Exactly one for static sites, absent for proxy sites; canonical absolute path, including `/` |
+| `publish "/url" "relative/file"` | One exact URL-to-target pair | 0–256 per site; zero requires a redirect or proxy mode; duplicate URLs rejected even when targets are identical |
+| `reverse-proxy "127.0.0.1:3000"` | Whole-host delegation to local HTTP app | One numeric loopback endpoint; mutually exclusive with root, publications and configured redirects; see [proxy guide](reverse-proxy.md) |
 | `tls "auto"` | Automatic TLS policy | Exactly one per site; only `auto` is accepted |
 
 Hostname labels contain ASCII letters, digits, and hyphens, start/end with a
@@ -60,7 +61,7 @@ establish DNS ownership or ACME eligibility. Host lookup is exact; there is no
 default host, wildcard, lowercasing, or port stripping in this API. The HTTP adapter validates Host/authority before choosing the host; the TLS
 adapter also requires SNI consistency.
 
-URL paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
+Static publication/redirect paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
 starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
 interior dots allowed. Relative file paths use the same component grammar and
 are 1–4095 bytes. Absolute targets, `.`/`..`, hidden components, empty components,
@@ -74,7 +75,7 @@ does not perform that filesystem lookup.
 Bounded `redirect`, `redirect-prefix` and `header` declarations are described in
 [production basics](production-basics.md); prefix matching applies only to redirects,
 never file grants. There are no includes, environment substitutions, globs,
-rewrites, proxies, or implicit grants. Directive order does not change lookup.
+rewrites or implicit file grants. Proxy delegation is explicit and site-wide. Directive order does not change lookup.
 A duplicate root/TLS declaration or any unknown setting is an error. If any site
 is invalid, compilation returns no configuration, including no earlier sites.
 
@@ -85,7 +86,7 @@ after one byte beyond that limit; callers of the string API already own their
 input allocation. A linear, nonrecursive preflight admits only:
 
 - Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`,
-  and `header`, with the validated schemas.
+  `header` and `reverse-proxy`, with the validated schemas.
 - Ordinary, single-line double-quoted strings. Literal characters inside values
   must be printable ASCII. Standard simple KDL escapes and valid `\u{...}` scalar
   escapes are accepted, then decoded by the pinned upstream KDL parser. The
@@ -95,9 +96,9 @@ input allocation. A linear, nonrecursive preflight admits only:
   before `}`. A top-level closing brace may be followed by EOF.
 - `//` line comments, including Unicode text. Comment/newline handling uses the
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
-- A single children level (sites only); at most 16 sites and 354 directives per
+- A single children level (sites only); at most 16 sites and 355 directives per
   site before the upstream parser runs. Compilation separately enforces 256 URLs,
-  64 redirects, 32 headers, one root and one TLS directive.
+  64 redirects, 32 headers, one root, one TLS directive and one proxy directive, subject to mode exclusivity.
 
 Raw/multiline strings, block comments, slashdash (`/-`), quoted node names,
 properties, type annotations, bare arguments, line continuations, BOM, and other

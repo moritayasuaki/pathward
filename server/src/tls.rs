@@ -341,6 +341,9 @@ impl Transport for TlsTransport {
     fn local_port(&self) -> io::Result<u16> {
         Ok(self.stream.sock.stream.local_addr()?.port())
     }
+    fn peer_ip(&self) -> Option<std::net::IpAddr> {
+        self.stream.sock.stream.peer_addr().ok().map(|a| a.ip())
+    }
 }
 impl TlsTransport {
     pub fn finish(&mut self) -> io::Result<()> {

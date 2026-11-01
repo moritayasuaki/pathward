@@ -1,0 +1,7 @@
+// Explicit whole-host delegation to an already running local application.
+site "app.example" {
+    tls "auto"
+    reverse-proxy "127.0.0.1:3000"
+    header "*" "x-frame-options" "DENY"
+    header "*" "strict-transport-security" "max-age=86400"
+}

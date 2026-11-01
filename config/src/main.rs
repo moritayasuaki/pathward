@@ -28,7 +28,7 @@ fn run() -> Result<(), String> {
         let target = site
             .resolve(path.as_bytes())
             .ok_or("denied: URL is not published")?;
-        println!("root: {}\nfile: {target}", site.root());
+        println!("root: {}\nfile: {target}", site.root().unwrap_or(""));
     }
     Ok(())
 }

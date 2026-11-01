@@ -60,7 +60,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_no_client_auth();
     let mut manager = acme::Manager::new(
         config.sites().iter().map(|s| s.host().to_owned()).collect(),
-        &config.sites().iter().map(|s| s.root()).collect::<Vec<_>>(),
+        &config
+            .sites()
+            .iter()
+            .filter_map(|s| s.root())
+            .collect::<Vec<_>>(),
         cache,
         directory,
         vec![],

@@ -1,7 +1,8 @@
 # HTTP serving and Linux file opening
 
 The `pathward-server` crate implements a deliberately small **HTTP/1.1, loopback-only**
-static server. It uses the existing KDL configuration and verified publication
+static server, with a separate [bounded reverse-proxy mode](reverse-proxy.md).
+The behavior below describes static sites. It uses the existing KDL configuration and verified publication
 rules. GET and HEAD work; TLS/ACME does not run. This milestone is suitable for
 local evaluation, not a complete replacement for Caddy. See the
 [HTTP/file audit](http-audit.md) and [remaining production work](production-readiness.md).
@@ -141,7 +142,7 @@ logs and optional loopback monitoring are described in [runtime operation](runti
 ## Verification
 
 `make check` checks the core, configuration and server; it regenerates and compares
-the actual Rust extraction and checks Lean proofs/70 axiom-audited statements.
+the actual Rust extraction and checks Lean proofs/153 axiom-audited statements.
 On Linux, server tests exercise real TCP serving, virtual-host isolation,
 GET/HEAD/query behavior, malformed framing, limits, excess connections, symlinks,
 hard links, special files, pinned roots and directory/symlink replacement races.

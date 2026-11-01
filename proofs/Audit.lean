@@ -1,3 +1,4 @@
+import ProxyProofs
 import PathwardProofs
 import RulesProofs
 import ServingProofs
@@ -135,3 +136,33 @@ import ReleaseProofs
 #print axioms ReleaseProofs.migration_requires_rollback
 #print axioms ReleaseProofs.migration_requires_isolation
 #print axioms ReleaseProofs.migration_total
+
+#print axioms ProxyProofs.mode_eq
+#print axioms ProxyProofs.no_mixed_proxy
+#print axioms ProxyProofs.endpoint_eq
+#print axioms ProxyProofs.endpoint_contract
+#print axioms ProxyProofs.endpoint_no_zero
+#print axioms ProxyProofs.method_eq
+#print axioms ProxyProofs.status_eq
+#print axioms ProxyProofs.request_framing_eq
+#print axioms ProxyProofs.response_framing_eq
+#print axioms ProxyProofs.request_no_transfer_encoding
+#print axioms ProxyProofs.response_no_ambiguous_length
+#print axioms ProxyProofs.response_no_duplicate_length
+#print axioms ProxyProofs.target_loop_eq
+#print axioms ProxyProofs.target_bytes_eq
+#print axioms ProxyProofs.target_eq
+#print axioms ProxyProofs.hop_eq
+#print axioms ProxyProofs.forwarding_eq
+#print axioms ProxyProofs.request_header_eq
+#print axioms ProxyProofs.response_header_eq
+#print axioms ProxyProofs.no_forwarded_identity
+#print axioms ProxyProofs.no_hop_request
+#print axioms ProxyProofs.no_hop_response
+#print axioms ProxyProofs.no_unencrypted_hsts
+#print axioms ProxyProofs.request_header_no_controls
+#print axioms ProxyProofs.response_header_no_controls
+#print axioms ProxyProofs.target_contract
+#print axioms ProxyProofs.target_bounded
+#print axioms ProxyProofs.target_no_controls
+#print axioms ProxyProofs.proxy_total

@@ -8,6 +8,7 @@ pub mod deployment;
 pub mod files;
 pub mod http;
 pub mod observe;
+mod proxy;
 mod runtime;
 pub mod secrets;
 pub mod tls;
@@ -230,13 +231,16 @@ impl Server {
             sni.is_some(),
             automatic_redirect,
         );
-        let req = match http::parse(&head, authority_port) {
+        let boundary = head
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .ok_or_else(|| io::Error::other("missing head"))?
+            + 4;
+        let (head, prefetched) = head.split_at(boundary);
+        let req = match http::parse_framed(head, authority_port) {
             Ok(req) => req,
             Err(http::Rejection(status)) => return Self::reject(stream, status),
         };
-        if req.method != b"GET" && req.method != b"HEAD" {
-            return Self::reject(stream, 405);
-        }
         let Some(site) = snapshot.sites.iter().find(|s| s.host == req.host) else {
             return Self::reject(stream, 421);
         };
@@ -249,7 +253,11 @@ impl Server {
         {
             return Self::reject(stream, 421);
         }
-        let path = pathward::serving::request_path(req.target).unwrap_or(b"");
+        let path = if site.upstream.is_some() && pathward::proxy::target_allowed(req.target) {
+            &req.target[..pathward::serving::path_length(req.target)]
+        } else {
+            pathward::serving::request_path(req.target).unwrap_or(b"")
+        };
         let reject = |stream: &mut _, status| -> io::Result<(u16, u64)> {
             http::write_all(
                 stream,
@@ -259,6 +267,58 @@ impl Server {
             )?;
             Ok((status, 0))
         };
+        if let Some(upstream) = site.upstream {
+            if !pathward::proxy::method_allowed(req.method) {
+                return reject(stream, 405);
+            }
+            if !pathward::proxy::target_allowed(req.target) {
+                return reject(stream, 400);
+            }
+            if !pathward::proxy::request_framing(req.content_length, false, false) {
+                return reject(stream, 413);
+            }
+            if automatic_redirect {
+                let mut head = site.head(308, 0, "text/plain", path, false);
+                head.truncate(head.len() - 2);
+                head.push_str(&format!(
+                    "Location: https://{}{}\r\n\r\n",
+                    site.host,
+                    std::str::from_utf8(req.target).map_err(|_| io::Error::other("target"))?
+                ));
+                http::write_all(
+                    stream,
+                    head.as_bytes(),
+                    Instant::now() + Duration::from_secs(1),
+                )?;
+                return Ok((308, 0));
+            }
+            let response = match proxy::forward(
+                upstream,
+                &req,
+                prefetched,
+                stream,
+                accepted,
+                sni.is_some(),
+                authority_port,
+            ) {
+                Ok(response) => response,
+                Err(http::Rejection(status)) => return reject(stream, status),
+            };
+            let deadline = accepted + http::READ_BUDGET + http::WRITE_BUDGET;
+            http::write_all(
+                stream,
+                site.proxy_head(&response, path, sni.is_some()).as_bytes(),
+                deadline,
+            )?;
+            http::write_all(stream, &response.body, deadline)?;
+            return Ok((response.status, response.body.len() as u64));
+        }
+        if req.content_length != 0 || !prefetched.is_empty() {
+            return Self::reject(stream, 400);
+        }
+        if req.method != b"GET" && req.method != b"HEAD" {
+            return Self::reject(stream, 405);
+        }
         if let Some((status, location)) =
             site.redirect(req.target, &snapshot.sites, automatic_redirect)
         {
@@ -290,7 +350,10 @@ impl Server {
         let target = std::str::from_utf8(grant.target)
             .map_err(|_| io::Error::other("invalid verified target"))?;
         // This is the only serving-file open. It is reachable only after a grant.
-        let mut opened = match site.root.open_file(target) {
+        let Some(root) = site.root.as_ref() else {
+            return reject(stream, 404);
+        };
+        let mut opened = match root.open_file(target) {
             Ok(file) => file,
             Err(_) => return reject(stream, 404),
         };

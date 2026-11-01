@@ -2,11 +2,13 @@
 use crate::files::DocumentRoot;
 use pathward::rules::Publication;
 use pathward_config::CompiledConfig;
+use std::net::SocketAddr;
 use std::{io, path::Path};
 
 pub(crate) struct Site {
     pub host: String,
-    pub root: DocumentRoot,
+    pub root: Option<DocumentRoot>,
+    pub upstream: Option<SocketAddr>,
     rules: Vec<(Vec<u8>, Vec<u8>)>,
     redirects: Vec<Redirect>,
     headers: Vec<Header>,
@@ -33,7 +35,18 @@ impl Site {
         encrypted: bool,
     ) -> String {
         let mut out = crate::http::response_head(status, length, content_type);
+        if self.upstream.is_some() && status == 405 {
+            out = out.replace(
+                "Allow: GET, HEAD\r\n",
+                "Allow: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS\r\n",
+            );
+        }
         out.truncate(out.len() - 2);
+        self.append_headers(&mut out, path, encrypted);
+        out.push_str("\r\n");
+        out
+    }
+    fn append_headers(&self, out: &mut String, path: &[u8], encrypted: bool) {
         for h in &self.headers {
             let exact = h.scope.as_bytes() == path;
             let overridden = self
@@ -50,6 +63,39 @@ impl Site {
                 out.push_str("\r\n");
             }
         }
+    }
+    pub fn proxy_head(
+        &self,
+        response: &crate::proxy::Response,
+        path: &[u8],
+        encrypted: bool,
+    ) -> String {
+        let mut out = format!(
+            "HTTP/1.1 {} Upstream Response\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\n",
+            response.status
+        );
+        if let Some(length) = response.length {
+            out.push_str(&format!("Content-Length: {length}\r\n"));
+        }
+        for (name, value) in &response.headers {
+            let overridden = self
+                .headers
+                .iter()
+                .any(|h| h.name == *name && (h.scope == "*" || h.scope.as_bytes() == path));
+            if name != "x-content-type-options"
+                && !overridden
+                && pathward::proxy::response_header(name.as_bytes(), value.as_bytes(), encrypted)
+            {
+                out.push_str(name);
+                out.push_str(": ");
+                out.push_str(value);
+                out.push_str("\r\n");
+            }
+        }
+        if !response.headers.iter().any(|(n, _)| n == "date") {
+            out.push_str(&crate::http::date_header());
+        }
+        self.append_headers(&mut out, path, encrypted);
         out.push_str("\r\n");
         out
     }
@@ -106,9 +152,13 @@ impl Snapshot {
         let mut count = 0;
         for site in &self.sites {
             for (_, target) in &site.rules {
-                let _ = site.root.open_file(
-                    std::str::from_utf8(target).map_err(|_| io::Error::other("target"))?,
-                )?;
+                let _ = site
+                    .root
+                    .as_ref()
+                    .ok_or_else(|| io::Error::other("publication without root"))?
+                    .open_file(
+                        std::str::from_utf8(target).map_err(|_| io::Error::other("target"))?,
+                    )?;
                 count += 1;
             }
         }
@@ -127,7 +177,8 @@ impl Snapshot {
             .map(|site| {
                 Ok(Site {
                     host: site.host().to_owned(),
-                    root: DocumentRoot::open(site.root())?,
+                    root: site.root().map(DocumentRoot::open).transpose()?,
+                    upstream: site.upstream(),
                     redirects: site
                         .redirects()
                         .iter()
@@ -163,10 +214,11 @@ impl Snapshot {
     }
     pub fn isolated(config: &CompiledConfig<'_>, cache: Option<&Path>) -> bool {
         cache.is_none_or(|cache| {
-            config
-                .sites()
-                .iter()
-                .all(|s| !cache.starts_with(s.root()) && !Path::new(s.root()).starts_with(cache))
+            config.sites().iter().all(|s| {
+                s.root().is_none_or(|root| {
+                    !cache.starts_with(root) && !Path::new(root).starts_with(cache)
+                })
+            })
         })
     }
     pub fn same_hosts(&self, config: &CompiledConfig<'_>) -> bool {
