@@ -196,7 +196,8 @@ pub(crate) fn forward(
     head.push_str("\r\n");
     http::write_all(&mut socket, head.as_bytes(), deadline).map_err(failure)?;
     http::write_all(&mut socket, &body, deadline).map_err(failure)?;
-    // The entire upstream response is validated before committing downstream headers.
+    // Ordinary bodies are validated in full; opt-in streams validate their head
+    // before commitment and close on later errors without a second HTTP response.
     receive(
         socket,
         req.method == b"HEAD",

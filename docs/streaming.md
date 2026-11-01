@@ -122,10 +122,10 @@ ends, so reload/rollback cannot reset its count. Two of four worker slots remain
 available beyond established streams, although other traffic can still consume
 them. This is a small bounded server, not a high-concurrency streaming runtime.
 
-Each WebSocket direction has one 16 KiB pending relay buffer; SSE uses one 16 KiB
+Each WebSocket direction buffers at most 16 KiB of pending payload; SSE uses one 16 KiB
 input buffer and one output fragment with bounded chunk framing. TLS plaintext
 output buffering is explicitly capped at 32 KiB for streaming. TLS records and
-socket/kernel buffers add overhead. Backpressure stops further reads into an
+allocator capacity and socket/kernel buffers add overhead. Backpressure stops further reads into an
 occupied buffer. The worker owns TLS state in both directions; no thread, task,
 queue or socket is spawned per stream. Nonblocking I/O polls with a five-millisecond
 sleep when no relay progress is made. Choose limits for the deployed memory,
@@ -148,7 +148,7 @@ rehearsal remain necessary before migration.
 
 ## Audit and proof boundary
 
-No external dependency, feature, manifest, lockfile or vendored-source change is
+No external dependency, Cargo feature/manifest/lockfile or vendored-source change is
 required. Core/configuration/server external package counts remain 0/8/104.
 The latest RustSec/graph scan is recorded in
 [server/audit-result.json](../server/audit-result.json). Source review covers
