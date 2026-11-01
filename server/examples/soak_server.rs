@@ -29,8 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if api_port == 0 {
         return Err("local CA port".into());
     }
-    // The test driver handles private keys too. Match the production CLI.
-    rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
+    // Ephemeral test keys must not enter core dumps. Unlike the production CLI,
+    // keep procfs readable so the unprivileged soak can measure descriptors.
     rustix::process::setrlimit(
         rustix::process::Resource::Core,
         rustix::process::Rlimit {
