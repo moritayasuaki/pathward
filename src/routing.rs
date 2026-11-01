@@ -26,17 +26,11 @@ pub fn select(valid: bool, denied: bool, published: bool, redirect: bool, proxy:
     }
 }
 
-/// Routing sites accept canonical paths and one optional final slash. Return
-/// the canonical stem for comparisons only; never use it as a file grant.
+/// Routing sites require the exact canonical URL, including a directory slash.
+/// No normalization: a routing path is never a filesystem grant.
 pub fn stem(path: &[u8]) -> Option<&[u8]> {
     if valid_path(path) {
         return Some(path);
-    }
-    if path.len() > 1 {
-        let (head, tail) = path.split_at(path.len() - 1);
-        if tail[0] == b'/' && valid_path(head) {
-            return Some(head);
-        }
     }
     None
 }

@@ -1,7 +1,7 @@
 //! Checked compilation of explicit URL-to-file declarations.
 //! Targets are relative, lexical paths; this does not open or confine files.
 
-use crate::{State, accepting, same_path, step, valid_path};
+use crate::{State, same_path, step, valid_path};
 
 /// A declaration supplied by the configuration adapter. Both byte strings are
 /// preserved exactly; compilation never adds a wildcard or implicit index.
@@ -23,7 +23,7 @@ pub fn valid_target(target: &[u8]) -> bool {
         state = step(state, target[i]);
         i += 1;
     }
-    accepting(state)
+    matches!(state, State::Root | State::Segment)
 }
 
 fn contains_path(path: &[u8], rules: &[Publication<'_>], index: usize) -> bool {
@@ -53,7 +53,7 @@ fn valid_rules(rules: &[Publication<'_>], index: usize) -> bool {
 /// All-or-nothing compilation. Success returns exactly the input declarations.
 /// Duplicate URLs (including identical duplicate mappings) are errors.
 pub fn compile<'a>(rules: &'a [Publication<'a>]) -> Option<&'a [Publication<'a>]> {
-    if rules.is_empty() || rules.len() > 256 || !valid_rules(rules, 0) {
+    if rules.is_empty() || rules.len() > 4096 || !valid_rules(rules, 0) {
         None
     } else {
         Some(rules)
@@ -80,7 +80,7 @@ fn lookup_from<'a>(path: &[u8], rules: &[Publication<'a>], index: usize) -> Opti
 /// Resolve a raw URL path by exact match. Even callers that bypass compilation
 /// cannot obtain an invalid path or target. Compile first to reject ambiguity.
 pub fn lookup<'a>(path: &[u8], rules: &[Publication<'a>]) -> Option<&'a [u8]> {
-    if rules.len() > 256 || !valid_path(path) {
+    if rules.len() > 4096 || !valid_path(path) {
         None
     } else {
         lookup_from(path, rules, 0)

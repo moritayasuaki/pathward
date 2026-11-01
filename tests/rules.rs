@@ -99,7 +99,7 @@ fn uncompiled_input_cannot_return_a_dangerous_target() {
 fn target_and_table_limits_are_exact() {
     assert!(valid_target(&vec![b'a'; 4095]));
     assert!(!valid_target(&vec![b'a'; 4096]));
-    let names: Vec<_> = (0..257).map(|i| format!("/file{i}")).collect();
+    let names: Vec<_> = (0..4097).map(|i| format!("/file{i}")).collect();
     let declarations: Vec<_> = names
         .iter()
         .map(|p| Publication {
@@ -107,9 +107,9 @@ fn target_and_table_limits_are_exact() {
             target: b"file",
         })
         .collect();
-    assert!(compile(&declarations[..256]).is_some());
+    assert!(compile(&declarations[..4096]).is_some());
     assert_eq!(
-        lookup(b"/file255", &declarations[..256]),
+        lookup(b"/file4095", &declarations[..4096]),
         Some(b"file".as_slice())
     );
     assert!(compile(&declarations).is_none());

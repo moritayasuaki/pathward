@@ -10,6 +10,7 @@ pub(crate) struct Site {
     pub host: String,
     pub root: Option<DocumentRoot>,
     pub upstream: Option<SocketAddr>,
+    pub proxy_routes: Vec<crate::proxy::UpstreamRoute>,
     pub limits: ProxyLimits,
     pub websocket_origins: Vec<String>,
     budget: Arc<ServiceBudget>,
@@ -18,6 +19,7 @@ pub(crate) struct Site {
     rules: Vec<(Vec<u8>, Vec<u8>)>,
     redirects: Vec<Redirect>,
     headers: Vec<Header>,
+    cache: Vec<(String, bool, pathward_config::CachePolicy)>,
 }
 struct Redirect {
     from: String,
@@ -27,6 +29,7 @@ struct Redirect {
     prefix: bool,
 }
 struct Header {
+    kind: pathward_config::HeaderScope,
     scope: String,
     name: String,
     value: String,
@@ -50,6 +53,21 @@ impl Drop for ServicePermit {
     }
 }
 impl Site {
+    pub fn cache_policy(&self, path: &[u8]) -> pathward_config::CachePolicy {
+        self.cache
+            .iter()
+            .filter(|(scope, prefix, _)| {
+                scope == "*"
+                    || if *prefix {
+                        pathward::routing::subtree(path, scope.as_bytes())
+                    } else {
+                        path == scope.as_bytes()
+                    }
+            })
+            .max_by_key(|(s, p, _)| (s != "*", s.len(), !p))
+            .map_or(pathward_config::CachePolicy::NoStore, |(_, _, c)| *c)
+    }
+
     pub fn acquire(&self) -> Option<ServicePermit> {
         let mut state = self.budget.0.lock().ok()?;
         if !pathward::routing::service_admit(state.0, self.limits.connections, state.1) {
@@ -77,7 +95,8 @@ impl Site {
         let strict = !self.rules.is_empty()
             || !self.redirects.is_empty()
             || !self.denies.is_empty()
-            || !self.proxy_paths.is_empty();
+            || !self.proxy_paths.is_empty()
+            || !self.proxy_routes.is_empty();
         let stem = pathward::routing::stem(raw);
         let path = stem.unwrap_or(b"");
         let transport_valid = if self.upstream.is_some() {
@@ -90,7 +109,19 @@ impl Site {
             .denies
             .iter()
             .any(|d| pathward::routing::subtree(path, d.as_bytes()));
-        let published = self.rules.iter().any(|(p, _)| p == path);
+        // Reserve slash variants for the local route, but authorize only exact URLs.
+        // An unconfigured alias must never fall through to another backend.
+        let trim = |p: &[u8]| {
+            if p.len() > 1 && p.ends_with(b"/") {
+                p.len() - 1
+            } else {
+                p.len()
+            }
+        };
+        let published = self
+            .rules
+            .iter()
+            .any(|(p, _)| p[..trim(p)] == path[..trim(path)]);
         let redirect = self
             .redirects
             .iter()
@@ -123,14 +154,43 @@ impl Site {
         out.push_str("\r\n");
         out
     }
-    fn append_headers(&self, out: &mut String, path: &[u8], encrypted: bool) {
-        for h in &self.headers {
-            let exact = h.scope.as_bytes() == path;
-            let overridden = self
-                .headers
-                .iter()
-                .any(|other| other.scope.as_bytes() == path && other.name == h.name);
-            if (exact || (h.scope == "*" && !overridden))
+    fn header_rank(&self, h: &Header, target: &[u8]) -> Option<(u8, usize)> {
+        use pathward_config::HeaderScope;
+        let n = pathward::serving::path_length(target);
+        let path = &target[..n];
+        match h.kind {
+            HeaderScope::Exact if h.scope.as_bytes() == path => Some((2, h.scope.len())),
+            HeaderScope::Exact if h.scope == "*" => Some((0, 0)),
+            HeaderScope::Prefix if pathward::routing::subtree(path, h.scope.as_bytes()) => {
+                Some((1, h.scope.len()))
+            }
+            HeaderScope::Query
+                if n < target.len()
+                    && target[n + 1..].split(|b| *b == b'&').any(|part| {
+                        let key = part.split(|b| *b == b'=').next().unwrap_or(b"");
+                        pathward::upstream::query_match(
+                            key == h.scope.as_bytes(),
+                            key.contains(&b'%') || key.contains(&b'+'),
+                        )
+                    }) =>
+            {
+                Some((3, 0))
+            }
+            _ => None,
+        }
+    }
+    fn append_headers(&self, out: &mut String, target: &[u8], encrypted: bool) {
+        for (index, h) in self.headers.iter().enumerate() {
+            let Some(rank) = self.header_rank(h, target) else {
+                continue;
+            };
+            let overridden = self.headers.iter().enumerate().any(|(i, other)| {
+                other.name == h.name
+                    && self
+                        .header_rank(other, target)
+                        .is_some_and(|r| (r, i) > (rank, index))
+            });
+            if !overridden
                 && (encrypted || h.name != "strict-transport-security")
                 && pathward::response::header_allowed(h.name.as_bytes(), h.value.as_bytes())
             {
@@ -183,7 +243,7 @@ impl Site {
             let overridden = self
                 .headers
                 .iter()
-                .any(|h| h.name == *name && (h.scope == "*" || h.scope.as_bytes() == path));
+                .any(|h| h.name == *name && self.header_rank(h, path).is_some());
             if name != "x-content-type-options"
                 && !overridden
                 && pathward::proxy::response_header(name.as_bytes(), value.as_bytes(), encrypted)
@@ -307,6 +367,15 @@ impl Snapshot {
                     host: site.host().to_owned(),
                     root: site.root().map(DocumentRoot::open).transpose()?,
                     upstream: site.upstream(),
+                    proxy_routes: site
+                        .proxy_routes()
+                        .iter()
+                        .map(|r| crate::proxy::UpstreamRoute {
+                            prefix: r.prefix.to_owned(),
+                            width: r.width,
+                            candidates: r.candidates.clone(),
+                        })
+                        .collect(),
                     limits: site.proxy_limits(),
                     websocket_origins: site
                         .websocket_origins()
@@ -342,10 +411,16 @@ impl Snapshot {
                             prefix: r.prefix,
                         })
                         .collect(),
+                    cache: site
+                        .cache_rules()
+                        .iter()
+                        .map(|c| (c.scope.to_owned(), c.prefix, c.policy))
+                        .collect(),
                     headers: site
                         .headers()
                         .iter()
                         .map(|h| Header {
+                            kind: h.kind,
                             scope: h.scope.into(),
                             name: h.name.into(),
                             value: h.value.into(),

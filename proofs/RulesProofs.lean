@@ -5,8 +5,12 @@ open pathward PathwardProofs
 
 namespace RulesProofs
 
+def fileAccepts : State → Bool
+  | .Root | .Segment => true
+  | _ => false
+
 def targetCanonical (bytes : List U8) : Bool :=
-  decide (0 < bytes.length ∧ bytes.length ≤ 4095) && accepts (run .Root bytes)
+  decide (0 < bytes.length ∧ bytes.length ≤ 4095) && fileAccepts (run .Root bytes)
 
 theorem target_loop_eq (p : Slice U8) (s : State) (i : Usize)
     (_hi : i.val ≤ p.val.length) :
@@ -26,8 +30,9 @@ termination_by p.val.length - i.val
 theorem valid_target_eq (p : Slice U8) : rules.valid_target p = ok (targetCanonical p.val) := by
   unfold rules.valid_target
   rw [target_loop_eq p .Root 0#usize (by simp)]
-  simp [core.slice.Slice.is_empty, targetCanonical, accepting_eq, List.length_pos_iff]
-  split_ifs <;> simp_all
+  simp [core.slice.Slice.is_empty, targetCanonical, List.length_pos_iff]
+  split_ifs <;> simp_all [fileAccepts]
+  all_goals cases run State.Root p.val <;> rfl
 
 def contains (p : List U8) (rs : List rules.Publication) : Bool :=
   rs.any (fun r => p == r.path.val)
@@ -73,7 +78,7 @@ theorem valid_rules_eq (rs : Slice rules.Publication) (i : Usize)
 termination_by rs.val.length - i.val
 
 def admissible (rs : List rules.Publication) : Bool :=
-  decide (0 < rs.length ∧ rs.length ≤ 256) && validRules rs
+  decide (0 < rs.length ∧ rs.length ≤ 4096) && validRules rs
 
 theorem compile_eq (rs : Slice rules.Publication) :
     rules.compile rs = ok (if admissible rs.val then some rs else none) := by
@@ -127,7 +132,7 @@ theorem lookup_from_eq (p : Slice U8) (rs : Slice rules.Publication) (i : Usize)
 termination_by rs.val.length - i.val
 
 theorem lookup_eq (p : Slice U8) (rs : Slice rules.Publication) :
-    rules.lookup p rs = ok (if rs.val.length ≤ 256 ∧ canonical p.val = true
+    rules.lookup p rs = ok (if rs.val.length ≤ 4096 ∧ canonical p.val = true
       then lookupSpec p.val rs.val else none) := by
   unfold rules.lookup
   rw [valid_path_eq, lookup_from_eq p rs 0#usize (by simp)]
@@ -139,9 +144,9 @@ theorem lookup_total (p : Slice U8) (rs : Slice rules.Publication) :
     ∃ result, rules.lookup p rs = ok result := ⟨_, lookup_eq p rs⟩
 
 theorem target_canonical_iff (xs : List U8) :
-    targetCanonical xs = true ↔ xs ≠ [] ∧ canonical (47#u8 :: xs) = true := by
+    targetCanonical xs = true ↔ xs ≠ [] ∧ canonical (47#u8 :: xs) = true ∧ run .Root xs ≠ .Separator := by
   simp [targetCanonical, canonical, List.length_pos_iff, run_cons, next]
-  omega
+  cases run State.Root xs <;> simp [fileAccepts, accepts] <;> omega
 
 theorem valid_rules_contract (rs : List rules.Publication) :
     validRules rs = true ↔
@@ -157,7 +162,7 @@ theorem valid_rules_contract (rs : List rules.Publication) :
     safe relative targets, and pairwise-distinct URL keys. -/
 theorem compile_contract (rs out : Slice rules.Publication) :
     rules.compile rs = ok (some out) ↔
-      out = rs ∧ (0 < rs.val.length ∧ rs.val.length ≤ 256) ∧
+      out = rs ∧ (0 < rs.val.length ∧ rs.val.length ≤ 4096) ∧
       (∀ r ∈ rs.val, canonical r.path.val = true ∧ targetCanonical r.target.val = true) ∧
       rs.val.Pairwise (fun r s => r.path.val ≠ s.path.val) := by
   rw [compile_iff]
@@ -234,12 +239,12 @@ theorem lookup_safe (p target : Slice U8) (rs : Slice rules.Publication)
 theorem target_not_absolute (xs : List U8) (h : targetCanonical xs = true) :
     ∀ rest, xs ≠ 47#u8 :: rest := by
   intro rest he
-  simp [he, targetCanonical, run_cons, next, nameByte, accepts] at h
+  simp [he, targetCanonical, run_cons, next, nameByte, fileAccepts] at h
 
 theorem target_no_traversal (xs : List U8) (h : targetCanonical xs = true) :
     ∀ before after, 47#u8 :: xs ≠ before ++ 47#u8 :: 46#u8 :: after := by
   intro before after he
-  have hc := ((target_canonical_iff xs).mp h).2
+  have hc := ((target_canonical_iff xs).mp h).2.1
   rw [he, no_hidden_or_traversal] at hc
   contradiction
 
@@ -247,5 +252,11 @@ theorem resolved_target_no_traversal (p target : Slice U8) (rs : Slice rules.Pub
     (h : rules.lookup p rs = ok (some target)) :
     ∀ before after, 47#u8 :: target.val ≠ before ++ 47#u8 :: 46#u8 :: after :=
   target_no_traversal target.val (lookup_safe p target rs h).2.1
+
+theorem target_no_directory_suffix (xs : List U8) :
+    targetCanonical (xs ++ [47#u8]) = false := by
+  simp only [targetCanonical, run_append, run_cons, run_nil]
+  have h := run_not_start xs .Root (by intro h; cases h)
+  cases he : run State.Root xs <;> simp_all [next, nameByte, fileAccepts]
 
 end RulesProofs

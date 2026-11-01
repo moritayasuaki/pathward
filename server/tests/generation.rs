@@ -112,3 +112,70 @@ fn generation_preserves_stream_opt_ins_and_every_stream_budget() {
         config_new.sites()[0].proxy_limits()
     );
 }
+
+#[test]
+fn generated_configuration_round_trips_more_than_256_publications() {
+    let p=ParsedConfig::parse("site \"example.com\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}\n").unwrap();
+    let manifest = (0..1500)
+        .map(|i| format!("page-{i}.html\n"))
+        .collect::<String>();
+    let result = generate(
+        &p.compile().unwrap(),
+        "example.com",
+        "/srv/new",
+        &manifest,
+        None,
+    )
+    .unwrap();
+    let parsed = ParsedConfig::parse(&result).unwrap();
+    assert_eq!(
+        parsed
+            .compile()
+            .unwrap()
+            .site("example.com")
+            .unwrap()
+            .publications()
+            .len(),
+        1500
+    );
+}
+
+#[test]
+fn generation_retains_typed_cache_policy() {
+    let p=ParsedConfig::parse("site \"example.com\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\ncache \"*\" \"no-cache\"\ncache-prefix \"/assets\" \"public,max-age=60,immutable\"\n}\n").unwrap();
+    let text = generate(
+        &p.compile().unwrap(),
+        "example.com",
+        "/srv/new",
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let p = ParsedConfig::parse(&text).unwrap();
+    let c = p.compile().unwrap();
+    let rules = c.sites()[0].cache_rules();
+    assert_eq!(rules.len(), 2);
+    assert!(rules[1].prefix);
+    assert_eq!(rules[1].policy.value(), "public,max-age=60,immutable");
+}
+
+#[test]
+fn generation_retains_upstream_ownership_routes_and_header_scopes() {
+    let p=ParsedConfig::parse("site \"app.example\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-route \"/feedback\" \"127.0.0.1:3002\"\nproxy-resource \"/rooms\" \"12\" \"127.0.0.1:3000,127.0.0.1:3001\"\nheader-prefix \"/rooms\" \"x-robots-tag\" \"noindex\"\nheader-query \"room\" \"x-robots-tag\" \"noindex\"\n}\n").unwrap();
+    let out = generate(
+        &p.compile().unwrap(),
+        "app.example",
+        "/srv/new",
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let parsed = ParsedConfig::parse(&out).unwrap();
+    let c = parsed.compile().unwrap();
+    let s = &c.sites()[0];
+    assert_eq!(s.proxy_routes()[0].width, 0);
+    assert_eq!(s.proxy_routes()[1].width, 12);
+    assert_eq!(s.proxy_routes()[1].candidates.len(), 2);
+    assert_eq!(s.headers()[0].kind, pathward_config::HeaderScope::Prefix);
+    assert_eq!(s.headers()[1].kind, pathward_config::HeaderScope::Query);
+}

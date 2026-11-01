@@ -795,3 +795,168 @@ fn independent_hosts_keep_independent_service_capacity() {
         })
     });
 }
+
+fn bounded_accept(listener: &TcpListener) -> TcpStream {
+    listener.set_nonblocking(true).unwrap();
+    let end = std::time::Instant::now() + Duration::from_secs(4);
+    loop {
+        match listener.accept() {
+            Ok((s, _)) => return s,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(std::time::Instant::now() < end, "missing upstream exchange");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => panic!("{e}"),
+        }
+    }
+}
+fn discovery_config(a: SocketAddr, b: SocketAddr, extra: &str) -> ParsedConfig {
+    configured(
+        a,
+        &format!("proxy-resource \"/v1/rooms\" \"12\" \"{a},{b}\"\n{extra}"),
+    )
+}
+#[test]
+fn discovery_is_anonymous_and_mutation_is_sent_once_even_if_final_response_is_404() {
+    let a = TcpListener::bind("127.0.0.1:0").unwrap();
+    let b = TcpListener::bind("127.0.0.1:0").unwrap();
+    let config = discovery_config(
+        a.local_addr().unwrap(),
+        b.local_addr().unwrap(),
+        "header-prefix \"/v1\" \"x-robots-tag\" \"noindex\"",
+    );
+    with_config(&config, |addr, server| {
+        std::thread::scope(|scope| {
+            let client=scope.spawn(|| exchange(addr,b"POST /v1/rooms/abcdef012345/join?private=yes HTTP/1.1\r\nHost: app.example\r\nContent-Length: 4\r\nAuthorization: Bearer private\r\nCookie: session=private\r\n\r\nBODY"));
+            let mut first = bounded_accept(&a);
+            let probe = String::from_utf8(read_request(&first)).unwrap();
+            assert!(probe.starts_with("GET /v1/rooms/abcdef012345 HTTP/1.1\r\n"));
+            for secret in ["private", "BODY", "Authorization", "Cookie", "join"] {
+                assert!(!probe.contains(secret));
+            }
+            // Reload while discovery is pending: the request must keep its captured routes.
+            let replacement = ParsedConfig::parse(&format!(
+                "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}",
+                a.local_addr().unwrap()
+            ))
+            .unwrap();
+            server
+                .reload(&replacement.compile().unwrap(), &AtomicBool::new(false))
+                .unwrap();
+            first
+                .write_all(b"HTTP/1.1 404 Missing\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+            drop(first);
+            let mut second = bounded_accept(&b);
+            assert_eq!(read_request(&second), probe.as_bytes());
+            second
+                .write_all(b"HTTP/1.1 401 Auth\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+            drop(second);
+            let mut original = bounded_accept(&b);
+            let original_req = read_request(&original);
+            assert!(original_req.starts_with(b"POST /v1/rooms/abcdef012345/join?private=yes "));
+            assert!(original_req.ends_with(b"BODY"));
+            assert!(
+                String::from_utf8_lossy(&original_req)
+                    .contains("authorization: Bearer private\r\n")
+            );
+            original
+                .write_all(b"HTTP/1.1 404 Missing\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+            drop(original);
+            let response = String::from_utf8(client.join().unwrap()).unwrap();
+            assert!(response.starts_with("HTTP/1.1 404 "));
+            assert!(response.contains("x-robots-tag: noindex\r\n"));
+            assert!(a.accept().is_err());
+            assert!(b.accept().is_err());
+        })
+    });
+}
+#[test]
+fn discovery_failure_and_absence_never_send_original_body() {
+    for status in [404, 500, 429, 302] {
+        let a = TcpListener::bind("127.0.0.1:0").unwrap();
+        let b = TcpListener::bind("127.0.0.1:0").unwrap();
+        b.set_nonblocking(true).unwrap();
+        let config = discovery_config(a.local_addr().unwrap(), b.local_addr().unwrap(), "");
+        with_config(&config, |addr, _| {
+            std::thread::scope(|scope| {
+                let c=scope.spawn(|| exchange(addr,b"POST /v1/rooms/abcdef012345/join HTTP/1.1\r\nHost: app.example\r\nContent-Length: 4\r\n\r\nBODY"));
+                let mut first = bounded_accept(&a);
+                assert!(!read_request(&first).ends_with(b"BODY"));
+                first
+                    .write_all(
+                        format!("HTTP/1.1 {status} Probe\r\nContent-Length: 0\r\n\r\n").as_bytes(),
+                    )
+                    .unwrap();
+                drop(first);
+                if status == 404 {
+                    let mut second = bounded_accept(&b);
+                    assert!(!read_request(&second).ends_with(b"BODY"));
+                    second
+                        .write_all(b"HTTP/1.1 404 Missing\r\nContent-Length: 0\r\n\r\n")
+                        .unwrap();
+                }
+                let response = c.join().unwrap();
+                assert!(response.starts_with(if status == 404 {
+                    b"HTTP/1.1 404 "
+                } else {
+                    b"HTTP/1.1 502 "
+                }));
+                assert!(a.accept().is_err());
+                assert!(b.accept().is_err());
+            })
+        });
+    }
+}
+#[test]
+fn fixed_route_and_query_headers_preserve_component_boundaries() {
+    let a = TcpListener::bind("127.0.0.1:0").unwrap();
+    let b = TcpListener::bind("127.0.0.1:0").unwrap();
+    a.set_nonblocking(true).unwrap();
+    let config = configured(
+        a.local_addr().unwrap(),
+        &format!(
+            "proxy-route \"/v1/feedback\" \"{}\"\nheader \"*\" \"x-robots-tag\" \"index\"\nheader-prefix \"/v1\" \"x-robots-tag\" \"prefix\"\nheader-query \"room\" \"x-robots-tag\" \"noindex\"",
+            b.local_addr().unwrap()
+        ),
+    );
+    with_config(&config, |addr, _| {
+        std::thread::scope(|scope| {
+            let c = scope.spawn(|| {
+                exchange(
+                    addr,
+                    b"GET /v1/feedback?%72oom=one HTTP/1.1\r\nHost: app.example\r\n\r\n",
+                )
+            });
+            let mut origin = bounded_accept(&b);
+            read_request(&origin);
+            origin
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-Robots-Tag: upstream\r\n\r\n",
+                )
+                .unwrap();
+            drop(origin);
+            let out = String::from_utf8(c.join().unwrap()).unwrap();
+            assert!(out.contains("x-robots-tag: noindex\r\n"));
+            assert_eq!(out.matches("x-robots-tag:").count(), 1);
+            assert!(a.accept().is_err());
+            let c = scope.spawn(|| {
+                exchange(
+                    addr,
+                    b"GET /v1/feedbacker?x=room HTTP/1.1\r\nHost: app.example\r\n\r\n",
+                )
+            });
+            let mut origin = bounded_accept(&a);
+            read_request(&origin);
+            origin
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+            drop(origin);
+            let out = String::from_utf8(c.join().unwrap()).unwrap();
+            assert!(out.contains("x-robots-tag: prefix\r\n"));
+            assert!(b.accept().is_err());
+        })
+    });
+}

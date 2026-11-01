@@ -81,7 +81,7 @@ response serialization, socket implementation or connection scheduler.
    one lookup. There is no canonicalize/check/open sequence or retry with weaker
    flags. Kernel errors, including uncertainty during a rename race, deny access.
 3. Descriptor metadata must describe a regular file, exactly one hard link, and
-   a size no greater than **64 MiB**. O_PATH does not first open a FIFO/device for
+   a size no greater than **1 GiB**. O_PATH does not first open a FIFO/device for
    data I/O. A symlink descriptor that Linux can return with O_PATH/NOFOLLOW also
    fails the regular-file check.
 4. While retaining the pinned descriptor, the adapter reopens its inode through
@@ -119,7 +119,7 @@ retain their admitted inode across later renames. Plan deployments accordingly.
 | --- | --- |
 | Request head | 16 KiB, at most 32 headers |
 | Request target | 8192 bytes including query |
-| File size | 64 MiB at admission |
+| File size | 1 GiB at admission |
 | Workers | 4 fixed threads |
 | Pending accepted connections | 8; excess accepted sockets are closed |
 | Request-head deadline | 5 seconds from accept, including time in the queue |
@@ -142,7 +142,7 @@ logs and optional loopback monitoring are described in [runtime operation](runti
 ## Verification
 
 `make check` checks the core, configuration and server; it regenerates and compares
-the actual Rust extraction and checks Lean proofs/221 axiom-audited statements.
+the actual Rust extraction and checks Lean proofs/246 axiom-audited statements.
 On Linux, server tests exercise real TCP serving, virtual-host isolation,
 GET/HEAD/query behavior, malformed framing, limits, excess connections, symlinks,
 hard links, special files, pinned roots and directory/symlink replacement races.

@@ -3,7 +3,11 @@
 //! and tested Rust, outside the Lean proof of `pathward::rules`.
 #![forbid(unsafe_code)]
 
+mod cache;
+mod upstream;
+pub use upstream::ProxyRoute;
 mod surface;
+pub use cache::{CachePolicy, CacheRule};
 
 use kdl::{KdlDocument, KdlNode};
 use pathward::rules::{self, Publication};
@@ -11,10 +15,10 @@ use std::fmt;
 use std::io::Read;
 use std::net::SocketAddr;
 
-pub const MAX_CONFIG_BYTES: usize = 65_536;
+pub const MAX_CONFIG_BYTES: usize = 1_048_576;
 pub const MAX_ROUTE_RULES: usize = 64;
 pub const MAX_SITES: usize = 16;
-pub const MAX_PUBLICATIONS: usize = 256;
+pub const MAX_PUBLICATIONS: usize = 4096;
 pub const MAX_REDIRECTS: usize = 64;
 pub const MAX_HEADERS: usize = 32;
 
@@ -26,8 +30,24 @@ pub struct Redirect<'a> {
     pub status: u16,
     pub prefix: bool,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderScope {
+    Exact,
+    Prefix,
+    Query,
+}
+impl HeaderScope {
+    pub fn directive(self) -> &'static str {
+        match self {
+            Self::Exact => "header",
+            Self::Prefix => "header-prefix",
+            Self::Query => "header-query",
+        }
+    }
+}
 #[derive(Clone, Copy)]
 pub struct Header<'a> {
+    pub kind: HeaderScope,
     pub scope: &'a str,
     pub name: &'a str,
     pub value: &'a str,
@@ -93,7 +113,7 @@ impl ParsedConfig {
             .read_to_end(&mut bytes)
             .map_err(|_| error("", 0, "could not read configuration"))?;
         if bytes.len() > MAX_CONFIG_BYTES {
-            return Err(error("", 0, "configuration exceeds 65536 bytes"));
+            return Err(error("", 0, "configuration exceeds 1048576 bytes"));
         }
         let text =
             std::str::from_utf8(&bytes).map_err(|_| error("", 0, "configuration must be UTF-8"))?;
@@ -102,7 +122,7 @@ impl ParsedConfig {
 
     pub fn parse(source: &str) -> Result<Self, ConfigError> {
         if source.len() > MAX_CONFIG_BYTES {
-            return Err(error(source, 0, "configuration exceeds 65536 bytes"));
+            return Err(error(source, 0, "configuration exceeds 1048576 bytes"));
         }
         surface::check(source)?;
         let document = KdlDocument::parse_v2(source).map_err(|failure| {
@@ -146,12 +166,14 @@ impl ParsedConfig {
             let mut upstream = None;
             let mut denies = Vec::new();
             let mut proxy_paths = Vec::new();
+            let mut proxy_routes = Vec::new();
             let mut websocket_origins = Vec::new();
             let mut limits = ProxyLimits::default();
             let mut limit_names = std::collections::BTreeSet::new();
             let mut publications = Vec::new();
             let mut redirects = Vec::new();
             let mut headers = Vec::new();
+            let mut cache = Vec::new();
             for child in children.nodes() {
                 if child.children().is_some() {
                     return Err(self.at(child, "nested directive blocks are not supported"));
@@ -165,6 +187,7 @@ impl ParsedConfig {
                             &mut proxy_paths
                         };
                         if !pathward::valid_path(value.as_bytes())
+                            || (value.len() > 1 && value.ends_with('/'))
                             || list.len() == MAX_ROUTE_RULES
                             || list.contains(&value)
                         {
@@ -211,6 +234,21 @@ impl ParsedConfig {
                             return Err(self.at(child, "invalid or duplicate proxy limit/timeout"));
                         }
                     }
+                    "proxy-route" | "proxy-resource" => {
+                        let resource = child.name().value() == "proxy-resource";
+                        let v = self.arguments(child, if resource { 3 } else { 2 })?;
+                        let route = ProxyRoute::parse(&v, resource).ok_or_else(|| {
+                            self.at(child, "invalid loopback route or resource probe policy")
+                        })?;
+                        if proxy_routes.len() == MAX_ROUTE_RULES
+                            || proxy_routes
+                                .iter()
+                                .any(|r: &ProxyRoute<'_>| r.prefix == route.prefix)
+                        {
+                            return Err(self.at(child, "duplicate or excessive proxy route"));
+                        }
+                        proxy_routes.push(route);
+                    }
                     "reverse-proxy" => {
                         let values = self.arguments(child, 1)?;
                         let address = values[0].parse::<SocketAddr>().map_err(|_| {
@@ -232,7 +270,9 @@ impl ParsedConfig {
                         if root.is_some() {
                             return Err(self.at(child, "duplicate root directive"));
                         }
-                        if !pathward::valid_path(values[0].as_bytes()) {
+                        if !pathward::valid_path(values[0].as_bytes())
+                            || (values[0].len() > 1 && values[0].ends_with('/'))
+                        {
                             return Err(
                                 self.at(child, "root must be an absolute canonical Unix path")
                             );
@@ -254,7 +294,7 @@ impl ParsedConfig {
                     "publish" => {
                         let values = self.arguments(child, 2)?;
                         if publications.len() == MAX_PUBLICATIONS {
-                            return Err(self.at(child, "a site may publish at most 256 URLs"));
+                            return Err(self.at(child, "a site may publish at most 4096 URLs"));
                         }
                         let publication = Publication {
                             path: values[0].as_bytes(),
@@ -293,7 +333,10 @@ impl ParsedConfig {
                             || !pathward::valid_path(v[0].as_bytes())
                             || !valid_host(v[1])
                             || !pathward::valid_path(v[2].as_bytes())
-                            || (prefix && v[0] == "/")
+                            || (prefix
+                                && (v[0] == "/"
+                                    || v[0].ends_with('/')
+                                    || (v[2] != "/" && v[2].ends_with('/'))))
                         {
                             return Err(self.at(child, "invalid or excessive redirect"));
                         }
@@ -310,18 +353,59 @@ impl ParsedConfig {
                             prefix,
                         });
                     }
-                    "header" => {
-                        let v = self.arguments(child, 3)?;
-                        if headers.len() == MAX_HEADERS
+                    "cache" | "cache-prefix" => {
+                        let v = self.arguments(child, 2)?;
+                        let prefix = child.name().value() == "cache-prefix";
+                        if cache.len() == MAX_ROUTE_RULES
                             || (v[0] != "*" && !pathward::valid_path(v[0].as_bytes()))
-                            || !pathward::response::header_allowed(v[1].as_bytes(), v[2].as_bytes())
-                            || headers
+                            || (prefix && (v[0] == "*" || (v[0] != "/" && v[0].ends_with('/'))))
+                            || cache
                                 .iter()
-                                .any(|h: &Header<'_>| h.scope == v[0] && h.name == v[1])
+                                .any(|r: &CacheRule<'_>| r.scope == v[0] && r.prefix == prefix)
+                        {
+                            return Err(
+                                self.at(child, "invalid, duplicate or excessive cache rule")
+                            );
+                        }
+                        let policy = CachePolicy::parse(v[1])
+                            .ok_or_else(|| self.at(child, "invalid cache policy"))?;
+                        cache.push(CacheRule {
+                            scope: v[0],
+                            prefix,
+                            policy,
+                        });
+                    }
+                    "header" | "header-prefix" | "header-query" => {
+                        let v = self.arguments(child, 3)?;
+                        let kind = match child.name().value() {
+                            "header-prefix" => HeaderScope::Prefix,
+                            "header-query" => HeaderScope::Query,
+                            _ => HeaderScope::Exact,
+                        };
+                        let scope_valid = match kind {
+                            HeaderScope::Exact => {
+                                v[0] == "*" || pathward::valid_path(v[0].as_bytes())
+                            }
+                            HeaderScope::Prefix => upstream::prefix(v[0]),
+                            HeaderScope::Query => {
+                                !v[0].is_empty()
+                                    && v[0].len() <= 64
+                                    && v[0].bytes().all(|b| {
+                                        b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
+                                    })
+                            }
+                        };
+                        if headers.len() == MAX_HEADERS
+                            || !scope_valid
+                            || !pathward::response::header_allowed(v[1].as_bytes(), v[2].as_bytes())
+                            || headers.iter().any(|h: &Header<'_>| {
+                                h.scope == v[0] && h.name == v[1] && h.kind == kind
+                            })
                         {
                             return Err(self.at(child, "invalid, duplicate or excessive header"));
                         }
                         headers.push(Header {
+                            kind,
                             scope: v[0],
                             name: v[1],
                             value: v[2],
@@ -354,7 +438,10 @@ impl ParsedConfig {
                         .iter()
                         .any(|(_, key)| key.starts_with("stream-") || *key == "streams"))
                 || !limits.valid()
-                || (upstream.is_none() && (!proxy_paths.is_empty() || !limit_names.is_empty()))
+                || (upstream.is_none()
+                    && (!proxy_paths.is_empty()
+                        || !proxy_routes.is_empty()
+                        || !limit_names.is_empty()))
             {
                 return Err(self.at(
                     node,
@@ -364,7 +451,7 @@ impl ParsedConfig {
             if (!publications.is_empty() && rules::compile(&publications).is_none())
                 || (publications.is_empty() && redirects.is_empty() && upstream.is_none())
             {
-                return Err(self.at(node, "site requires 1 to 256 valid, distinct publish URLs"));
+                return Err(self.at(node, "site requires 1 to 4096 valid, distinct publish URLs"));
             }
             if publications.iter().any(|p| {
                 redirects
@@ -381,6 +468,9 @@ impl ParsedConfig {
             {
                 return Err(self.at(node, "configured headers exceed 8192 bytes"));
             }
+            if root.is_none() && !cache.is_empty() {
+                return Err(self.at(node, "cache rules require a static root"));
+            }
             // Moving the same vector preserves the byte-for-byte declarations
             // accepted by rules::compile; no expansion or additional rule occurs.
             sites.push(CompiledSite {
@@ -390,11 +480,13 @@ impl ParsedConfig {
                 upstream,
                 denies,
                 proxy_paths,
+                proxy_routes,
                 websocket_origins,
                 limits,
                 publications,
                 redirects,
                 headers,
+                cache,
             });
         }
         for site in &sites {
@@ -465,15 +557,23 @@ pub struct CompiledSite<'a> {
     upstream: Option<SocketAddr>,
     denies: Vec<&'a str>,
     proxy_paths: Vec<&'a str>,
+    proxy_routes: Vec<ProxyRoute<'a>>,
     websocket_origins: Vec<&'a str>,
     limits: ProxyLimits,
     tls: TlsPolicy,
     publications: Vec<Publication<'a>>,
     redirects: Vec<Redirect<'a>>,
     headers: Vec<Header<'a>>,
+    cache: Vec<CacheRule<'a>>,
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn proxy_routes(&self) -> &[ProxyRoute<'a>] {
+        &self.proxy_routes
+    }
+    pub fn cache_rules(&self) -> &[CacheRule<'a>] {
+        &self.cache
+    }
     pub fn websocket_origins(&self) -> &[&'a str] {
         &self.websocket_origins
     }

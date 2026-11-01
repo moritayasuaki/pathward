@@ -20,7 +20,7 @@ directory and atomically renaming it over the configured pathname, then send
 SIGHUP. Keep the configuration and its parent directories writable only by the
 service administrator. The CLI pins one descriptor with O_PATH/NOFOLLOW, rejects nonregular/oversized
 inputs before data opening, reopens through trusted procfs with NONBLOCK and an
-inode identity check, and retains the existing 64 KiB parser limit.
+inode identity check, and retains the 1 MiB parser limit.
 Concurrent in-place writes are not a supported configuration publication method.
 Symlink configuration files are refused. Trusted local filesystem operations can
 still block in the kernel; NONBLOCK does not time-limit regular-file I/O.

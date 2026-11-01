@@ -35,6 +35,154 @@ impl http::Transport for Exchange {
 fn exchange(server: &Server, target: &str, host: &str, sni: Option<&str>) -> String {
     exchange_mode(server, target, host, sni, 80, false)
 }
+
+fn raw_exchange(server: &Server, request: &str) -> String {
+    let mut stream = Exchange {
+        input: io::Cursor::new(request.as_bytes().to_vec()),
+        output: Vec::new(),
+        port: 80,
+    };
+    let snapshot = server.state.read().unwrap().snapshot.clone();
+    Server::respond(
+        &snapshot,
+        &mut stream,
+        Instant::now(),
+        None,
+        false,
+        &server.stream_quota,
+        &|| false,
+        None,
+    )
+    .unwrap();
+    String::from_utf8(stream.output).unwrap()
+}
+
+#[test]
+fn static_ranges_preconditions_cache_and_large_files_use_one_authorized_descriptor() {
+    use std::io::{Seek, SeekFrom};
+    let root = std::env::temp_dir().join(format!(
+        "pathward-content-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(root.clone());
+    fs::write(root.join("index.html"), b"0123456789").unwrap();
+    fs::write(root.join("secret"), b"PRIVATE").unwrap();
+    let mut file = fs::File::create(root.join("big.bin")).unwrap();
+    file.set_len(128 * 1024 * 1024).unwrap();
+    file.seek(SeekFrom::End(-4)).unwrap();
+    file.write_all(b"TAIL").unwrap();
+    drop(file);
+    let text = format!(
+        "site \"example.com\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\npublish \"/big.bin\" \"big.bin\"\ncache \"*\" \"public,max-age=3600,immutable\"\n}}",
+        root.display()
+    );
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    let server = Server::new(&parsed.compile().unwrap()).unwrap();
+    let query = |method: &str, path: &str, headers: &str| {
+        raw_exchange(
+            &server,
+            &format!("{method} {path} HTTP/1.1\r\nHost: example.com\r\n{headers}\r\n"),
+        )
+    };
+    let full = query("GET", "/", "");
+    assert!(full.ends_with("0123456789"));
+    assert!(full.contains("Cache-Control: public,max-age=3600,immutable\r\n"));
+    let etag = full.lines().find_map(|l| l.strip_prefix("ETag: ")).unwrap();
+    let modified = full
+        .lines()
+        .find_map(|l| l.strip_prefix("Last-Modified: "))
+        .unwrap();
+    for (range, body, field) in [
+        ("bytes=2-4", "234", "bytes 2-4/10"),
+        ("bytes=-2", "89", "bytes 8-9/10"),
+        ("bytes=7-", "789", "bytes 7-9/10"),
+    ] {
+        let r = query("GET", "/", &format!("Range: {range}\r\n"));
+        assert!(r.starts_with("HTTP/1.1 206"));
+        assert!(r.ends_with(body));
+        assert!(r.contains(&format!("Content-Range: {field}\r\n")));
+    }
+    let r = query("GET", "/", "Range: bytes=10-\r\n");
+    assert!(r.starts_with("HTTP/1.1 416"));
+    assert!(r.contains("Content-Range: bytes */10\r\n"));
+    assert!(r.contains("Cache-Control: no-store\r\n"));
+    let r = query("HEAD", "/", "Range: bytes=2-4\r\n");
+    assert!(r.starts_with("HTTP/1.1 200"));
+    assert!(r.contains("Content-Length: 10\r\n"));
+    assert!(r.ends_with("\r\n\r\n"));
+    let r = query(
+        "GET",
+        "/",
+        &format!("If-None-Match: {etag}\r\nRange: bytes=0-1\r\n"),
+    );
+    assert!(r.starts_with("HTTP/1.1 304"));
+    assert!(!r.contains("Content-Length:"));
+    assert!(r.ends_with("\r\n\r\n"));
+    assert!(
+        query("GET", "/", &format!("If-Modified-Since: {modified}\r\n"))
+            .starts_with("HTTP/1.1 304")
+    );
+    assert!(
+        query(
+            "GET",
+            "/",
+            &format!("If-None-Match: \"mismatch\"\r\nIf-Modified-Since: {modified}\r\n")
+        )
+        .starts_with("HTTP/1.1 200")
+    );
+    assert!(
+        query(
+            "GET",
+            "/",
+            &format!("If-Match: \"wrong\"\r\nIf-None-Match: {etag}\r\n")
+        )
+        .starts_with("HTTP/1.1 412")
+    );
+    assert!(
+        query(
+            "GET",
+            "/",
+            &format!("If-Range: {etag}\r\nRange: bytes=0-1\r\n")
+        )
+        .ends_with("0123456789")
+    );
+    assert!(
+        query("GET", "/", "Cookie: session=private\r\n").contains("Cache-Control: no-store\r\n")
+    );
+    assert!(
+        query("GET", "/", "Range: bytes=0-1\r\nRange: bytes=3-4\r\n").starts_with("HTTP/1.1 400")
+    );
+    for path in ["/secret", "/../secret"] {
+        let r = query("GET", path, "If-None-Match: *\r\nRange: bytes=0-1\r\n");
+        assert!(r.starts_with("HTTP/1.1 404"));
+        assert!(!r.contains("ETag:"));
+    }
+    let r = query("GET", "/big.bin", "Range: bytes=-4\r\n");
+    assert!(r.starts_with("HTTP/1.1 206"));
+    assert!(r.ends_with("TAIL"));
+    assert!(r.contains("Content-Range: bytes 134217724-134217727/134217728\r\n"));
+    // Removing a publication on reload must invalidate even a previously seen validator.
+    let text = text.replace("publish \"/big.bin\" \"big.bin\"\n", "");
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    server
+        .reload(&parsed.compile().unwrap(), &AtomicBool::new(false))
+        .unwrap();
+    assert!(
+        query("GET", "/big.bin", "If-None-Match: *\r\nRange: bytes=-4\r\n")
+            .starts_with("HTTP/1.1 404")
+    );
+}
 fn exchange_mode(
     server: &Server,
     target: &str,
@@ -90,6 +238,10 @@ fn configured_locations_headers_and_reload_use_one_checked_policy() {
     );
     let p = ParsedConfig::parse(&text).unwrap();
     let server = Server::new(&p.compile().unwrap()).unwrap();
+    assert!(
+        exchange(&server, "/old/deep/ja/?x=1", "example.com", None)
+            .contains("Location: https://other.example/ja/?x=1\r\n")
+    );
     for (local, sni, redirect, authority, status) in [
         (8443, Some("example.com"), false, "example.com:443", 200),
         (8443, Some("example.com"), false, "example.com:8443", 400),

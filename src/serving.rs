@@ -2,7 +2,7 @@
 //! This module performs no parsing of HTTP headers, OS calls, or I/O.
 use crate::{rules, same_path, valid_path};
 
-pub const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_FILE_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// The exact first '?' offset, or the complete target length. No decoding.
 pub fn path_length(target: &[u8]) -> usize {

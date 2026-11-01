@@ -114,7 +114,7 @@ def getBytes : List U8 := [71#u8, 69#u8, 84#u8]
 def headBytes : List U8 := [72#u8, 69#u8, 65#u8, 68#u8]
 
 def lookupResult (p : Slice U8) (rs : Slice rules.Publication) : Option (Slice U8) :=
-  if rs.val.length ≤ 256 ∧ canonical p.val = true then lookupSpec p.val rs.val else none
+  if rs.val.length ≤ 4096 ∧ canonical p.val = true then lookupSpec p.val rs.val else none
 
 def grantResult (send : Bool) (t : Slice U8) (rs : Slice rules.Publication) : Option serving.Grant := do
   let p ← requestSpec t
@@ -178,12 +178,12 @@ theorem granted_target_safe (m h c t : Slice U8) (rs : Slice rules.Publication) 
 
 abbrev filePolicy (p o : serving.FileFacts) : Prop :=
   p.regular = true ∧ o.regular = true ∧ p.links = 1#u64 ∧ o.links = 1#u64 ∧
-  p.size.val ≤ 67108864 ∧ o.size.val ≤ 67108864 ∧
+  p.size.val ≤ 1073741824 ∧ o.size.val ≤ 1073741824 ∧
   p.device = o.device ∧ p.inode = o.inode ∧ p.size = o.size
 
 theorem file_allowed_eq (p o : serving.FileFacts) :
     serving.file_allowed p o = ok (decide (filePolicy p o)) := by
-  have hc : serving.MAX_FILE_BYTES = ok 67108864#u64 := by
+  have hc : serving.MAX_FILE_BYTES = ok 1073741824#u64 := by
     unfold serving.MAX_FILE_BYTES
     rfl
   unfold serving.file_allowed

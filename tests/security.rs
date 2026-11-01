@@ -5,14 +5,18 @@ fn grammar(path: &[u8]) -> bool {
         return false;
     }
     path == b"/"
-        || path[1..].split(|b| *b == b'/').all(|part| {
-            !part.is_empty()
-                && part[0] != b'.'
-                && part[part.len() - 1] != b'.'
-                && part
-                    .iter()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'.'))
-        })
+        || path[1..]
+            .strip_suffix(b"/")
+            .unwrap_or(&path[1..])
+            .split(|b| *b == b'/')
+            .all(|part| {
+                !part.is_empty()
+                    && part[0] != b'.'
+                    && part[part.len() - 1] != b'.'
+                    && part
+                        .iter()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'.'))
+            })
 }
 
 #[test]
@@ -21,6 +25,7 @@ fn accepts_canonical_paths_without_changing_bytes() {
         b"/".as_slice(),
         b"/index.html",
         b"/assets/main-v2.js",
+        b"/a/",
         b"/A_0-b/file..txt",
     ] {
         assert!(valid_path(path));
@@ -36,7 +41,6 @@ fn denies_attack_corpus_even_if_explicitly_published() {
         b"index.html",
         b"//host",
         b"/a//b",
-        b"/a/",
         b"/.",
         b"/..",
         b"/a/../secret",
@@ -99,12 +103,12 @@ fn length_boundary() {
 
 #[test]
 fn publication_count_boundary() {
-    let allowed = [b"/".as_slice(); 256];
+    let allowed = [b"/".as_slice(); 4096];
     assert!(is_public(b"/", &allowed));
-    let too_many = [b"/".as_slice(); 257];
+    let too_many = [b"/".as_slice(); 4097];
     assert!(!is_public(b"/", &too_many));
-    let mut last = [b"/no".as_slice(); 256];
-    last[255] = b"/yes";
+    let mut last = [b"/no".as_slice(); 4096];
+    last[4095] = b"/yes";
     assert!(is_public(b"/yes", &last));
     assert!(!is_public(b"/absent", &last));
 }

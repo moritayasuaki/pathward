@@ -57,7 +57,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 221 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 246 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving
@@ -102,14 +102,15 @@ advisory scan does not replace integration review.
 ## Deliberate limitations
 
 No upstream health checks, general-purpose streaming, arbitrary WebSocket extensions,
-context-takeover compression, multiple upstreams within one hostname,
+context-takeover compression, automatic load balancing,
 remote HTTPS upstreams, authentication, wildcard
 domains, environment expansion, includes, directory grants or implicit indexes.
-The KDL profile supports ordinary quoted values and line comments, with 64 KiB,
-16 sites and 256 exact mappings per site. Static publication/redirect paths remain ASCII and reject percent
-encoding, hidden components and trailing slashes other than `/`. Files are limited
-to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL syntax
-need explicit policy/resource extensions.
+The KDL profile supports ordinary quoted values and line comments, with 1 MiB,
+16 sites and 4096 exact mappings per site. Explicit directory URLs are supported;
+static publication/redirect paths remain ASCII and reject percent encoding and hidden components.
+Files are limited to 1 GiB. See [site compatibility](site-compatibility.md) for
+single byte ranges, cache policies and explicit resource discovery routes.
+Unicode filenames and broader KDL syntax remain unsupported.
 
 The [isolated migration rehearsal](staging-rehearsal.md) now exercises real Linux
 filesystem storage, resource-limited supervision, actual static content/security

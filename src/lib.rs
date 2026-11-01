@@ -60,9 +60,9 @@ pub fn step(state: State, byte: u8) -> State {
     }
 }
 
-/// Only the root path and complete, non-dot-ending components are accepted.
+/// The root, complete components, and one final directory separator are accepted.
 pub fn accepting(state: State) -> bool {
-    matches!(state, State::Root | State::Segment)
+    matches!(state, State::Root | State::Segment | State::Separator)
 }
 
 /// Validate a raw URL *path*, excluding query and fragment, without modifying it.
@@ -97,13 +97,13 @@ pub fn same_path(left: &[u8], right: &[u8]) -> bool {
 
 /// Deny by default. Even an explicitly listed unsafe path remains denied.
 pub fn is_public(path: &[u8], published: &[&[u8]]) -> bool {
-    if published.len() > 256 || !valid_path(path) {
+    if published.len() > 4096 || !valid_path(path) {
         return false;
     }
     listed(path, published, 0)
 }
 
-// The public entry point bounds recursion to 257 calls. Using a recursive
+// The public entry point bounds recursion to 4097 calls. Using a recursive
 // helper avoids Aeneas's nested-borrow loop-invariant limitation.
 fn listed(path: &[u8], published: &[&[u8]], index: usize) -> bool {
     if index < published.len() {
@@ -132,3 +132,6 @@ pub mod proxy;
 pub mod routing;
 
 pub mod streaming;
+
+pub mod content;
+pub mod upstream;

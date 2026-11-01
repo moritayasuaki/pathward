@@ -281,6 +281,10 @@ pub fn content_type(target: &str) -> &'static str {
         "ico" => "image/vnd.microsoft.icon",
         "pdf" => "application/pdf",
         "wasm" => "application/wasm",
+        "zip" => "application/zip",
+        "pem" => "application/x-x509-ca-cert",
+        "sig" => "application/pgp-signature",
+        "ps1" => "application/x-powershell",
         "woff2" => "font/woff2",
         _ => "application/octet-stream",
     }
@@ -289,6 +293,10 @@ pub fn content_type(target: &str) -> &'static str {
 pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
     let reason = match status {
         200 => "OK",
+        206 => "Partial Content",
+        304 => "Not Modified",
+        412 => "Precondition Failed",
+        416 => "Range Not Satisfiable",
         301 => "Moved Permanently",
         308 => "Permanent Redirect",
         400 => "Bad Request",

@@ -1,3 +1,5 @@
+import ContentProofs
+import UpstreamProofs
 import StreamingProofs
 import RoutingProofs
 import ProxyProofs
@@ -239,3 +241,31 @@ import ReleaseProofs
 #print axioms StreamingProofs.no_unsolicited_deflate
 #print axioms StreamingProofs.no_context_takeover
 #print axioms StreamingProofs.optional_uncompressed
+
+#print axioms PathwardProofs.directory_suffix_allowed
+#print axioms RulesProofs.target_no_directory_suffix
+
+#print axioms ContentProofs.span_eq
+#print axioms ContentProofs.span_bounded
+#print axioms ContentProofs.span_total
+#print axioms ContentProofs.preconditions_eq
+#print axioms ContentProofs.failed_match_precedes_not_modified
+#print axioms ContentProofs.tag_precedes_date
+#print axioms ContentProofs.failed_date_precedes_not_modified
+#print axioms ContentProofs.cache_eq
+#print axioms ContentProofs.no_credential_cache
+#print axioms ContentProofs.no_unpublished_cache
+#print axioms ContentProofs.cache_status_and_duration
+
+#print axioms UpstreamProofs.probe_eq
+#print axioms UpstreamProofs.probe_read_only
+#print axioms UpstreamProofs.probe_bounded
+#print axioms UpstreamProofs.next_eq
+#print axioms UpstreamProofs.only_absence_falls_through
+#print axioms UpstreamProofs.no_retry_after_last
+#print axioms UpstreamProofs.owned_eq
+#print axioms UpstreamProofs.authorization_is_final
+#print axioms UpstreamProofs.gone_is_final
+#print axioms UpstreamProofs.server_error_is_not_owner
+#print axioms UpstreamProofs.query_eq
+#print axioms UpstreamProofs.encoded_query_applies

@@ -102,57 +102,28 @@ theorem subtree_boundary (p f : Slice U8) (h : routing.subtree p f = ok true) (h
   simpa using And.intro hr.2.2.2.1 hr.2.2.2.2
 
 def stemPolicy (p : Slice U8) : Option (Slice U8) :=
-  if canonical p.val then some p
-  else if 1 < p.val.length ∧ (p.val.drop (p.val.length-1)).head? = some 47#u8 ∧ canonical (p.val.take (p.val.length-1)) = true
-    then some (prefixSlice p (p.val.length-1)) else none
+  if canonical p.val then some p else none
 
 theorem stem_eq (p : Slice U8) : routing.stem p = ok (stemPolicy p) := by
-  unfold routing.stem
-  rw [valid_path_eq]
-  by_cases hp : canonical p.val = true
-  · simp [hp,stemPolicy]
-  · by_cases hl : 1 < p.val.length
-    · have hc : Slice.len p > 1#usize := by simpa using hl
-      obtain ⟨i, hi, hv, _⟩ := WP.spec_imp_exists (Usize.sub_bv_spec (x := Slice.len p) (y := 1#usize) (by scalar_tac))
-      have hiv : i.val = p.val.length-1 := by simpa using hv
-      have hlen : i.val ≤ p.val.length := by omega
-      have ht : (0#usize).val < (suffixSlice p i.val).val.length := by simp [suffixSlice,hiv]; omega
-      simp only [hp,hc,if_true,hi,bind_tc_ok,split_eq p i hlen]
-      simp only [Bool.false_eq_true,if_false]
-      have ix := index_eq (suffixSlice p i.val) 0#usize ht
-      simp only [suffixSlice,hiv] at ix
-      have hlast : p.val.length-1 < p.val.length := by omega
-      simp [stemPolicy,hp,hl,prefixSlice,suffixSlice,hiv,ix,valid_path_eq,List.head?_eq_getElem?,List.getElem?_eq_getElem hlast]
-      split_ifs <;> simp_all
-    · simp [hp,hl,stemPolicy]
+  simp [routing.stem, valid_path_eq, stemPolicy]
+  split_ifs <;> rfl
 
 theorem stem_canonical (p s : Slice U8) (h : routing.stem p = ok (some s)) : canonical s.val = true := by
   rw [stem_eq] at h
   unfold stemPolicy at h
-  split_ifs at h <;> simp_all [prefixSlice]
-  subst s
-  simp_all
+  split_ifs at h with hc
+  · have he : p = s := by simpa using h
+    simpa [←he] using hc
+  · simp at h
 
 theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :
     p.val = s.val ∨ p.val = s.val ++ [47#u8] := by
   rw [stem_eq] at h
   unfold stemPolicy at h
-  split_ifs at h with hc hs
+  split_ifs at h
   · have he : p = s := by simpa using h
     subst s
     exact Or.inl rfl
-  · have he : prefixSlice p (p.val.length-1) = s := by simpa using h
-    have ht : p.val.drop (p.val.length-1) = [47#u8] := by
-      have hl : (p.val.drop (p.val.length-1)).length = 1 := by simp; omega
-      cases hd : p.val.drop (p.val.length-1) with
-      | nil => simp [hd] at hl
-      | cons b tail =>
-        have he : tail = [] := by simpa [hd] using hl
-        have hb : b = 47#u8 := by simpa [hd] using hs.2.1
-        simp [he,hb]
-    right
-    rw [←he]
-    simpa [prefixSlice,ht] using (List.take_append_drop (p.val.length-1) p.val).symm
   · simp at h
 
 theorem stem_input_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :

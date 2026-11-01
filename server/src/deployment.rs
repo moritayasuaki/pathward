@@ -29,13 +29,13 @@ pub fn generate(
 ) -> io::Result<String> {
     if base.site(host).is_none_or(|site| site.root().is_none())
         || !pathward::valid_path(root.as_bytes())
-        || manifest.len() > 65_536
+        || manifest.len() > 1_048_576
     {
         return Err(error());
     }
     let files: Vec<_> = manifest.lines().collect();
     if files.is_empty()
-        || files.len() + usize::from(index.is_some()) > 256
+        || files.len() + usize::from(index.is_some()) > pathward_config::MAX_PUBLICATIONS
         || files
             .iter()
             .any(|f| !pathward::rules::valid_target(f.as_bytes()))
@@ -68,6 +68,28 @@ pub fn generate(
                 "    reverse-proxy {}\n",
                 quoted(&upstream.to_string())
             ));
+        }
+        for route in site.proxy_routes() {
+            let endpoints = route
+                .candidates
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            if route.width == 0 {
+                out.push_str(&format!(
+                    "    proxy-route {} {}\n",
+                    quoted(route.prefix),
+                    quoted(&endpoints)
+                ));
+            } else {
+                out.push_str(&format!(
+                    "    proxy-resource {} {} {}\n",
+                    quoted(route.prefix),
+                    quoted(&route.width.to_string()),
+                    quoted(&endpoints)
+                ));
+            }
         }
         for path in site.denies() {
             out.push_str(&format!("    deny {}\n", quoted(path)));
@@ -190,9 +212,18 @@ pub fn generate(
                 r.status
             ));
         }
+        for c in site.cache_rules() {
+            out.push_str(&format!(
+                "    {} {} {}\n",
+                if c.prefix { "cache-prefix" } else { "cache" },
+                quoted(c.scope),
+                quoted(&c.policy.value())
+            ));
+        }
         for h in site.headers() {
             out.push_str(&format!(
-                "    header {} {} {}\n",
+                "    {} {} {} {}\n",
+                h.kind.directive(),
                 quoted(h.scope),
                 quoted(h.name),
                 quoted(h.value)
@@ -417,7 +448,7 @@ impl Managed {
                             return Err(error());
                         }
                         let length: usize = fields[3].parse().map_err(|_| error())?;
-                        if length > 65_536 {
+                        if length > 1_048_576 {
                             return Err(error());
                         }
                         let bytes = if fields[0] == "ROLLBACK" {
