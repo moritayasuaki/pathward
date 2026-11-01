@@ -19,6 +19,15 @@ pub(crate) struct Response {
     pub live: Option<Live>,
 }
 
+fn forwarded_authority(req: &Request<'_>, external_port: u16, encrypted: bool) -> String {
+    let port = pathward::response::forwarded_port(req.port, external_port, encrypted);
+    if port == 0 {
+        req.host.clone()
+    } else {
+        format!("{}:{port}", req.host)
+    }
+}
+
 fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "invalid upstream response")
 }
@@ -184,7 +193,8 @@ pub(crate) fn forward(
     let mut socket = TcpStream::connect_timeout(&upstream, timeout).map_err(failure)?;
     let method = std::str::from_utf8(req.method).map_err(|_| Rejection(400))?;
     let target = std::str::from_utf8(req.target).map_err(|_| Rejection(400))?;
-    let mut head = format!("{method} {target} HTTP/1.1\r\nHost: {}\r\n", req.host);
+    let authority = forwarded_authority(req, external_port, encrypted);
+    let mut head = format!("{method} {target} HTTP/1.1\r\nHost: {authority}\r\n");
     if let Some(ws) = &upgrade {
         head.push_str(&format!("Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: {}\r\nSec-WebSocket-Version: 13\r\n", ws.key));
         if ws.deflate {
@@ -209,7 +219,7 @@ pub(crate) fn forward(
         head.push_str(&format!("{name}: {value}\r\n"));
     }
     via.push_str("1.1 pathward");
-    head.push_str(&format!("Via: {via}\r\nX-Forwarded-Host: {}\r\nX-Forwarded-Proto: {}\r\nX-Forwarded-Port: {external_port}\r\n",req.host, if encrypted {"https"} else {"http"}));
+    head.push_str(&format!("Via: {via}\r\nX-Forwarded-Host: {authority}\r\nX-Forwarded-Proto: {}\r\nX-Forwarded-Port: {external_port}\r\n", if encrypted {"https"} else {"http"}));
     if let Some(peer) = client.peer_ip() {
         head.push_str(&format!("X-Forwarded-For: {peer}\r\n"));
     }
@@ -584,11 +594,12 @@ fn select_upstream(
     let key = std::str::from_utf8(key).map_err(|_| Rejection(404))?;
     // Construct from trusted host and validated path only. Client headers, query,
     // body, cookies, authorization and the original method are never copied.
+    let authority = forwarded_authority(req, external_port, encrypted);
     let probe = format!(
         "GET {}/{key} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Length: 0\r\nVia: 1.1 pathward\r\nX-Forwarded-Host: {}\r\nX-Forwarded-Proto: {}\r\nX-Forwarded-Port: {external_port}\r\n\r\n",
         route.prefix,
-        req.host,
-        req.host,
+        authority,
+        authority,
         if encrypted { "https" } else { "http" }
     );
     for (index, &candidate) in route.candidates.iter().enumerate() {

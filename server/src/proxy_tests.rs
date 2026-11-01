@@ -81,6 +81,42 @@ fn one_response(reply: &[u8], request: &[u8]) -> (Vec<u8>, Vec<u8>) {
 const GET: &[u8] = b"GET /api/ HTTP/1.1\r\nHost: app.example\r\n\r\n";
 
 #[test]
+fn explicit_nondefault_authority_reaches_origin_checks() {
+    let upstream = TcpListener::bind("127.0.0.1:0").unwrap();
+    with_proxy(upstream.local_addr().unwrap(), |addr, _| {
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                let (mut socket, _) = upstream.accept().unwrap();
+                let wire = String::from_utf8(read_request(&socket))
+                    .unwrap()
+                    .to_ascii_lowercase();
+                let authority = format!("app.example:{}", addr.port());
+                let accepted = wire.contains(&format!("\r\nhost: {authority}\r\n"))
+                    && wire.contains(&format!("\r\nx-forwarded-host: {authority}\r\n"))
+                    && wire.contains(&format!("\r\norigin: http://{authority}\r\n"));
+                socket
+                    .write_all(if accepted {
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"
+                    } else {
+                        b"HTTP/1.1 403 Forbidden\r\nContent-Length: 2\r\n\r\nNO"
+                    })
+                    .unwrap();
+            });
+            let reply = exchange(addr, format!(
+                "GET / HTTP/1.1\r\nHost: APP.EXAMPLE:{}\r\nOrigin: http://app.example:{}\r\nX-Forwarded-Host: attacker.example:9000\r\n\r\n",
+                addr.port(), addr.port()
+            ).as_bytes());
+            origin.join().unwrap();
+            assert!(
+                reply.starts_with(b"HTTP/1.1 200 "),
+                "{}",
+                String::from_utf8_lossy(&reply)
+            );
+        });
+    });
+}
+
+#[test]
 fn post_preserves_raw_target_and_binary_body_and_rebuilds_authority_and_forwarding() {
     let body = b"a\0b\r\nGET /admin HTTP/1.1\r\n";
     let mut request=format!("POST /api/%E6%97%A5/?q=%2f HTTP/1.1\r\nHost: APP.EXAMPLE\r\nContent-Length: {}\r\nAuthorization: Bearer test-only\r\nCookie: session=test-only\r\nForwarded: host=evil;proto=https\r\nX-Forwarded-For: 203.0.113.8\r\nX-Forwarded-Proto: https\r\nX-Forwarded-Host: evil.example\r\nX-Forwarded-Port: 443\r\nX-Forwarded-Client-Cert: forged\r\nX-Real-IP: forged\r\nProxy: http://evil.example\r\nProxy-Authorization: secret\r\nTE: trailers\r\nConnection: keep-alive\r\n\r\n",body.len()).into_bytes();
@@ -827,10 +863,15 @@ fn discovery_is_anonymous_and_mutation_is_sent_once_even_if_final_response_is_40
     );
     with_config(&config, |addr, server| {
         std::thread::scope(|scope| {
-            let client=scope.spawn(|| exchange(addr,b"POST /v1/rooms/abcdef012345/join?private=yes HTTP/1.1\r\nHost: app.example\r\nContent-Length: 4\r\nAuthorization: Bearer private\r\nCookie: session=private\r\n\r\nBODY"));
+            let client=scope.spawn(|| exchange(addr,format!("POST /v1/rooms/abcdef012345/join?private=yes HTTP/1.1\r\nHost: app.example:{}\r\nContent-Length: 4\r\nAuthorization: Bearer private\r\nCookie: session=private\r\n\r\nBODY",addr.port()).as_bytes()));
             let mut first = bounded_accept(&a);
             let probe = String::from_utf8(read_request(&first)).unwrap();
             assert!(probe.starts_with("GET /v1/rooms/abcdef012345 HTTP/1.1\r\n"));
+            assert!(probe.contains(&format!("\r\nHost: app.example:{}\r\n", addr.port())));
+            assert!(probe.contains(&format!(
+                "\r\nX-Forwarded-Host: app.example:{}\r\n",
+                addr.port()
+            )));
             for secret in ["private", "BODY", "Authorization", "Cookie", "join"] {
                 assert!(!probe.contains(secret));
             }

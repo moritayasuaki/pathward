@@ -45,12 +45,13 @@ pub struct Request<'a> {
     pub method: &'a [u8],
     pub target: &'a [u8],
     pub host: String,
+    pub port: Option<u16>,
     pub headers: Vec<httparse::Header<'a>>,
     pub content_length: u64,
     pub upgrade: bool,
 }
 
-fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
+fn authority(value: &[u8], authority_port: u16) -> Result<(String, Option<u16>), Rejection> {
     let value = std::str::from_utf8(value).map_err(|_| Rejection(400))?;
     let (host, port) = value
         .split_once(':')
@@ -84,7 +85,7 @@ fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
     if !pathward::response::authority_port_allowed(explicit, authority_port) {
         return Err(Rejection(400));
     }
-    Ok(host.to_ascii_lowercase())
+    Ok((host.to_ascii_lowercase(), explicit))
 }
 
 /// `authority_port` is the trusted external port, not necessarily the socket port.
@@ -198,10 +199,12 @@ pub(crate) fn parse_framed(head: &[u8], authority_port: u16) -> Result<Request<'
         }
         false
     };
+    let (host, port) = host.ok_or(Rejection(400))?;
     Ok(Request {
         method,
         target,
-        host: host.ok_or(Rejection(400))?,
+        host,
+        port,
         headers: req.headers.to_vec(),
         content_length: content_length.unwrap_or(0),
         upgrade,
