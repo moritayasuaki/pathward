@@ -133,7 +133,7 @@ is no service wait queue or upstream attempt. The existing four-worker/global/
 per-peer limits remain independent upper bounds. Three is a hard service maximum, so a single proxy service cannot hold
 all four workers. Static traffic or multiple busy services can still occupy all
 workers. These settings do not increase worker count or change static file
-limits (64 MiB and the existing write budget).
+limits (1 GiB, a 120-second total transfer deadline and a five-second per-write deadline).
 
 ## Reload, rollback and resource consequences
 

@@ -158,3 +158,24 @@ fn generation_retains_typed_cache_policy() {
     assert!(rules[1].prefix);
     assert_eq!(rules[1].policy.value(), "public,max-age=60,immutable");
 }
+
+#[test]
+fn generation_retains_upstream_ownership_routes_and_header_scopes() {
+    let p=ParsedConfig::parse("site \"app.example\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-route \"/feedback\" \"127.0.0.1:3002\"\nproxy-resource \"/rooms\" \"12\" \"127.0.0.1:3000,127.0.0.1:3001\"\nheader-prefix \"/rooms\" \"x-robots-tag\" \"noindex\"\nheader-query \"room\" \"x-robots-tag\" \"noindex\"\n}\n").unwrap();
+    let out = generate(
+        &p.compile().unwrap(),
+        "app.example",
+        "/srv/new",
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let parsed = ParsedConfig::parse(&out).unwrap();
+    let c = parsed.compile().unwrap();
+    let s = &c.sites()[0];
+    assert_eq!(s.proxy_routes()[0].width, 0);
+    assert_eq!(s.proxy_routes()[1].width, 12);
+    assert_eq!(s.proxy_routes()[1].candidates.len(), 2);
+    assert_eq!(s.headers()[0].kind, pathward_config::HeaderScope::Prefix);
+    assert_eq!(s.headers()[1].kind, pathward_config::HeaderScope::Query);
+}

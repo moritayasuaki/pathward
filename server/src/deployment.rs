@@ -69,6 +69,28 @@ pub fn generate(
                 quoted(&upstream.to_string())
             ));
         }
+        for route in site.proxy_routes() {
+            let endpoints = route
+                .candidates
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            if route.width == 0 {
+                out.push_str(&format!(
+                    "    proxy-route {} {}\n",
+                    quoted(route.prefix),
+                    quoted(&endpoints)
+                ));
+            } else {
+                out.push_str(&format!(
+                    "    proxy-resource {} {} {}\n",
+                    quoted(route.prefix),
+                    quoted(&route.width.to_string()),
+                    quoted(&endpoints)
+                ));
+            }
+        }
         for path in site.denies() {
             out.push_str(&format!("    deny {}\n", quoted(path)));
         }
@@ -200,7 +222,8 @@ pub fn generate(
         }
         for h in site.headers() {
             out.push_str(&format!(
-                "    header {} {} {}\n",
+                "    {} {} {} {}\n",
+                h.kind.directive(),
                 quoted(h.scope),
                 quoted(h.name),
                 quoted(h.value)

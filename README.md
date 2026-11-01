@@ -152,12 +152,12 @@ be used for dispatch, without decoding or normalizing it before or after checkin
 - Components start and end with ASCII letters, digits, `_`, or `-`.
 - Dots are allowed only inside components, e.g. `main.min.js` or `file..txt`.
 - Percent escapes, backslashes, non-ASCII bytes, controls, spaces, queries,
-  fragments, empty components, trailing slashes, and dot-prefixed components
+  fragments, empty interior components, and dot-prefixed components
   are rejected. Nothing is decoded, repaired, or silently canonicalized.
 - Authorization is byte-for-byte, case-sensitive membership in an explicit
   allowlist. No prefix rules, wildcards, directory grants, or implicit index files.
 - An invalid path is denied even if it appears in the allowlist.
-- At most 256 allowlist entries. A larger list is rejected in its entirety.
+- At most 4096 allowlist entries. A larger list is rejected in its entirety.
   Lookup uses bounded recursion (at most 257 calls); path scanning and byte
   comparison use loops. This avoids a nested-borrow loop limitation in Aeneas.
 
@@ -250,7 +250,7 @@ The [rule compiler proofs](proofs/RulesProofs.lean) additionally establish:
 
 | Theorem | Guarantee about the extracted Rust implementation |
 | --- | --- |
-| `compile_contract` | Success iff there are 1–256 valid URL/relative-target pairs with distinct URL bytes; the returned slice is exactly the input. |
+| `compile_contract` | Success iff there are 1–4096 valid URL/relative-target pairs with distinct URL bytes; the returned slice is exactly the input. |
 | `compile_total`, `lookup_total` | Compilation and lookup return without a modeled panic or divergence. |
 | `compiled_lookup_iff` | A successfully compiled table resolves exactly its declared URL-to-target pairs. |
 | `lookup_safe` | Even lookup on an uncompiled table cannot return a noncanonical URL or target, or an undeclared pair. |
@@ -263,7 +263,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 221 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 246 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

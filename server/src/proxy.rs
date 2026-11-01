@@ -55,6 +55,7 @@ pub(crate) fn forward(
     external_port: u16,
     limits: ProxyLimits,
     origins: &[String],
+    routes: &[UpstreamRoute],
 ) -> Result<Response, Rejection> {
     if !limits.valid() {
         return Err(Rejection(502));
@@ -167,6 +168,16 @@ pub(crate) fn forward(
     }
     http::remaining(body_deadline).map_err(|_| Rejection(408))?;
     let deadline = accepted + Duration::from_millis(limits.total_ms);
+    let upstream = select_upstream(
+        upstream,
+        routes,
+        req,
+        client.local_port().map_err(|_| Rejection(502))?,
+        encrypted,
+        external_port,
+        deadline,
+        limits,
+    )?;
     let timeout = http::remaining(deadline)
         .map_err(failure)?
         .min(Duration::from_millis(limits.connect_ms));
@@ -514,3 +525,140 @@ fn receive(
 #[cfg(test)]
 #[path = "proxy_tests.rs"]
 mod tests;
+
+/// Owned by the same immutable snapshot as publication and admission rules.
+pub(crate) struct UpstreamRoute {
+    pub prefix: String,
+    pub width: usize,
+    pub candidates: Vec<SocketAddr>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_upstream(
+    default: SocketAddr,
+    routes: &[UpstreamRoute],
+    req: &Request<'_>,
+    local_port: u16,
+    encrypted: bool,
+    external_port: u16,
+    deadline: Instant,
+    limits: ProxyLimits,
+) -> Result<SocketAddr, Rejection> {
+    let path = &req.target[..pathward::serving::path_length(req.target)];
+    let route = routes
+        .iter()
+        .filter(|r| pathward::routing::subtree(path, r.prefix.as_bytes()))
+        .max_by_key(|r| r.prefix.len());
+    let endpoint = |addr: SocketAddr| {
+        if policy::endpoint_allowed(addr.ip().to_string().as_bytes(), addr.port())
+            && addr.port() != local_port
+        {
+            Ok(addr)
+        } else {
+            Err(Rejection(502))
+        }
+    };
+    let Some(route) = route else {
+        return endpoint(default);
+    };
+    if route.width == 0 {
+        if route.candidates.len() != 1 {
+            return Err(Rejection(502));
+        }
+        return endpoint(route.candidates[0]);
+    }
+    // The collection belongs to the configured default (e.g. POST creation).
+    if path == route.prefix.as_bytes() {
+        return endpoint(default);
+    }
+    let tail = &path[route.prefix.len() + 1..];
+    let key = tail.split(|b| *b == b'/').next().unwrap_or(b"");
+    let resource = route.width <= 64
+        && key.len() == route.width
+        && key
+            .iter()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(b));
+    if !pathward::upstream::probe_allowed(true, 0, false, resource, route.candidates.len() as u64) {
+        return Err(Rejection(404));
+    }
+    let key = std::str::from_utf8(key).map_err(|_| Rejection(404))?;
+    // Construct from trusted host and validated path only. Client headers, query,
+    // body, cookies, authorization and the original method are never copied.
+    let probe = format!(
+        "GET {}/{key} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Length: 0\r\nVia: 1.1 pathward\r\nX-Forwarded-Host: {}\r\nX-Forwarded-Proto: {}\r\nX-Forwarded-Port: {external_port}\r\n\r\n",
+        route.prefix,
+        req.host,
+        req.host,
+        if encrypted { "https" } else { "http" }
+    );
+    for (index, &candidate) in route.candidates.iter().enumerate() {
+        endpoint(candidate)?;
+        let timeout = http::remaining(deadline)
+            .map_err(failure)?
+            .min(Duration::from_millis(limits.connect_ms));
+        let mut socket = TcpStream::connect_timeout(&candidate, timeout).map_err(failure)?;
+        let head_deadline = deadline.min(Instant::now() + Duration::from_millis(limits.head_ms));
+        http::write_all(&mut socket, probe.as_bytes(), head_deadline).map_err(failure)?;
+        let status = probe_status(&mut socket, head_deadline).map_err(failure)?;
+        if pathward::upstream::probe_owned(status) {
+            return Ok(candidate);
+        }
+        let remaining = (route.candidates.len() - index - 1) as u64;
+        if pathward::upstream::probe_next(status, remaining) {
+            continue;
+        }
+        return Err(Rejection(if status == 404 { 404 } else { 502 }));
+    }
+    Err(Rejection(404))
+}
+
+fn probe_status(socket: &mut TcpStream, deadline: Instant) -> io::Result<u16> {
+    let raw = http::read_head(socket, deadline)?;
+    http::remaining(deadline)?;
+    let end = raw
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .ok_or_else(invalid)?
+        + 4;
+    let head = &raw[..end];
+    for (i, &b) in head.iter().enumerate() {
+        if (b == b'\n' && (i == 0 || head[i - 1] != b'\r'))
+            || (b == b'\r' && head.get(i + 1) != Some(&b'\n'))
+        {
+            return Err(invalid());
+        }
+    }
+    let mut headers = [httparse::EMPTY_HEADER; http::MAX_HEADERS];
+    let mut response = httparse::Response::new(&mut headers);
+    if !matches!(response.parse(head),Ok(httparse::Status::Complete(n)) if n == head.len())
+        || !(head.starts_with(b"HTTP/1.1 ") || head.starts_with(b"HTTP/1.0 "))
+    {
+        return Err(invalid());
+    }
+    let mut seen = BTreeSet::new();
+    let mut length = false;
+    let mut encoding = false;
+    for h in response.headers {
+        let name = h.name.to_ascii_lowercase();
+        if !token(&name)
+            || !field_value(h.value)
+            || (!seen.insert(name.clone()) && name != "set-cookie")
+        {
+            return Err(invalid());
+        }
+        if name == "content-length" {
+            http::decimal(h.value).ok_or_else(invalid)?;
+            length = true;
+        }
+        if name == "transfer-encoding" {
+            if !h.value.eq_ignore_ascii_case(b"chunked") {
+                return Err(invalid());
+            }
+            encoding = true;
+        }
+    }
+    if length && encoding {
+        return Err(invalid());
+    }
+    response.code.ok_or_else(invalid)
+}

@@ -1,4 +1,5 @@
 import ContentProofs
+import UpstreamProofs
 import StreamingProofs
 import RoutingProofs
 import ProxyProofs
@@ -255,3 +256,16 @@ import ReleaseProofs
 #print axioms ContentProofs.no_credential_cache
 #print axioms ContentProofs.no_unpublished_cache
 #print axioms ContentProofs.cache_status_and_duration
+
+#print axioms UpstreamProofs.probe_eq
+#print axioms UpstreamProofs.probe_read_only
+#print axioms UpstreamProofs.probe_bounded
+#print axioms UpstreamProofs.next_eq
+#print axioms UpstreamProofs.only_absence_falls_through
+#print axioms UpstreamProofs.no_retry_after_last
+#print axioms UpstreamProofs.owned_eq
+#print axioms UpstreamProofs.authorization_is_final
+#print axioms UpstreamProofs.gone_is_final
+#print axioms UpstreamProofs.server_error_is_not_owner
+#print axioms UpstreamProofs.query_eq
+#print axioms UpstreamProofs.encoded_query_applies

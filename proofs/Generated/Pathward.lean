@@ -40,7 +40,7 @@ def content.span_allowed
   else ok false
 
 /-- [pathward::content::precondition_status]:
-    Source: 'src/content.rs', lines 11:0-35:1
+    Source: 'src/content.rs', lines 12:0-36:1
     Visibility: public -/
 def content.precondition_status
   (if_match : Option Bool) (if_unmodified : Option Bool)
@@ -69,7 +69,7 @@ def content.precondition_status
   else ok 412#u16
 
 /-- [pathward::content::shared_cache_allowed]:
-    Source: 'src/content.rs', lines 39:0-49:1
+    Source: 'src/content.rs', lines 40:0-50:1
     Visibility: public -/
 def content.shared_cache_allowed
   (status : Std.U16) (authorized : Bool) (credentials : Bool)
@@ -1330,30 +1330,16 @@ def routing.select
   else ok routing.Route.Denied
 
 /-- [pathward::routing::stem]:
-    Source: 'src/routing.rs', lines 31:0-42:1
+    Source: 'src/routing.rs', lines 31:0-36:1
     Visibility: public -/
 def routing.stem (path : Slice Std.U8) : RustM (Option (Slice Std.U8)) := do
   let b ← valid_path path
   if b
   then ok (some path)
-  else
-    let i := Slice.len path
-    if i > 1#usize
-    then
-      let i1 := Slice.len path
-      let i2 ← i1 - 1#usize
-      let (head, tail) ← core.slice.Slice.split_at path i2
-      let i3 ← Slice.index_usize tail 0#usize
-      if i3 = 47#u8
-      then let b1 ← valid_path head
-           if b1
-           then ok (some head)
-           else ok none
-      else ok none
-    else ok none
+  else ok none
 
 /-- [pathward::routing::subtree]:
-    Source: 'src/routing.rs', lines 45:0-47:1
+    Source: 'src/routing.rs', lines 39:0-41:1
     Visibility: public -/
 def routing.subtree
   (path : Slice Std.U8) («from» : Slice Std.U8) : RustM Bool := do
@@ -1368,7 +1354,7 @@ def routing.subtree
   else ok false
 
 /-- [pathward::routing::body_limit]:
-    Source: 'src/routing.rs', lines 50:0-56:1
+    Source: 'src/routing.rs', lines 44:0-50:1
     Visibility: public -/
 def routing.body_limit (limit : Std.U64) (response1 : Bool) : RustM Bool := do
   if response1
@@ -1376,7 +1362,7 @@ def routing.body_limit (limit : Std.U64) (response1 : Bool) : RustM Bool := do
   else ok (limit <= 16777216#u64)
 
 /-- [pathward::routing::body_fits]:
-    Source: 'src/routing.rs', lines 58:0-60:1
+    Source: 'src/routing.rs', lines 52:0-54:1
     Visibility: public -/
 def routing.body_fits
   (length : Std.U64) (limit : Std.U64) (response1 : Bool) : RustM Bool := do
@@ -1386,7 +1372,7 @@ def routing.body_fits
   else ok false
 
 /-- [pathward::routing::chunk_fits]:
-    Source: 'src/routing.rs', lines 62:0-64:1
+    Source: 'src/routing.rs', lines 56:0-58:1
     Visibility: public -/
 def routing.chunk_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do
@@ -1397,7 +1383,7 @@ def routing.chunk_fits
   else ok false
 
 /-- [pathward::routing::time_limits]:
-    Source: 'src/routing.rs', lines 67:0-78:1
+    Source: 'src/routing.rs', lines 61:0-72:1
     Visibility: public -/
 def routing.time_limits
   (body : Std.U64) (connect : Std.U64) (head : Std.U64) (total : Std.U64) :
@@ -1432,7 +1418,7 @@ def routing.time_limits
   else ok false
 
 /-- [pathward::routing::connection_limit]:
-    Source: 'src/routing.rs', lines 80:0-82:1
+    Source: 'src/routing.rs', lines 74:0-76:1
     Visibility: public -/
 def routing.connection_limit (limit : Std.U64) : RustM Bool := do
   if limit > 0#u64
@@ -1440,7 +1426,7 @@ def routing.connection_limit (limit : Std.U64) : RustM Bool := do
   else ok false
 
 /-- [pathward::routing::service_admit]:
-    Source: 'src/routing.rs', lines 85:0-87:1
+    Source: 'src/routing.rs', lines 79:0-81:1
     Visibility: public -/
 def routing.service_admit
   (active : Std.U64) (captured : Std.U64) (current : Std.U64) :
@@ -1458,7 +1444,7 @@ def routing.service_admit
   else ok false
 
 /-- [pathward::routing::request_framing]:
-    Source: 'src/routing.rs', lines 89:0-91:1
+    Source: 'src/routing.rs', lines 83:0-85:1
     Visibility: public -/
 def routing.request_framing
   (length : Std.U64) (limit : Std.U64) (transfer : Bool) (duplicate : Bool) :
@@ -1472,7 +1458,7 @@ def routing.request_framing
   else ok false
 
 /-- [pathward::routing::response_framing]:
-    Source: 'src/routing.rs', lines 92:0-100:1
+    Source: 'src/routing.rs', lines 86:0-94:1
     Visibility: public -/
 def routing.response_framing
   (length : Option Std.U64) (limit : Std.U64) (chunked : Bool)
@@ -2059,5 +2045,68 @@ def tls.renewal_due
       let remaining ← not_after - now
       let i ← lifetime / 3#u64
       ok (remaining <= i)
+
+/-- [pathward::upstream::probe_allowed]:
+    Source: 'src/upstream.rs', lines 4:0-12:1
+    Visibility: public -/
+def upstream.probe_allowed
+  (get : Bool) (body : Std.U64) (credentials : Bool) (resource : Bool)
+  (candidates : Std.U64) :
+  RustM Bool
+  := do
+  if get
+  then
+    if body = 0#u64
+    then
+      if credentials
+      then ok false
+      else
+        if resource
+        then if candidates > 0#u64
+             then ok (candidates <= 32#u64)
+             else ok false
+        else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::upstream::probe_next]:
+    Source: 'src/upstream.rs', lines 16:0-18:1
+    Visibility: public -/
+def upstream.probe_next
+  (status : Std.U16) (remaining : Std.U64) : RustM Bool := do
+  if status = 404#u16
+  then if remaining > 0#u64
+       then ok (remaining < 32#u64)
+       else ok false
+  else ok false
+
+/-- [pathward::upstream::probe_owned]:
+    Source: 'src/upstream.rs', lines 21:0-23:1
+    Visibility: public -/
+def upstream.probe_owned (status : Std.U16) : RustM Bool := do
+  if status >= 200#u16
+  then
+    if status < 300#u16
+    then ok true
+    else
+      if status = 401#u16
+      then ok true
+      else if status = 403#u16
+           then ok true
+           else ok (status = 410#u16)
+  else
+    if status = 401#u16
+    then ok true
+    else if status = 403#u16
+         then ok true
+         else ok (status = 410#u16)
+
+/-- [pathward::upstream::query_match]:
+    Source: 'src/upstream.rs', lines 26:0-28:1
+    Visibility: public -/
+def upstream.query_match (exact : Bool) (ambiguous : Bool) : RustM Bool := do
+  if exact
+  then ok true
+  else ok ambiguous
 
 end pathward

@@ -8,6 +8,7 @@ pub fn span_allowed(size: u64, start: u64, count: u64) -> bool {
 
 /// RFC 9110 precedence, for the existing GET/HEAD static representation only.
 /// Inputs are comparisons performed by the bounded HTTP adapter.
+#[allow(clippy::manual_unwrap_or, clippy::manual_unwrap_or_default)] // explicit matches for extraction
 pub fn precondition_status(
     if_match: Option<bool>,
     if_unmodified: Option<bool>,

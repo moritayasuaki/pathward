@@ -50,7 +50,7 @@ DNS, certificate eligibility, or root confinement.
 | --- | --- | --- |
 | `site "host" { ... }` | Independent virtual-host table | 1–16 sites; unique lowercase ASCII DNS-style hostname, no port, scheme, wildcard, trailing dot, or empty label |
 | `root "/absolute/path"` | Unix document root declaration | Required for publications; canonical absolute path, including `/` |
-| `publish "/url" "relative/file"` | One exact URL-to-target pair | 0–256 per site; zero requires a redirect or proxy mode; duplicate URLs rejected even when targets are identical |
+| `publish "/url" "relative/file"` | One exact URL-to-target pair | 0–4096 per site; zero requires a redirect or proxy mode; duplicate URLs rejected even when targets are identical |
 | `reverse-proxy "127.0.0.1:3000"` | Whole-host delegation to local HTTP app | One numeric loopback endpoint per site; may coexist with local/denied routes; see [routing and limits](routing-and-limits.md) |
 | `deny "/admin"` | Denied subtree, before all local/proxy routes | Up to 64 distinct canonical paths; `/` rejects all routable paths |
 | `proxy-path "/api"` | Allowed proxy subtree | Up to 64 distinct canonical paths; requires reverse-proxy |
@@ -69,7 +69,7 @@ Static publication/redirect paths follow the [core policy](../README.md#policy):
 starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
 interior dots allowed. Relative file paths use the same component grammar and
 are 1–4095 bytes. Absolute targets, `.`/`..`, hidden components, empty components,
-percent escapes, backslashes, trailing slashes/dots, and controls are rejected.
+percent escapes, backslashes, trailing dots, and controls are rejected. URL paths may have one terminal slash; filesystem targets may not.
 Roots use the absolute URL grammar as a conservative Unix lexical grammar.
 The Linux opener uses descriptor-relative lookup and handles filesystem-specific
 component/permission errors by denying the request. The separate server `check`
@@ -85,7 +85,7 @@ is invalid, compilation returns no configuration, including no earlier sites.
 
 ## Supported KDL surface
 
-The entire UTF-8 document is limited to **65,536 bytes**. A bounded reader stops
+The entire UTF-8 document is limited to **1,048,576 bytes**. A bounded reader stops
 after one byte beyond that limit; callers of the string API already own their
 input allocation. A linear, nonrecursive preflight admits only:
 
@@ -101,10 +101,10 @@ input allocation. A linear, nonrecursive preflight admits only:
   before `}`. A top-level closing brace may be followed by EOF.
 - `//` line comments, including Unicode text. Comment/newline handling uses the
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
-- A single children level (sites only); at most 16 sites and 514 directives per
-  site before the upstream parser runs. Compilation separately enforces 256 URLs,
+- A single children level (sites only); at most 16 sites and 4482 directives per
+  site before the upstream parser runs. Compilation separately enforces 4096 URLs,
   64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials,
-  64 proxy scopes, 12 budget settings, two stream opt-ins, one compression policy
+  64 proxy scopes, 64 cache rules, 64 upstream routes, 12 budget settings, two stream opt-ins, one compression policy
   and 16 additional WebSocket origins. Publications require a root.
 
 Raw/multiline strings, block comments, slashdash (`/-`), quoted node names,
@@ -152,3 +152,6 @@ WebSocket streaming also supports `proxy-limit "streams"` (1–16), optional
 `websocket-compression "permessage-deflate"`, and up to 16 exact
 `websocket-origin "https://console.example"` entries. Compression and additional
 origins require `proxy-stream "websocket"`. See [streaming policy](streaming.md).
+
+For explicit directory publications, typed cache rules, large files and resource
+upstream routing, see [site compatibility](site-compatibility.md).

@@ -87,7 +87,7 @@ assets/site.css
 No globs, recursion, comments, blank lines or inferred index files. Hidden names,
 traversal, duplicate entries and absolute paths are rejected. Each entry yields
 one exact `/<filename>` mapping. `--index index.html` explicitly adds `/` and
-requires that filename to be in the manifest. The 256-publication limit includes
+requires that filename to be in the manifest. The 4096-publication limit includes
 that alias. The generator replaces only the selected site's root/publications,
 preserves other sites and all headers/redirects, and round-trips its KDL output
 through the compiler. It does not discover whether an explicitly listed ordinary
@@ -104,7 +104,7 @@ published target through the serving opener and prints the configuration SHA-256
 and mapping count. It detects missing, symlink, special, multi-link and oversized
 files. It does not verify DNS, certificates, content hashes, content provenance
 or future immutability. The older `pathward-config check` remains syntax/schema
-only. Configuration and manifest input are capped at 64 KiB.
+only. Configuration and manifest input are capped at 1 MiB.
 
 ## Managed activation and rollback
 

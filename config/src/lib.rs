@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 mod cache;
+mod upstream;
+pub use upstream::ProxyRoute;
 mod surface;
 pub use cache::{CachePolicy, CacheRule};
 
@@ -28,8 +30,24 @@ pub struct Redirect<'a> {
     pub status: u16,
     pub prefix: bool,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderScope {
+    Exact,
+    Prefix,
+    Query,
+}
+impl HeaderScope {
+    pub fn directive(self) -> &'static str {
+        match self {
+            Self::Exact => "header",
+            Self::Prefix => "header-prefix",
+            Self::Query => "header-query",
+        }
+    }
+}
 #[derive(Clone, Copy)]
 pub struct Header<'a> {
+    pub kind: HeaderScope,
     pub scope: &'a str,
     pub name: &'a str,
     pub value: &'a str,
@@ -148,6 +166,7 @@ impl ParsedConfig {
             let mut upstream = None;
             let mut denies = Vec::new();
             let mut proxy_paths = Vec::new();
+            let mut proxy_routes = Vec::new();
             let mut websocket_origins = Vec::new();
             let mut limits = ProxyLimits::default();
             let mut limit_names = std::collections::BTreeSet::new();
@@ -214,6 +233,21 @@ impl ParsedConfig {
                         if !limit_names.insert((kind, v[0])) || !limits.set(kind, v[0], v[1]) {
                             return Err(self.at(child, "invalid or duplicate proxy limit/timeout"));
                         }
+                    }
+                    "proxy-route" | "proxy-resource" => {
+                        let resource = child.name().value() == "proxy-resource";
+                        let v = self.arguments(child, if resource { 3 } else { 2 })?;
+                        let route = ProxyRoute::parse(&v, resource).ok_or_else(|| {
+                            self.at(child, "invalid loopback route or resource probe policy")
+                        })?;
+                        if proxy_routes.len() == MAX_ROUTE_RULES
+                            || proxy_routes
+                                .iter()
+                                .any(|r: &ProxyRoute<'_>| r.prefix == route.prefix)
+                        {
+                            return Err(self.at(child, "duplicate or excessive proxy route"));
+                        }
+                        proxy_routes.push(route);
                     }
                     "reverse-proxy" => {
                         let values = self.arguments(child, 1)?;
@@ -341,18 +375,37 @@ impl ParsedConfig {
                             policy,
                         });
                     }
-                    "header" => {
+                    "header" | "header-prefix" | "header-query" => {
                         let v = self.arguments(child, 3)?;
+                        let kind = match child.name().value() {
+                            "header-prefix" => HeaderScope::Prefix,
+                            "header-query" => HeaderScope::Query,
+                            _ => HeaderScope::Exact,
+                        };
+                        let scope_valid = match kind {
+                            HeaderScope::Exact => {
+                                v[0] == "*" || pathward::valid_path(v[0].as_bytes())
+                            }
+                            HeaderScope::Prefix => upstream::prefix(v[0]),
+                            HeaderScope::Query => {
+                                !v[0].is_empty()
+                                    && v[0].len() <= 64
+                                    && v[0].bytes().all(|b| {
+                                        b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
+                                    })
+                            }
+                        };
                         if headers.len() == MAX_HEADERS
-                            || (v[0] != "*" && !pathward::valid_path(v[0].as_bytes()))
+                            || !scope_valid
                             || !pathward::response::header_allowed(v[1].as_bytes(), v[2].as_bytes())
-                            || headers
-                                .iter()
-                                .any(|h: &Header<'_>| h.scope == v[0] && h.name == v[1])
+                            || headers.iter().any(|h: &Header<'_>| {
+                                h.scope == v[0] && h.name == v[1] && h.kind == kind
+                            })
                         {
                             return Err(self.at(child, "invalid, duplicate or excessive header"));
                         }
                         headers.push(Header {
+                            kind,
                             scope: v[0],
                             name: v[1],
                             value: v[2],
@@ -385,7 +438,10 @@ impl ParsedConfig {
                         .iter()
                         .any(|(_, key)| key.starts_with("stream-") || *key == "streams"))
                 || !limits.valid()
-                || (upstream.is_none() && (!proxy_paths.is_empty() || !limit_names.is_empty()))
+                || (upstream.is_none()
+                    && (!proxy_paths.is_empty()
+                        || !proxy_routes.is_empty()
+                        || !limit_names.is_empty()))
             {
                 return Err(self.at(
                     node,
@@ -424,6 +480,7 @@ impl ParsedConfig {
                 upstream,
                 denies,
                 proxy_paths,
+                proxy_routes,
                 websocket_origins,
                 limits,
                 publications,
@@ -500,6 +557,7 @@ pub struct CompiledSite<'a> {
     upstream: Option<SocketAddr>,
     denies: Vec<&'a str>,
     proxy_paths: Vec<&'a str>,
+    proxy_routes: Vec<ProxyRoute<'a>>,
     websocket_origins: Vec<&'a str>,
     limits: ProxyLimits,
     tls: TlsPolicy,
@@ -510,6 +568,9 @@ pub struct CompiledSite<'a> {
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn proxy_routes(&self) -> &[ProxyRoute<'a>] {
+        &self.proxy_routes
+    }
     pub fn cache_rules(&self) -> &[CacheRule<'a>] {
         &self.cache
     }

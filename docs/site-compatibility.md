@@ -69,3 +69,60 @@ conditional precedence, and exclusion of unpublished, credential-bearing and
 error responses from shared freshness. Header parsers/serialization and I/O are
 bounded tested adapters. PEM, signatures, ZIP and PowerShell MIME mappings are
 included alongside existing HTML/CSS/JavaScript/PDF/WASM support.
+
+## Explicit upstream routes
+
+```kdl
+site "app.example" {
+    tls "auto"
+    reverse-proxy "127.0.0.1:3000"
+    proxy-route "/v1/feedback" "127.0.0.1:3002"
+    proxy-resource "/v1/rooms" "12" "127.0.0.1:3000,127.0.0.1:3001"
+    header-prefix "/v1" "x-robots-tag" "noindex, nofollow"
+    header-query "room" "x-robots-tag" "noindex, nofollow"
+}
+```
+
+Routes match whole path components, longest prefix first. At most 64 explicit
+routes and 32 distinct numeric loopback endpoints per resource rule are accepted.
+A resource collection uses the default upstream. An identifier must contain
+exactly the declared 1–64 lowercase hexadecimal characters. Denials, publications
+and redirects still take precedence. Slash variants of a published URL remain
+reserved to the local route, while the actual file grant requires exact bytes.
+
+Resource discovery is opt-in and requires an application contract: anonymous
+`GET /prefix/id` must safely distinguish missing resources (404) from owned
+resources (2xx, 401, 403 or 410). Each probe has an empty body and contains no
+client credentials, query or headers. Only a probe's 404 permits the next probe.
+Other statuses, malformed heads, connection failures and timeouts stop discovery.
+All missing returns 404. The original request is validated and its bounded body
+read before discovery; it is sent once to the selected owner and is never retried,
+including after a subsequent 404 or transport failure. Discovery and forwarding
+share one service permit, original total deadline and immutable configuration
+snapshot. This is not transparent compatibility with an arbitrary application's
+404-fallback middleware. Resource identifiers must be unique across backends;
+collisions choose the first owning backend. There is no ownership cache.
+
+Header scopes choose one value per name: query rules, exact paths, longest path
+prefix, then the global rule. Equal matching query rules choose the last one.
+Query keys containing `%` or `+` conservatively match query rules, avoiding a
+noindex bypass from application-specific decoding; this can apply a header more
+widely. Values in query rules must be suitable for this overinclusive behavior.
+The existing header-name/value safety gate remains mandatory.
+
+## Verification and dependency review
+
+No runtime dependency, feature or lockfile was added. Core policies remain free
+of external dependencies; the KDL stack has eight and the server 104 external
+locked packages. A fresh RustSec scan also checks the 163-package candidate stack.
+Parser changes retain flat, bounded KDL preflight, exact argument counts and
+canonical numeric loopback endpoints. Publication duplicate validation remains
+quadratic but is capped at 4096 entries per site and 1 MiB of input.
+
+Lean verifies the current Rust extraction, including range bounds without wrap,
+conditional precedence, restrictions on shared caches, read-only/bodyless/anonymous
+probe gates, bounded candidate counts, 404-only discovery continuation and terminal
+authorization/gone statuses. The complete axiom audit covers 246 statements.
+Socket orchestration, header parsing, filesystem metadata and application ownership
+semantics are tested/audited adapters, outside those proofs. The discovery gate's
+GET/credential flags are tied to the fixed constructed probe in that adapter.

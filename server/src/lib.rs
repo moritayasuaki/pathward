@@ -279,7 +279,7 @@ impl Server {
         let reject = |stream: &mut _, status| -> io::Result<(u16, u64)> {
             http::write_all(
                 stream,
-                site.head(status, 0, "text/plain", path, sni.is_some())
+                site.head(status, 0, "text/plain", req.target, sni.is_some())
                     .as_bytes(),
                 Instant::now() + Duration::from_secs(1),
             )?;
@@ -320,7 +320,7 @@ impl Server {
                 return reject(stream, 413);
             }
             if automatic_redirect {
-                let mut head = site.head(308, 0, "text/plain", path, false);
+                let mut head = site.head(308, 0, "text/plain", req.target, false);
                 head.truncate(head.len() - 2);
                 head.push_str(&format!(
                     "Location: https://{}{}\r\n\r\n",
@@ -375,6 +375,7 @@ impl Server {
                 authority_port,
                 site.limits,
                 &site.websocket_origins,
+                &site.proxy_routes,
             ) {
                 Ok(response) => response,
                 Err(http::Rejection(status)) => return reject(stream, status),
@@ -391,7 +392,8 @@ impl Server {
             let deadline = accepted + Duration::from_millis(site.limits.total_ms);
             http::write_all(
                 stream,
-                site.proxy_head(&response, path, sni.is_some()).as_bytes(),
+                site.proxy_head(&response, req.target, sni.is_some())
+                    .as_bytes(),
                 deadline,
             )?;
             if let Some(live) = response.live.take() {
@@ -426,7 +428,7 @@ impl Server {
         if let Some((status, location)) =
             site.redirect(req.target, &snapshot.sites, automatic_redirect)
         {
-            let mut head = site.head(status, 0, "text/plain", path, sni.is_some());
+            let mut head = site.head(status, 0, "text/plain", req.target, sni.is_some());
             head.truncate(head.len() - 2);
             head.push_str("Location: ");
             head.push_str(&location);
@@ -470,7 +472,7 @@ impl Server {
             plan.status,
             plan.count,
             http::content_type(target),
-            path,
+            req.target,
             sni.is_some(),
         );
         head = head.replace(
