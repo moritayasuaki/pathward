@@ -100,8 +100,10 @@ Read the [operator guide](docs/production-basics.md),
 
 The [continuous soak guide](docs/soak-testing.md) describes overlapping managed
 releases, real local ACME renewals, adversarial slow peers, resource checks and
-worker fairness. The recorded one-hour run passed 57,604 requests, 3,601 managed
-commits and 80 renewals. `make soak` defaults to one uninterrupted hour on Linux.
+worker fairness. The revised one-hour run passed 57,598 ordinary-load requests,
+36,010 fresh post-commit probes, 3,601 managed commits and 80 renewals. The final
+RSS growth check and durable restart reuse passed. `make soak` defaults to one
+uninterrupted hour on Linux; `make soak-check` exercises the test oracles.
 
 ## Server dependencies
 
@@ -246,7 +248,9 @@ integration code, with focused reviews and Linux tests.
 The [response](proofs/ResponseProofs.lean) and [release](proofs/ReleaseProofs.lean)
 proofs add safe header values, fixed-host redirect admission, component-boundary
 routing, exact manifest-entry mapping, durable/prepared commit prerequisites and
-connection-admission bounds. The adapters establishing the inputs to these gates
+connection-admission bounds. Public authority-port proofs fix TLS/redirect ports
+at 443/80 independently of internal forwarding ports and reject explicit mismatches
+and zero-port endpoints. The adapters establishing the inputs to these gates
 remain reviewed/tested code; filesystem durability and whole-server availability
 are not proved.
 

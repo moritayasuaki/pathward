@@ -131,7 +131,49 @@ stale serving or a measured memory leak in the preceding one-hour run.
 No package, feature, lockfile or vendored source changed. Fresh dependency
 graph/RustSec audit results remain in `server/audit-result.json`. The earlier
 one-hour record below is retained as historical evidence; new results are
-recorded separately after the revised workload completes.
+recorded separately below.
+
+## Completed review-fix one-hour run — 2026-11-01
+
+The [revised one-hour Linux run](https://github.com/moritayasuaki/pathward/actions/runs/41289195101)
+passed all six checkpoints, final resource validation, graceful shutdown and
+durable restart reuse at source `c72fc5bc7f989ed226682b043eec731e7176ee69`.
+The same source passed [full Linux integration, Lean and dependency CI](https://github.com/moritayasuaki/pathward/actions/runs/41289195140),
+including mount confinement, CLI/admission tests, actual TLS-ALPN-01 renewal and
+persistence-failure tests, and the new public-port cases. Its two-minute overlap
+test passed 121 commits, 1,210 acknowledged-release probes and 242 revoked-URL
+checks. The five oracle regressions also passed on Linux.
+
+The [machine-readable one-hour record](soak-result-2026-11-01.json) contains the
+original report and workflow links. The runtime and test sources in this record
+are unchanged by the later documentation/result commit.
+
+| Observation | Result |
+| --- | --- |
+| Uninterrupted offered-load duration | 3600 seconds; report elapsed 3602.509 seconds includes shutdown/restart |
+| Verified ordinary-load requests | 57,598, including 21,600 expected denials |
+| Fresh requests after acknowledged switches | 36,010 across both hosts; all 3,601 acknowledged switches checked |
+| Revoked-URL checks | 7,202; included in the fresh-request count |
+| Total verified requests / unexpected failures | 93,608 / 0 |
+| Managed commits / rollbacks | 3,601 / 900; rollbacks are included in commits |
+| SIGHUP signals / stale-command and private-root rejections | 328 / 721 each |
+| Commits observed during an active ACME order | 617; includes SIGHUP commits |
+| Certificates observed / renewals after initial issuance | 81 / 80 |
+| ACME errors, log drops, 5xx, ordinary request I/O errors | 0 |
+| Slow-peer connection cycles | 2,182 |
+| Ordinary-load latency p50 / p95 / p99 bucket upper bounds | 50 / 100 / 100 ms; histogram excludes the fresh switch probes |
+| RSS peak / final median growth from warm window | 6,720 KiB (6.56 MiB) / 224 KiB; final gate passed |
+| FDs peak / threads | 26 / 12; thread count stayed constant |
+| Graceful shutdown | 0.414 seconds |
+| Exact durable certificate and account reused after restart | Passed |
+
+Environment: GitHub-hosted Ubuntu 24.04 x86-64, reported kernel
+`Linux-7.0.0-1017-azure`, glibc 2.39, pinned local Pebble CA. This is the same
+bounded regression workload with additional verification traffic, not a
+maximum-throughput benchmark. Partial attacker TLS failures and intentional
+configuration rejections are expected. Final metrics are the last periodic
+scrape; controller counters continue through completion. The real-host,
+network/storage-failure and operational limits described above still apply.
 
 ## Completed one-hour run — 2026-10-31
 
