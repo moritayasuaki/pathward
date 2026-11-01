@@ -139,3 +139,22 @@ fn generated_configuration_round_trips_more_than_256_publications() {
         1500
     );
 }
+
+#[test]
+fn generation_retains_typed_cache_policy() {
+    let p=ParsedConfig::parse("site \"example.com\" {\nroot \"/srv/www\"\ntls \"auto\"\npublish \"/\" \"index.html\"\ncache \"*\" \"no-cache\"\ncache-prefix \"/assets\" \"public,max-age=60,immutable\"\n}\n").unwrap();
+    let text = generate(
+        &p.compile().unwrap(),
+        "example.com",
+        "/srv/new",
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let p = ParsedConfig::parse(&text).unwrap();
+    let c = p.compile().unwrap();
+    let rules = c.sites()[0].cache_rules();
+    assert_eq!(rules.len(), 2);
+    assert!(rules[1].prefix);
+    assert_eq!(rules[1].policy.value(), "public,max-age=60,immutable");
+}

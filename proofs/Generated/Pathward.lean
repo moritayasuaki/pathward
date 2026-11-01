@@ -17,6 +17,80 @@ set_option maxRecDepth 2048
 
 namespace pathward
 
+/-- [pathward::serving::MAX_FILE_BYTES]
+    Source: 'src/serving.rs', lines 5:0-5:51
+    Visibility: public -/
+@[global_simps, irreducible]
+def serving.MAX_FILE_BYTES : RustM Std.U64 := do
+  let i ← 1024#u64 * 1024#u64
+  i * 1024#u64
+
+/-- [pathward::content::span_allowed]:
+    Source: 'src/content.rs', lines 5:0-7:1
+    Visibility: public -/
+def content.span_allowed
+  (size : Std.U64) (start : Std.U64) (count : Std.U64) : RustM Bool := do
+  let i ← serving.MAX_FILE_BYTES
+  if size <= i
+  then
+    if start <= size
+    then let i1 ← size - start
+         ok (count <= i1)
+    else ok false
+  else ok false
+
+/-- [pathward::content::precondition_status]:
+    Source: 'src/content.rs', lines 11:0-35:1
+    Visibility: public -/
+def content.precondition_status
+  (if_match : Option Bool) (if_unmodified : Option Bool)
+  (if_none_match : Option Bool) (if_not_modified : Option Bool) :
+  RustM Std.U16
+  := do
+  let allowed ←
+    match if_match with
+    | none =>
+      match if_unmodified with
+      | none => ok true
+      | some value => ok value
+    | some value => ok value
+  if allowed
+  then
+    let unchanged ←
+      match if_none_match with
+      | none =>
+        match if_not_modified with
+        | none => ok false
+        | some value => ok value
+      | some value => ok value
+    if unchanged
+    then ok 304#u16
+    else ok 200#u16
+  else ok 412#u16
+
+/-- [pathward::content::shared_cache_allowed]:
+    Source: 'src/content.rs', lines 39:0-49:1
+    Visibility: public -/
+def content.shared_cache_allowed
+  (status : Std.U16) (authorized : Bool) (credentials : Bool)
+  (seconds : Std.U64) :
+  RustM Bool
+  := do
+  if authorized
+  then
+    if credentials
+    then ok false
+    else
+      if seconds <= 31536000#u64
+      then
+        if status = 200#u16
+        then ok true
+        else if status = 206#u16
+             then ok true
+             else ok (status = 304#u16)
+      else ok false
+  else ok false
+
 /-- [pathward::State]
     Source: 'src/lib.rs', lines 11:0-18:1
     Visibility: public -/
@@ -1572,14 +1646,6 @@ def runtime.ready
          then ok certificate_valid
          else ok true
     else ok false
-
-/-- [pathward::serving::MAX_FILE_BYTES]
-    Source: 'src/serving.rs', lines 5:0-5:49
-    Visibility: public -/
-@[global_simps, irreducible]
-def serving.MAX_FILE_BYTES : RustM Std.U64 := do
-  let i ← 64#u64 * 1024#u64
-  i * 1024#u64
 
 /-- [pathward::serving::Grant]
     Source: 'src/serving.rs', lines 48:0-51:1

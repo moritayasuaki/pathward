@@ -11,6 +11,7 @@ pub mod observe;
 mod proxy;
 mod runtime;
 pub mod secrets;
+mod static_files;
 mod stream_pool;
 mod streaming;
 pub mod tls;
@@ -460,33 +461,56 @@ impl Server {
             Ok(file) => file,
             Err(_) => return reject(stream, 404),
         };
-        let deadline = Instant::now() + http::WRITE_BUDGET;
+        let plan = match static_files::plan(&req, &opened, site.cache_policy(path)) {
+            Ok(plan) => plan,
+            Err(http::Rejection(status)) => return reject(stream, status),
+        };
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let mut head = site.head(
+            plan.status,
+            plan.count,
+            http::content_type(target),
+            path,
+            sni.is_some(),
+        );
+        head = head.replace(
+            "\r\nCache-Control: no-store\r\n",
+            &format!("\r\nCache-Control: {}\r\n", plan.cache),
+        );
+        if plan.status == 304 {
+            head = head.replace("\r\nContent-Length: 0\r\n", "\r\n");
+        }
+        head.truncate(head.len() - 2);
+        head.push_str(&plan.fields);
+        head.push_str("\r\n");
         http::write_all(
             stream,
-            site.head(
-                200,
-                opened.length,
-                http::content_type(target),
-                path,
-                sni.is_some(),
-            )
-            .as_bytes(),
-            deadline,
+            head.as_bytes(),
+            Instant::now() + Duration::from_secs(5),
         )?;
-        if grant.send_body {
-            let mut left = opened.length;
+        if grant.send_body && plan.count > 0 {
+            use std::io::{Seek, SeekFrom};
+            opened.file.seek(SeekFrom::Start(plan.start))?;
+            let mut left = plan.count;
             let mut buffer = [0u8; 16_384];
             while left > 0 {
+                if stopping() {
+                    return Err(io::Error::new(io::ErrorKind::Interrupted, "draining"));
+                }
                 let size = buffer.len().min(left as usize);
                 let n = opened.file.read(&mut buffer[..size])?;
                 if n == 0 {
                     return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "file changed"));
                 }
-                http::write_all(stream, &buffer[..n], deadline)?;
+                http::write_all(
+                    stream,
+                    &buffer[..n],
+                    deadline.min(Instant::now() + Duration::from_secs(5)),
+                )?;
                 left -= n as u64;
             }
         }
-        Ok((200, if grant.send_body { opened.length } else { 0 }))
+        Ok((plan.status, if grant.send_body { plan.count } else { 0 }))
     }
 
     #[cfg(all(test, target_os = "linux"))]

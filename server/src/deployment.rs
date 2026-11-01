@@ -190,6 +190,14 @@ pub fn generate(
                 r.status
             ));
         }
+        for c in site.cache_rules() {
+            out.push_str(&format!(
+                "    {} {} {}\n",
+                if c.prefix { "cache-prefix" } else { "cache" },
+                quoted(c.scope),
+                quoted(&c.policy.value())
+            ));
+        }
         for h in site.headers() {
             out.push_str(&format!(
                 "    header {} {} {}\n",

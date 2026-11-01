@@ -81,6 +81,9 @@ def main():
                         "--start-from", "pathward::streaming::service_admission",
                         "--start-from", "pathward::streaming::origin_allowed",
                         "--start-from", "pathward::streaming::deflate_allowed",
+                        "--start-from", "pathward::content::span_allowed",
+                        "--start-from", "pathward::content::precondition_status",
+                        "--start-from", "pathward::content::shared_cache_allowed",
                         "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",

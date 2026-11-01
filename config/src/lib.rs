@@ -3,7 +3,9 @@
 //! and tested Rust, outside the Lean proof of `pathward::rules`.
 #![forbid(unsafe_code)]
 
+mod cache;
 mod surface;
+pub use cache::{CachePolicy, CacheRule};
 
 use kdl::{KdlDocument, KdlNode};
 use pathward::rules::{self, Publication};
@@ -152,6 +154,7 @@ impl ParsedConfig {
             let mut publications = Vec::new();
             let mut redirects = Vec::new();
             let mut headers = Vec::new();
+            let mut cache = Vec::new();
             for child in children.nodes() {
                 if child.children().is_some() {
                     return Err(self.at(child, "nested directive blocks are not supported"));
@@ -316,6 +319,28 @@ impl ParsedConfig {
                             prefix,
                         });
                     }
+                    "cache" | "cache-prefix" => {
+                        let v = self.arguments(child, 2)?;
+                        let prefix = child.name().value() == "cache-prefix";
+                        if cache.len() == MAX_ROUTE_RULES
+                            || (v[0] != "*" && !pathward::valid_path(v[0].as_bytes()))
+                            || (prefix && (v[0] == "*" || (v[0] != "/" && v[0].ends_with('/'))))
+                            || cache
+                                .iter()
+                                .any(|r: &CacheRule<'_>| r.scope == v[0] && r.prefix == prefix)
+                        {
+                            return Err(
+                                self.at(child, "invalid, duplicate or excessive cache rule")
+                            );
+                        }
+                        let policy = CachePolicy::parse(v[1])
+                            .ok_or_else(|| self.at(child, "invalid cache policy"))?;
+                        cache.push(CacheRule {
+                            scope: v[0],
+                            prefix,
+                            policy,
+                        });
+                    }
                     "header" => {
                         let v = self.arguments(child, 3)?;
                         if headers.len() == MAX_HEADERS
@@ -387,6 +412,9 @@ impl ParsedConfig {
             {
                 return Err(self.at(node, "configured headers exceed 8192 bytes"));
             }
+            if root.is_none() && !cache.is_empty() {
+                return Err(self.at(node, "cache rules require a static root"));
+            }
             // Moving the same vector preserves the byte-for-byte declarations
             // accepted by rules::compile; no expansion or additional rule occurs.
             sites.push(CompiledSite {
@@ -401,6 +429,7 @@ impl ParsedConfig {
                 publications,
                 redirects,
                 headers,
+                cache,
             });
         }
         for site in &sites {
@@ -477,9 +506,13 @@ pub struct CompiledSite<'a> {
     publications: Vec<Publication<'a>>,
     redirects: Vec<Redirect<'a>>,
     headers: Vec<Header<'a>>,
+    cache: Vec<CacheRule<'a>>,
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn cache_rules(&self) -> &[CacheRule<'a>] {
+        &self.cache
+    }
     pub fn websocket_origins(&self) -> &[&'a str] {
         &self.websocket_origins
     }

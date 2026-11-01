@@ -18,6 +18,7 @@ pub(crate) struct Site {
     rules: Vec<(Vec<u8>, Vec<u8>)>,
     redirects: Vec<Redirect>,
     headers: Vec<Header>,
+    cache: Vec<(String, bool, pathward_config::CachePolicy)>,
 }
 struct Redirect {
     from: String,
@@ -50,6 +51,21 @@ impl Drop for ServicePermit {
     }
 }
 impl Site {
+    pub fn cache_policy(&self, path: &[u8]) -> pathward_config::CachePolicy {
+        self.cache
+            .iter()
+            .filter(|(scope, prefix, _)| {
+                scope == "*"
+                    || if *prefix {
+                        pathward::routing::subtree(path, scope.as_bytes())
+                    } else {
+                        path == scope.as_bytes()
+                    }
+            })
+            .max_by_key(|(s, p, _)| (s != "*", s.len(), !p))
+            .map_or(pathward_config::CachePolicy::NoStore, |(_, _, c)| *c)
+    }
+
     pub fn acquire(&self) -> Option<ServicePermit> {
         let mut state = self.budget.0.lock().ok()?;
         if !pathward::routing::service_admit(state.0, self.limits.connections, state.1) {
@@ -341,6 +357,11 @@ impl Snapshot {
                             status: r.status,
                             prefix: r.prefix,
                         })
+                        .collect(),
+                    cache: site
+                        .cache_rules()
+                        .iter()
+                        .map(|c| (c.scope.to_owned(), c.prefix, c.policy))
                         .collect(),
                     headers: site
                         .headers()
