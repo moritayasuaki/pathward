@@ -97,3 +97,36 @@ theorem dispatch_no_draining (a p : U64) :
 theorem dispatch_total (a p : U64) (d : Bool) :
     ∃ b, release.dispatch_allowed a p d = ok b := ⟨_,dispatch_eq a p d⟩
 end ReleaseProofs
+
+namespace ReleaseProofs
+abbrev migrationPolicy (c i : Slice U8) (r p b s : Bool) : Prop :=
+  c.val.length = 64 ∧ c.val = i.val ∧ r = true ∧ p = true ∧ b = true ∧ s = true
+
+theorem migration_eq (c i : Slice U8) (r p b s : Bool) :
+    release.migration_allowed c i r p b s = ok (decide (migrationPolicy c i r p b s)) := by
+  have hc : c.len = 64#usize ↔ c.val.length = 64 := by simp [UScalar.eq_equiv]
+  simp [release.migration_allowed,same_path_eq,migrationPolicy,hc]
+  split_ifs <;> simp_all
+
+theorem migration_contract (c i : Slice U8) (r p b s : Bool) :
+    release.migration_allowed c i r p b s = ok true ↔ migrationPolicy c i r p b s := by
+  simp [migration_eq]
+
+theorem migration_no_stale (c i : Slice U8) (r p b s : Bool) (h : c.val ≠ i.val) :
+    release.migration_allowed c i r p b s = ok false := by simp [migration_eq,migrationPolicy,h]
+
+theorem migration_no_unready (c i : Slice U8) (p b s : Bool) :
+    release.migration_allowed c i false p b s = ok false := by simp [migration_eq,migrationPolicy]
+
+theorem migration_no_mismatch (c i : Slice U8) (r b s : Bool) :
+    release.migration_allowed c i r false b s = ok false := by simp [migration_eq,migrationPolicy]
+
+theorem migration_requires_rollback (c i : Slice U8) (r p s : Bool) :
+    release.migration_allowed c i r p false s = ok false := by simp [migration_eq,migrationPolicy]
+
+theorem migration_requires_isolation (c i : Slice U8) (r p b : Bool) :
+    release.migration_allowed c i r p b false = ok false := by simp [migration_eq,migrationPolicy]
+
+theorem migration_total (c i : Slice U8) (r p b s : Bool) :
+    ∃ result, release.migration_allowed c i r p b s = ok result := ⟨_,migration_eq c i r p b s⟩
+end ReleaseProofs

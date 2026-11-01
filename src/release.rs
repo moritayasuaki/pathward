@@ -37,3 +37,22 @@ pub fn admission_allowed(active: u64, per_peer: u64, tokens: u64, draining: bool
 pub fn dispatch_allowed(running: u64, peer_running: u64, draining: bool) -> bool {
     !draining && running < 4 && peer_running < 2
 }
+
+/// Staging handoff gate. The adapter hashes the inspected binaries, configuration,
+/// explicit content manifest and listener plan, then rechecks immediately before
+/// stopping the fallback. Evidence and the OS handoff remain trusted I/O.
+pub fn migration_allowed(
+    current: &[u8],
+    inspected: &[u8],
+    candidate_ready: bool,
+    parity: bool,
+    rollback_ready: bool,
+    isolated: bool,
+) -> bool {
+    current.len() == 64
+        && same_path(current, inspected)
+        && candidate_ready
+        && parity
+        && rollback_ready
+        && isolated
+}

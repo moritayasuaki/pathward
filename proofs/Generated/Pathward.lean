@@ -368,6 +368,31 @@ def release.dispatch_allowed
        then ok (peer_running < 2#u64)
        else ok false
 
+/-- [pathward::release::migration_allowed]:
+    Source: 'src/release.rs', lines 44:0-58:1
+    Visibility: public -/
+def release.migration_allowed
+  (current : Slice Std.U8) (inspected : Slice Std.U8) (candidate_ready : Bool)
+  (parity : Bool) (rollback_ready : Bool) (isolated : Bool) :
+  RustM Bool
+  := do
+  let i := Slice.len current
+  if i = 64#usize
+  then
+    let b ← same_path current inspected
+    if b
+    then
+      if candidate_ready
+      then
+        if parity
+        then if rollback_ready
+             then ok isolated
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
 /-- [pathward::response::authority_port]:
     Source: 'src/response.rs', lines 6:0-14:1
     Visibility: public -/
