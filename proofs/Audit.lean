@@ -126,3 +126,12 @@ import ReleaseProofs
 #print axioms ReleaseProofs.dispatch_bounded
 #print axioms ReleaseProofs.dispatch_no_draining
 #print axioms ReleaseProofs.dispatch_total
+
+#print axioms ReleaseProofs.migration_eq
+#print axioms ReleaseProofs.migration_contract
+#print axioms ReleaseProofs.migration_no_stale
+#print axioms ReleaseProofs.migration_no_unready
+#print axioms ReleaseProofs.migration_no_mismatch
+#print axioms ReleaseProofs.migration_requires_rollback
+#print axioms ReleaseProofs.migration_requires_isolation
+#print axioms ReleaseProofs.migration_total

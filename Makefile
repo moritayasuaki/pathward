@@ -69,6 +69,7 @@ acme-integration:
 .PHONY: soak soak-check
 soak-check:
 	python3 -m unittest discover -s scripts -p 'test_soak_checks.py'
+	python3 -m unittest discover -s scripts -p 'test_staging_rehearsal.py'
 
 SOAK_SECONDS ?= 3600
 SOAK_REPORT ?= .tools/soak-latest.json

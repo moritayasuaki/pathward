@@ -1,0 +1,39 @@
+name: Staging binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/staging-rehearsal]
+    paths: ["src/**", "server/**", "config/**", "vendor/**", ".github/workflows/staging-build.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - run: |
+          make server-setup acme-test-setup
+          cargo +1.99.1 build --offline --locked --release --manifest-path server/Cargo.toml --bins --examples
+          mkdir bundle
+          cp server/target/release/pathward-server bundle/
+          cp server/target/release/examples/soak_server bundle/
+          cp server/target/release/examples/migration_gate bundle/
+          cp .tools/pebble/pebble bundle/
+          git rev-parse HEAD > bundle/SOURCE_COMMIT
+          cd bundle
+          sha256sum pathward-server soak_server migration_gate pebble SOURCE_COMMIT > SHA256SUMS
+          cat SHA256SUMS
+      # Build-only, exact upload directory, no deployment keys or host access.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-linux-amd64
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false

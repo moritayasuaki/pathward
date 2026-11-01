@@ -18,7 +18,14 @@ if sys.platform != "linux":
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--soak-seconds", type=int, default=0)
 parser.add_argument("--report", default=".tools/soak-latest.json")
+parser.add_argument("--rehearsal", action="store_true")
+parser.add_argument("--content", type=Path)
+parser.add_argument("--manifest", type=Path)
+parser.add_argument("--headers", type=Path)
+parser.add_argument("--seconds", type=int, default=180)
 args = parser.parse_args()
+if args.rehearsal and (args.soak_seconds or not args.content or not args.manifest or not 120 <= args.seconds <= 900):
+    raise SystemExit("Rehearsal requires --content, --manifest and 120–900 --seconds; no --soak-seconds")
 if args.soak_seconds and not 120 <= args.soak_seconds <= 86400:
     raise SystemExit("Soak duration must be 120–86400 seconds")
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +39,7 @@ def port():
         return sock.getsockname()[1]
 
 with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as temporary:
+    os.umask(0o077)
     work = Path(temporary)
     # All private keys are ephemeral test keys and never enter the repository.
     with (work / "openssl.log").open("w") as log:
@@ -40,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
             ["req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost", "-keyout", "server.key", "-out", "server.csr"],
             ["x509", "-req", "-days", "2", "-in", "server.csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-extfile", "extensions", "-out", "server.pem"],
         ]
-        (work / "extensions").write_text("subjectAltName=DNS:localhost\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n")
+        (work / "extensions").write_text("subjectAltName=DNS:localhost,DNS:stage.pathward.test\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n")
         for command in commands:
             subprocess.run(["openssl"] + command, cwd=work, stdout=log, stderr=log, check=True)
     api, management, serving = port(), port(), port()
@@ -86,7 +94,7 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
     config = {"pebble": {"listenAddress": f"127.0.0.1:{api}", "managementListenAddress": f"127.0.0.1:{management}",
         "certificate": str(work / "server.pem"), "privateKey": str(work / "server.key"),
         "httpPort": port(), "tlsPort": serving, "keyAlgorithm": "ecdsa",
-        "profiles": {"default": {"description": "PathWard local renewal test", "validityPeriod": 60 if args.soak_seconds else 30}}}}
+        "profiles": {"default": {"description": "PathWard local renewal test", "validityPeriod": 60 if args.soak_seconds or args.rehearsal else 30}}}}
     (work / "pebble.json").write_text(json.dumps(config))
     env = dict(os.environ, PEBBLE_VA_NOSLEEP="1", PEBBLE_WFE_NONCEREJECT="0", PEBBLE_AUTHZREUSE="0")
     # Validation is real: deliberately do NOT set PEBBLE_VA_ALWAYS_VALID.
@@ -107,10 +115,16 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
             else:
                 raise RuntimeError("Pebble startup timeout")
             env.update(PATHWARD_TEST_CA=str(work / "ca.pem"), PATHWARD_TEST_ISSUER=str(work / "issued-root.pem"),
-                       PATHWARD_TEST_DIRECTORY=f"https://localhost:{api}/dir", PATHWARD_TEST_PORT=str(serving))
+                       PATHWARD_TEST_DIRECTORY=f"https://localhost:{api}/dir", PATHWARD_TEST_PORT=str(serving),
+                       PATHWARD_TEST_FALLBACK_CERT=str(work / "server.pem"), PATHWARD_TEST_FALLBACK_KEY=str(work / "server.key"))
             command = ([sys.executable, "scripts/soak.py", "--seconds", str(args.soak_seconds), "--report", args.report]
                        if args.soak_seconds else ["cargo", "+1.99.1", "test", "--offline", "--locked", "--manifest-path", "server/Cargo.toml", "--test", "acme_lifecycle", "--", "--ignored", "--nocapture"])
-            subprocess.run(command, cwd=ROOT, env=env, check=True, timeout=args.soak_seconds + 240)
+            if args.rehearsal:
+                command = [sys.executable, "scripts/staging_rehearsal.py", "--content", str(args.content.resolve()),
+                           "--manifest", str(args.manifest.resolve()), "--seconds", str(args.seconds), "--report", args.report]
+                if args.headers:
+                    command += ["--headers", str(args.headers.resolve())]
+            subprocess.run(command, cwd=ROOT, env=env, check=True, timeout=(args.seconds if args.rehearsal else args.soak_seconds) + 300)
         except Exception:
             log.flush(); log.seek(0)
             print(log.read()[-20000:])  # Pebble protocol diagnostics only, never key material.
@@ -122,4 +136,4 @@ with tempfile.TemporaryDirectory(prefix="pathward-acme-integration-") as tempora
             except subprocess.TimeoutExpired:
                 process.kill(); process.wait()
             stop.set(); worker.join(timeout=2); dns.close()
-print("Local ACME soak passed" if args.soak_seconds else "Real local ACME issuance, TLS-ALPN-01, renewal and restart passed")
+print("Isolated migration rehearsal passed" if args.rehearsal else "Local ACME soak passed" if args.soak_seconds else "Real local ACME issuance, TLS-ALPN-01, renewal and restart passed")

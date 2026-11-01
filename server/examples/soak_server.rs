@@ -14,8 +14,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread,
     };
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.len() != 5 {
-        return Err("expected CONTROL CACHE LOCAL_DIRECTORY CA_PEM TLS_PORT".into());
+    if args.len() != 5 && args.len() != 7 {
+        return Err(
+            "expected CONTROL CACHE LOCAL_DIRECTORY CA_PEM TLS_PORT [HTTP_PORT MONITOR_PORT]"
+                .into(),
+        );
     }
     let directory = &args[2];
     let api_port: u16 = directory
@@ -26,6 +29,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if api_port == 0 {
         return Err("local CA port".into());
     }
+    // Ephemeral test keys must not enter core dumps. Unlike the production CLI,
+    // keep procfs readable so the unprivileged soak can measure descriptors.
+    rustix::process::setrlimit(
+        rustix::process::Resource::Core,
+        rustix::process::Rlimit {
+            current: Some(0),
+            maximum: Some(0),
+        },
+    )?;
     let path = Path::new(&args[0]).join(".config");
     let parsed = control::read_config(&path)?;
     let config = parsed.compile()?;
@@ -60,8 +72,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let identity = manager.identity();
     let tls = tls::TlsServer::new(identity.clone())?;
     let listener = TcpListener::bind(("127.0.0.1", args[4].parse::<u16>()?))?;
-    let redirect = TcpListener::bind("127.0.0.1:0")?;
-    let monitor = TcpListener::bind("127.0.0.1:0")?;
+    let http_port = args
+        .get(5)
+        .map(|s| s.parse::<u16>())
+        .transpose()?
+        .unwrap_or(0);
+    let monitor_port = args
+        .get(6)
+        .map(|s| s.parse::<u16>())
+        .transpose()?
+        .unwrap_or(0);
+    let redirect = TcpListener::bind(("127.0.0.1", http_port))?;
+    let monitor = TcpListener::bind(("127.0.0.1", monitor_port))?;
     println!(
         "{{\"pid\":{},\"tls\":{},\"http\":{},\"monitor\":{}}}",
         std::process::id(),
