@@ -103,8 +103,9 @@ input allocation. A linear, nonrecursive preflight admits only:
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
 - A single children level (sites only); at most 16 sites and 514 directives per
   site before the upstream parser runs. Compilation separately enforces 256 URLs,
-  64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials, 64 proxy scopes and
-  seven distinct budget settings. Publications require a root.
+  64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials,
+  64 proxy scopes, 12 budget settings, two stream opt-ins, one compression policy
+  and 16 additional WebSocket origins. Publications require a root.
 
 Raw/multiline strings, block comments, slashdash (`/-`), quoted node names,
 properties, type annotations, bare arguments, line continuations, BOM, and other
