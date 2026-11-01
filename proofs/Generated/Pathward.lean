@@ -269,28 +269,22 @@ def proxy.MAX_RESPONSE_BODY : RustM Std.U64 := do
   i * 1024#u64
 
 /-- [pathward::proxy::site_mode_allowed]:
-    Source: 'src/proxy.rs', lines 9:0-15:1
+    Source: 'src/proxy.rs', lines 9:0-11:1
     Visibility: public -/
 def proxy.site_mode_allowed
   (root : Bool) (publications : Bool) (redirects : Bool) (proxy1 : Bool) :
   RustM Bool
   := do
-  if proxy1
-  then
-    if root
-    then ok false
-    else if publications
-         then ok false
-         else ok (¬ redirects)
-  else
-    if root
-    then if publications
-         then ok true
-         else ok redirects
-    else ok false
+  if publications
+  then if root
+       then ok true
+       else ok false
+  else if redirects
+       then ok true
+       else ok proxy1
 
 /-- [pathward::proxy::endpoint_allowed]:
-    Source: 'src/proxy.rs', lines 17:0-19:1
+    Source: 'src/proxy.rs', lines 13:0-15:1
     Visibility: public -/
 def proxy.endpoint_allowed
   (address : Slice Std.U8) (port : Std.U16) : RustM Bool := do
@@ -311,7 +305,7 @@ def proxy.endpoint_allowed
   else ok false
 
 /-- [pathward::proxy::method_allowed]:
-    Source: 'src/proxy.rs', lines 21:0-29:1
+    Source: 'src/proxy.rs', lines 17:0-25:1
     Visibility: public -/
 def proxy.method_allowed (method : Slice Std.U8) : RustM Bool := do
   let s ← lift (Array.to_slice (Array.make 3#usize [ 71#u8, 69#u8, 84#u8 ]))
@@ -362,7 +356,7 @@ def proxy.method_allowed (method : Slice Std.U8) : RustM Bool := do
               same_path method s6
 
 /-- [pathward::proxy::status_allowed]:
-    Source: 'src/proxy.rs', lines 32:0-34:1
+    Source: 'src/proxy.rs', lines 28:0-30:1
     Visibility: public -/
 def proxy.status_allowed (status : Std.U16) : RustM Bool := do
   if status >= 200#u16
@@ -370,7 +364,7 @@ def proxy.status_allowed (status : Std.U16) : RustM Bool := do
   else ok false
 
 /-- [pathward::proxy::request_framing]:
-    Source: 'src/proxy.rs', lines 37:0-39:1
+    Source: 'src/proxy.rs', lines 33:0-35:1
     Visibility: public -/
 def proxy.request_framing
   (length : Std.U64) (transfer_encoding : Bool) (duplicate_length : Bool) :
@@ -384,7 +378,7 @@ def proxy.request_framing
   else ok false
 
 /-- [pathward::proxy::response_framing]:
-    Source: 'src/proxy.rs', lines 41:0-49:1
+    Source: 'src/proxy.rs', lines 37:0-45:1
     Visibility: public -/
 def proxy.response_framing
   (length : Option Std.U64) (chunked : Bool) (duplicate_length : Bool) :
@@ -402,7 +396,7 @@ def proxy.response_framing
       else ok false
 
 /-- [pathward::proxy::target_bytes]: loop 0:
-    Source: 'src/proxy.rs', lines 54:4-62:1 -/
+    Source: 'src/proxy.rs', lines 50:4-58:1 -/
 @[rust_loop]
 def proxy.target_bytes_loop
   (target : Slice Std.U8) (i : Std.Usize) : RustM Bool := do
@@ -427,13 +421,13 @@ def proxy.target_bytes_loop
 partial_fixpoint
 
 /-- [pathward::proxy::target_bytes]:
-    Source: 'src/proxy.rs', lines 52:0-62:1 -/
+    Source: 'src/proxy.rs', lines 48:0-58:1 -/
 @[reducible]
 def proxy.target_bytes (target : Slice Std.U8) : RustM Bool := do
   proxy.target_bytes_loop target 0#usize
 
 /-- [pathward::proxy::target_allowed]:
-    Source: 'src/proxy.rs', lines 65:0-71:1
+    Source: 'src/proxy.rs', lines 61:0-67:1
     Visibility: public -/
 def proxy.target_allowed (target : Slice Std.U8) : RustM Bool := do
   let b ← core.slice.Slice.is_empty target
@@ -458,7 +452,7 @@ def proxy.target_allowed (target : Slice Std.U8) : RustM Bool := do
     else ok false
 
 /-- [pathward::proxy::hop_header]:
-    Source: 'src/proxy.rs', lines 73:0-83:1
+    Source: 'src/proxy.rs', lines 69:0-79:1
     Visibility: public -/
 def proxy.hop_header («name» : Slice Std.U8) : RustM Bool := do
   let s ←
@@ -547,7 +541,7 @@ def proxy.hop_header («name» : Slice Std.U8) : RustM Bool := do
                   same_path «name» s8
 
 /-- [pathward::proxy::forwarding_header]:
-    Source: 'src/proxy.rs', lines 87:0-101:1
+    Source: 'src/proxy.rs', lines 83:0-97:1
     Visibility: public -/
 def proxy.forwarding_header («name» : Slice Std.U8) : RustM Bool := do
   let s ←
@@ -637,7 +631,7 @@ def response.visible (bytes : Slice Std.U8) : RustM Bool := do
   response.visible_loop bytes 0#usize
 
 /-- [pathward::proxy::request_header]:
-    Source: 'src/proxy.rs', lines 103:0-110:1
+    Source: 'src/proxy.rs', lines 99:0-106:1
     Visibility: public -/
 def proxy.request_header
   («name» : Slice Std.U8) (value : Slice Std.U8) : RustM Bool := do
@@ -673,7 +667,7 @@ def proxy.request_header
   else ok false
 
 /-- [pathward::proxy::response_header]:
-    Source: 'src/proxy.rs', lines 112:0-120:1
+    Source: 'src/proxy.rs', lines 108:0-116:1
     Visibility: public -/
 def proxy.response_header
   («name» : Slice Std.U8) (value : Slice Std.U8) (encrypted : Bool) :
@@ -1219,6 +1213,206 @@ def response.route_matches
         else ok false
     else ok false
   else ok false
+
+/-- [pathward::routing::Route]
+    Source: 'src/routing.rs', lines 5:0-11:1
+    Visibility: public -/
+@[discriminant isize]
+inductive routing.Route where
+| Denied : routing.Route
+| Static : routing.Route
+| Redirect : routing.Route
+| Proxy : routing.Route
+| Missing : routing.Route
+
+/-- [pathward::routing::select]:
+    Source: 'src/routing.rs', lines 15:0-27:1
+    Visibility: public -/
+def routing.select
+  (valid : Bool) (denied : Bool) (published : Bool) (redirect : Bool)
+  (proxy1 : Bool) :
+  RustM routing.Route
+  := do
+  if valid
+  then
+    if denied
+    then ok routing.Route.Denied
+    else
+      if published
+      then ok routing.Route.Static
+      else
+        if redirect
+        then ok routing.Route.Redirect
+        else
+          if proxy1
+          then ok routing.Route.Proxy
+          else ok routing.Route.Missing
+  else ok routing.Route.Denied
+
+/-- [pathward::routing::stem]:
+    Source: 'src/routing.rs', lines 31:0-42:1
+    Visibility: public -/
+def routing.stem (path : Slice Std.U8) : RustM (Option (Slice Std.U8)) := do
+  let b ← valid_path path
+  if b
+  then ok (some path)
+  else
+    let i := Slice.len path
+    if i > 1#usize
+    then
+      let i1 := Slice.len path
+      let i2 ← i1 - 1#usize
+      let (head, tail) ← core.slice.Slice.split_at path i2
+      let i3 ← Slice.index_usize tail 0#usize
+      if i3 = 47#u8
+      then let b1 ← valid_path head
+           if b1
+           then ok (some head)
+           else ok none
+      else ok none
+    else ok none
+
+/-- [pathward::routing::subtree]:
+    Source: 'src/routing.rs', lines 45:0-47:1
+    Visibility: public -/
+def routing.subtree
+  (path : Slice Std.U8) («from» : Slice Std.U8) : RustM Bool := do
+  let b ← valid_path path
+  if b
+  then
+    let s ← lift (Array.to_slice (Array.make 1#usize [ 47#u8 ]))
+    let b1 ← same_path «from» s
+    if b1
+    then ok true
+    else response.route_matches path «from» true
+  else ok false
+
+/-- [pathward::routing::body_limit]:
+    Source: 'src/routing.rs', lines 50:0-56:1
+    Visibility: public -/
+def routing.body_limit (limit : Std.U64) (response1 : Bool) : RustM Bool := do
+  if response1
+  then ok (limit <= 67108864#u64)
+  else ok (limit <= 16777216#u64)
+
+/-- [pathward::routing::body_fits]:
+    Source: 'src/routing.rs', lines 58:0-60:1
+    Visibility: public -/
+def routing.body_fits
+  (length : Std.U64) (limit : Std.U64) (response1 : Bool) : RustM Bool := do
+  let b ← routing.body_limit limit response1
+  if b
+  then ok (length <= limit)
+  else ok false
+
+/-- [pathward::routing::chunk_fits]:
+    Source: 'src/routing.rs', lines 62:0-64:1
+    Visibility: public -/
+def routing.chunk_fits
+  (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do
+  let b ← routing.body_fits used limit true
+  if b
+  then let i ← limit - used
+       ok (next <= i)
+  else ok false
+
+/-- [pathward::routing::time_limits]:
+    Source: 'src/routing.rs', lines 67:0-78:1
+    Visibility: public -/
+def routing.time_limits
+  (body : Std.U64) (connect : Std.U64) (head : Std.U64) (total : Std.U64) :
+  RustM Bool
+  := do
+  if body >= 100#u64
+  then
+    if body <= 30000#u64
+    then
+      if body <= total
+      then
+        if connect >= 50#u64
+        then
+          if connect <= 10000#u64
+          then
+            if connect <= total
+            then
+              if head >= 100#u64
+              then
+                if head <= total
+                then
+                  if total >= 100#u64
+                  then ok (total <= 120000#u64)
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::routing::connection_limit]:
+    Source: 'src/routing.rs', lines 80:0-82:1
+    Visibility: public -/
+def routing.connection_limit (limit : Std.U64) : RustM Bool := do
+  if limit > 0#u64
+  then ok (limit <= 3#u64)
+  else ok false
+
+/-- [pathward::routing::service_admit]:
+    Source: 'src/routing.rs', lines 85:0-87:1
+    Visibility: public -/
+def routing.service_admit
+  (active : Std.U64) (captured : Std.U64) (current : Std.U64) :
+  RustM Bool
+  := do
+  let b ← routing.connection_limit captured
+  if b
+  then
+    let b1 ← routing.connection_limit current
+    if b1
+    then if active < captured
+         then ok (active < current)
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::routing::request_framing]:
+    Source: 'src/routing.rs', lines 89:0-91:1
+    Visibility: public -/
+def routing.request_framing
+  (length : Std.U64) (limit : Std.U64) (transfer : Bool) (duplicate : Bool) :
+  RustM Bool
+  := do
+  let b ← routing.body_fits length limit false
+  if b
+  then if transfer
+       then ok false
+       else ok (¬ duplicate)
+  else ok false
+
+/-- [pathward::routing::response_framing]:
+    Source: 'src/routing.rs', lines 92:0-100:1
+    Visibility: public -/
+def routing.response_framing
+  (length : Option Std.U64) (limit : Std.U64) (chunked : Bool)
+  (duplicate : Bool) :
+  RustM Bool
+  := do
+  if duplicate
+  then ok false
+  else
+    let b ← routing.body_limit limit true
+    if b
+    then
+      match length with
+      | none => ok true
+      | some n =>
+        let b1 ← routing.body_fits n limit true
+        if b1
+        then ok (¬ chunked)
+        else ok false
+    else ok false
 
 /-- [pathward::rules::Publication]
     Source: 'src/rules.rs', lines 9:0-12:1

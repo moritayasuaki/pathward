@@ -11,7 +11,7 @@ ALLOWED_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 
 
 def main():
-    for path in [PROOFS / "Generated/Pathward.lean", PROOFS / "PathwardProofs.lean", PROOFS / "RulesProofs.lean", PROOFS / "ServingProofs.lean", PROOFS / "TlsProofs.lean", PROOFS / "RuntimeProofs.lean", PROOFS / "ResponseProofs.lean", PROOFS / "ReleaseProofs.lean", PROOFS / "ProxyProofs.lean"]:
+    for path in [PROOFS / "Generated/Pathward.lean", PROOFS / "PathwardProofs.lean", PROOFS / "RulesProofs.lean", PROOFS / "ServingProofs.lean", PROOFS / "TlsProofs.lean", PROOFS / "RuntimeProofs.lean", PROOFS / "ResponseProofs.lean", PROOFS / "ReleaseProofs.lean", PROOFS / "ProxyProofs.lean", PROOFS / "RoutingProofs.lean"]:
         if re.search(r"\b(sorry|admit|axiom|unsafe|native_decide|implemented_by|extern)\b", path.read_text()):
             raise SystemExit(f"Forbidden proof escape in {path.relative_to(ROOT)}")
     metadata = json.loads(subprocess.check_output(
@@ -28,7 +28,7 @@ def main():
         seen.add(name)
     for name in re.findall(r"'([\w.]+)' does not depend on any axioms", output):
         seen.add(name)
-    if len(expected) < 153 or set(expected) != seen:
+    if len(expected) < 185 or set(expected) != seen:
         raise SystemExit(f"Missing or unexpected axiom audit results: expected {expected}, got {seen}")
     print(output, end="")
     print("Audit passed: no proof holes, only standard Lean axioms, zero Rust dependencies.")

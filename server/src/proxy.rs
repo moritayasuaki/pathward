@@ -2,6 +2,7 @@
 //! No DNS, pooling, retries, redirects, tunnels or automatic decompression.
 use crate::http::{self, Rejection, Request, Transport};
 use pathward::proxy as policy;
+use pathward_config::ProxyLimits;
 use std::{
     collections::BTreeSet,
     io::{self, Read},
@@ -50,7 +51,13 @@ pub(crate) fn forward(
     accepted: Instant,
     encrypted: bool,
     external_port: u16,
+    limits: ProxyLimits,
 ) -> Result<Response, Rejection> {
+    if !limits.valid() {
+        return Err(Rejection(502));
+    }
+    let body_deadline = accepted + Duration::from_millis(limits.body_ms);
+    http::remaining(body_deadline).map_err(|_| Rejection(408))?;
     if !policy::method_allowed(req.method) {
         return Err(Rejection(405));
     }
@@ -63,7 +70,7 @@ pub(crate) fn forward(
     {
         return Err(Rejection(502));
     }
-    if !policy::request_framing(req.content_length, false, false) {
+    if !pathward::routing::request_framing(req.content_length, limits.request_bytes, false, false) {
         return Err(Rejection(413));
     }
     if prefetched.len() as u64 > req.content_length {
@@ -124,9 +131,7 @@ pub(crate) fn forward(
     body.extend_from_slice(prefetched);
     let mut buffer = [0u8; 16_384];
     while (body.len() as u64) < req.content_length {
-        client
-            .deadline(accepted + http::READ_BUDGET)
-            .map_err(|_| Rejection(408))?;
+        client.deadline(body_deadline).map_err(|_| Rejection(408))?;
         let size = buffer.len().min(req.content_length as usize - body.len());
         let n = match client.read(&mut buffer[..size]) {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
@@ -147,10 +152,11 @@ pub(crate) fn forward(
         };
         body.extend_from_slice(&buffer[..n]);
     }
-    let deadline = accepted + http::READ_BUDGET + http::WRITE_BUDGET;
+    http::remaining(body_deadline).map_err(|_| Rejection(408))?;
+    let deadline = accepted + Duration::from_millis(limits.total_ms);
     let timeout = http::remaining(deadline)
         .map_err(failure)?
-        .min(Duration::from_secs(2));
+        .min(Duration::from_millis(limits.connect_ms));
     let mut socket = TcpStream::connect_timeout(&upstream, timeout).map_err(failure)?;
     let method = std::str::from_utf8(req.method).map_err(|_| Rejection(400))?;
     let target = std::str::from_utf8(req.target).map_err(|_| Rejection(400))?;
@@ -171,7 +177,14 @@ pub(crate) fn forward(
     http::write_all(&mut socket, head.as_bytes(), deadline).map_err(failure)?;
     http::write_all(&mut socket, &body, deadline).map_err(failure)?;
     // The entire upstream response is validated before committing downstream headers.
-    receive(socket, req.method == b"HEAD", deadline).map_err(failure)
+    receive(
+        socket,
+        req.method == b"HEAD",
+        deadline,
+        deadline.min(Instant::now() + Duration::from_millis(limits.head_ms)),
+        limits.response_bytes,
+    )
+    .map_err(failure)
 }
 
 struct Wire {
@@ -232,8 +245,15 @@ impl Wire {
     }
 }
 
-fn receive(mut socket: TcpStream, head_only: bool, deadline: Instant) -> io::Result<Response> {
-    let raw = http::read_head(&mut socket, deadline)?;
+fn receive(
+    mut socket: TcpStream,
+    head_only: bool,
+    deadline: Instant,
+    head_deadline: Instant,
+    limit: u64,
+) -> io::Result<Response> {
+    let raw = http::read_head(&mut socket, head_deadline)?;
+    http::remaining(head_deadline)?;
     let end = raw
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
@@ -301,7 +321,7 @@ fn receive(mut socket: TcpStream, head_only: bool, deadline: Instant) -> io::Res
             _ => {}
         }
     }
-    if !policy::response_framing(length, chunked, false)
+    if !pathward::routing::response_framing(length, limit, chunked, false)
         || (status == 204 && (length.is_some() || chunked))
     {
         return Err(invalid());
@@ -356,7 +376,7 @@ fn receive(mut socket: TcpStream, head_only: bool, deadline: Instant) -> io::Res
                 }
                 break;
             }
-            if count > policy::MAX_RESPONSE_BODY - body.len() as u64 {
+            if !pathward::routing::chunk_fits(body.len() as u64, count, limit) {
                 return Err(invalid());
             }
             let old = body.len();
@@ -386,7 +406,7 @@ fn receive(mut socket: TcpStream, head_only: bool, deadline: Instant) -> io::Res
             if n == 0 {
                 break;
             }
-            if body.len() + n > policy::MAX_RESPONSE_BODY as usize {
+            if !pathward::routing::chunk_fits(body.len() as u64, n as u64, limit) {
                 return Err(invalid());
             }
             body.extend_from_slice(&buffer[..n]);
@@ -396,6 +416,7 @@ fn receive(mut socket: TcpStream, head_only: bool, deadline: Instant) -> io::Res
     if status == 205 && !body.is_empty() {
         return Err(invalid());
     }
+    http::remaining(deadline)?;
     Ok(Response {
         status,
         length: declared,

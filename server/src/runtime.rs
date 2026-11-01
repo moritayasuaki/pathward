@@ -1,14 +1,19 @@
 //! Immutable owned configurations, prepared before the short commit lock.
 use crate::files::DocumentRoot;
 use pathward::rules::Publication;
-use pathward_config::CompiledConfig;
+use pathward_config::{CompiledConfig, ProxyLimits};
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::{io, path::Path};
 
 pub(crate) struct Site {
     pub host: String,
     pub root: Option<DocumentRoot>,
     pub upstream: Option<SocketAddr>,
+    pub limits: ProxyLimits,
+    budget: Arc<ServiceBudget>,
+    denies: Vec<String>,
+    proxy_paths: Vec<String>,
     rules: Vec<(Vec<u8>, Vec<u8>)>,
     redirects: Vec<Redirect>,
     headers: Vec<Header>,
@@ -25,7 +30,55 @@ struct Header {
     name: String,
     value: String,
 }
+struct ServiceBudget(Mutex<(u64, u64)>);
+pub(crate) struct ServicePermit<'a>(&'a ServiceBudget);
+impl Drop for ServicePermit<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.0.0.lock() {
+            state.0 = state.0.saturating_sub(1);
+        }
+    }
+}
 impl Site {
+    pub fn acquire(&self) -> Option<ServicePermit<'_>> {
+        let mut state = self.budget.0.lock().ok()?;
+        if !pathward::routing::service_admit(state.0, self.limits.connections, state.1) {
+            return None;
+        }
+        state.0 += 1;
+        Some(ServicePermit(&self.budget))
+    }
+    pub fn route(&self, target: &[u8]) -> pathward::routing::Route {
+        let raw = &target[..pathward::serving::path_length(target)];
+        let strict = !self.rules.is_empty()
+            || !self.redirects.is_empty()
+            || !self.denies.is_empty()
+            || !self.proxy_paths.is_empty();
+        let stem = pathward::routing::stem(raw);
+        let path = stem.unwrap_or(b"");
+        let transport_valid = if self.upstream.is_some() {
+            pathward::proxy::target_allowed(target)
+        } else {
+            pathward::serving::request_path(target).is_some()
+        };
+        let valid = transport_valid && (!strict || stem.is_some());
+        let denied = self
+            .denies
+            .iter()
+            .any(|d| pathward::routing::subtree(path, d.as_bytes()));
+        let published = self.rules.iter().any(|(p, _)| p == path);
+        let redirect = self
+            .redirects
+            .iter()
+            .any(|r| pathward::response::route_matches(path, r.from.as_bytes(), r.prefix));
+        let proxy = self.upstream.is_some()
+            && (self.proxy_paths.is_empty()
+                || self
+                    .proxy_paths
+                    .iter()
+                    .any(|p| pathward::routing::subtree(path, p.as_bytes())));
+        pathward::routing::select(valid, denied, published, redirect, proxy)
+    }
     pub fn head(
         &self,
         status: u16,
@@ -148,6 +201,27 @@ pub(crate) struct Snapshot {
     pub source: String,
 }
 impl Snapshot {
+    /// Preparation never changes the active cap. Install only at the commit point.
+    pub fn inherit_budgets(&mut self, old: &Snapshot) {
+        for site in &mut self.sites {
+            if let Some(previous) = old.sites.iter().find(|s| s.host == site.host) {
+                site.budget = previous.budget.clone();
+            }
+        }
+    }
+    pub fn install_limits(&self) {
+        for site in &self.sites {
+            // A poisoned budget refuses admission. No I/O or fallible work follows
+            // installation at either commit point.
+            if let Ok(mut state) = site.budget.0.lock() {
+                state.1 = if site.upstream.is_some() {
+                    site.limits.connections
+                } else {
+                    0
+                };
+            }
+        }
+    }
     pub fn check_files(&self) -> io::Result<usize> {
         let mut count = 0;
         for site in &self.sites {
@@ -179,6 +253,17 @@ impl Snapshot {
                     host: site.host().to_owned(),
                     root: site.root().map(DocumentRoot::open).transpose()?,
                     upstream: site.upstream(),
+                    limits: site.proxy_limits(),
+                    budget: Arc::new(ServiceBudget(Mutex::new((
+                        0,
+                        if site.upstream().is_some() {
+                            site.proxy_limits().connections
+                        } else {
+                            0
+                        },
+                    )))),
+                    denies: site.denies().iter().map(|p| (*p).to_owned()).collect(),
+                    proxy_paths: site.proxy_paths().iter().map(|p| (*p).to_owned()).collect(),
                     redirects: site
                         .redirects()
                         .iter()

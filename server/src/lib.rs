@@ -175,7 +175,15 @@ impl Server {
         {
             return Err(io::Error::other("reload policy rejected"));
         }
-        let candidate = Arc::new(Snapshot::prepare(config, self.cache.as_deref())?);
+        let mut candidate = Snapshot::prepare(config, self.cache.as_deref())?;
+        candidate.inherit_budgets(
+            &self
+                .state
+                .read()
+                .map_err(|_| io::Error::other("state lock"))?
+                .snapshot,
+        );
+        let candidate = Arc::new(candidate);
         let mut state = self
             .state
             .write()
@@ -191,6 +199,7 @@ impl Server {
         if next == state.generation {
             return Err(io::Error::other("reload commit rejected"));
         }
+        candidate.install_limits();
         state.snapshot = candidate;
         state.generation = next;
         Ok(next)
@@ -267,14 +276,38 @@ impl Server {
             )?;
             Ok((status, 0))
         };
-        if let Some(upstream) = site.upstream {
+        let route = site.route(req.target);
+        if route == pathward::routing::Route::Denied {
+            // Preserve the whole-host proxy's malformed-target status; policy
+            // denials and ambiguous spellings in routing sites remain generic 404.
+            return reject(
+                stream,
+                if !pathward::proxy::target_allowed(req.target) && site.upstream.is_some() {
+                    400
+                } else {
+                    404
+                },
+            );
+        }
+        if route == pathward::routing::Route::Missing {
+            return reject(stream, 404);
+        }
+        if route == pathward::routing::Route::Proxy {
+            let upstream = site
+                .upstream
+                .ok_or_else(|| io::Error::other("proxy route without upstream"))?;
             if !pathward::proxy::method_allowed(req.method) {
                 return reject(stream, 405);
             }
             if !pathward::proxy::target_allowed(req.target) {
                 return reject(stream, 400);
             }
-            if !pathward::proxy::request_framing(req.content_length, false, false) {
+            if !pathward::routing::request_framing(
+                req.content_length,
+                site.limits.request_bytes,
+                false,
+                false,
+            ) {
                 return reject(stream, 413);
             }
             if automatic_redirect {
@@ -292,6 +325,9 @@ impl Server {
                 )?;
                 return Ok((308, 0));
             }
+            let Some(_permit) = site.acquire() else {
+                return reject(stream, 503);
+            };
             let response = match proxy::forward(
                 upstream,
                 &req,
@@ -300,11 +336,12 @@ impl Server {
                 accepted,
                 sni.is_some(),
                 authority_port,
+                site.limits,
             ) {
                 Ok(response) => response,
                 Err(http::Rejection(status)) => return reject(stream, status),
             };
-            let deadline = accepted + http::READ_BUDGET + http::WRITE_BUDGET;
+            let deadline = accepted + Duration::from_millis(site.limits.total_ms);
             http::write_all(
                 stream,
                 site.proxy_head(&response, path, sni.is_some()).as_bytes(),
@@ -334,7 +371,7 @@ impl Server {
             )?;
             return Ok((status, 0));
         }
-        if automatic_redirect {
+        if automatic_redirect || route == pathward::routing::Route::Redirect {
             return reject(stream, 404);
         }
         let publications = site.publications();

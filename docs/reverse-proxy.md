@@ -1,7 +1,8 @@
 # Bounded local reverse proxy
 
 PathWard can delegate an entire configured hostname to one explicitly selected
-local HTTP application. This is the first proxy milestone, not a claim of Caddy
+local HTTP application. It can also coexist with explicit local and denied routes
+using [mixed routing and per-service limits](routing-and-limits.md). This is not a claim of Caddy
 feature parity. Existing static sites still require exact publication grants.
 
 ```kdl
@@ -31,11 +32,12 @@ Probe a representative application URL separately before switching traffic.
 - Only canonical `127.0.0.1:PORT` and `[::1]:PORT` are accepted, with nonzero ports.
   No DNS, URLs, remote/private-network addresses, credentials, redirects followed,
   retries, connection pooling, CONNECT tunnels or socket paths are used.
-- `reverse-proxy` is mutually exclusive with `root`, `publish`, `redirect` and
-  `redirect-prefix` in that site. Other sites may remain static. An upstream 404
-  or failure never falls back to a file. The automatic plaintext-to-HTTPS redirect
-  remains available for proxy sites and uses the fixed configured hostname.
-- This delegates **every admitted URL and method** on that hostname to the app,
+- Mixed sites select denials before local publications/redirects, then the proxy.
+  `proxy-path` optionally restricts its subtrees. Selected local failures never
+  fall back to the proxy; upstream failures never fall back to files. The automatic
+  plaintext-to-HTTPS redirect uses the fixed configured hostname.
+- In a whole-host site with no local/deny/scope declarations, this delegates
+  **every admitted URL and method** on that hostname to the app,
   including encoded, hidden or dot-component paths. The raw origin-form target
   and body bytes are preserved. The application owns authentication, authorization,
   normalization and routing. PathWard's static-file allowlist is not an application
@@ -71,23 +73,24 @@ Probe a representative application URL separately before switching traffic.
 | --- | --- |
 | Client protocol | HTTP/1.1, one exchange per connection |
 | Methods | GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS |
-| Request framing | One canonical Content-Length; at most 1 MiB |
-| Request body deadline | 5 seconds from acceptance, including queue/TLS/head |
-| Upstream connect | At most 2 seconds, within total exchange budget |
-| Successful exchange | 15 seconds from acceptance through downstream writes |
+| Request framing | One canonical Content-Length; default 1 MiB, configurable up to 16 MiB |
+| Request body deadline | Default 5 seconds from acceptance, including queue/TLS/head |
+| Upstream connect | Default 2 seconds, within total exchange budget |
+| Successful exchange | Default 15 seconds from acceptance through downstream writes |
 | Error response | At most 1 additional second to report failure |
 | Upstream protocol | HTTP/1.0 or HTTP/1.1, final 200–599 response |
 | Response framing | One Content-Length, finite chunked, or connection-close |
-| Response body | At most 8 MiB, including cumulative decoded chunks |
+| Response body | Default 8 MiB, configurable up to 64 MiB, including decoded chunks |
 | Parsed client/upstream heads | 16 KiB / 32 fields each; individual values ≤4096 bytes |
 | Parsed header values | Printable ASCII; duplicate names rejected except response Set-Cookie |
-| Concurrency | Existing four workers, bounded queue and per-peer admission gates |
+| Concurrency | Default 2 active proxy exchanges per host; existing global/per-peer gates |
 
 Request Transfer-Encoding, Expect, Upgrade and Trailer are rejected. There are no
 WebSockets, SSE/streaming responses, informational responses, chunk extensions or
 trailers. OPTIONS with Max-Forwards zero is answered locally; positive values
 are decremented. HEAD/204/304 never forward a body. A 205 with a body is rejected.
-Metadata Content-Length on HEAD/304 is also subject to the 8 MiB bound.
+Metadata Content-Length on HEAD/304 also follows the configured response bound.
+The [limits guide](routing-and-limits.md) specifies the allowed budgets and units.
 
 The full request is buffered before connecting, and the full upstream response
 is validated before downstream success headers are emitted. Invalid/truncated or
@@ -113,11 +116,11 @@ Existing generation, expected-digest, persistence-before-activation and draining
 checks also apply to proxy configurations. As with static requests, reload does
 not revoke an already captured request. Drain before revoking active access.
 
-`generate` preserves other proxy sites when updating a static manifest and refuses
-a proxy site as its publication target. An administrator can explicitly switch a
-site between static and proxy modes through a complete configuration reload. The
-compiler rejects mixed modes before any snapshot is installed. No automatic
-upstream health/parity validation is added to managed activation.
+`generate` preserves proxy policies/budgets when updating a static manifest,
+including a mixed site with a root. It refuses rootless publication targets.
+Connection accounting persists across reload and rollback; the captured and live
+caps both apply to admission. No automatic upstream health/parity validation is
+added to managed activation.
 
 ## Source, dependency and proof audit
 
@@ -138,8 +141,8 @@ Framing and intermediary handling were checked against
 The intentionally smaller interoperability profile is listed above.
 
 [ProxyProofs.lean](../proofs/ProxyProofs.lean) adds 29 audited statements, bringing
-the total to 153. Charon/Aeneas extracts the actual dependency-free Rust predicates:
-exclusive site modes, exact loopback endpoint/port admission, method/status ranges,
+the original proxy milestone total to 153; the mixed-routing extension raises it to 185. Charon/Aeneas extracts the actual dependency-free Rust predicates:
+site-mode/root requirements, exact loopback endpoint/port admission, method/status ranges,
 request/response framing gates, bounded target grammar, hop/forwarding exclusions,
 header-value control exclusion and plaintext HSTS suppression. Totality covers
 these public predicates, including indexing bounds. Existing generation-switch
@@ -164,9 +167,9 @@ ordinary Linux file, managed deployment, TLS/ACME and soak suites remain require
 2. Add a separately reviewed streaming/WebSocket design with cancellation, bounded
    buffering, graceful drain and appropriate per-service limits. Do not route an
    application that requires these through the current implementation.
-3. Add application-aware readiness/failure telemetry and backend load testing;
-   define routing precedence before allowing static files and proxy routes within
-   the same hostname. HTTP/2/keep-alive and remote HTTPS upstreams need their own
+3. Add application-aware readiness/failure telemetry and backend load testing.
+   Mixed routing and per-service limits are implemented in the linked guide.
+   HTTP/2/keep-alive and remote HTTPS upstreams need their own
    transport/trust review.
 
 Deployment-specific public DNS/443/CA validation, service ownership and external

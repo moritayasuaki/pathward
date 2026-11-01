@@ -70,7 +70,8 @@ monitor stays available during network draining, with readiness returning 503.
 
 A Server instance has one serving lifetime. Construct a new instance for a
 restart. Repeated termination signals do not bypass cleanup. Configure an external
-supervisor stop timeout (for example 30 seconds on trusted local storage) and a
+supervisor stop timeout (for example 30 seconds with default budgets, or at
+least 130 seconds with the maximum proxy total, on trusted local storage) and a
 final forced-stop policy. Socket budgets cannot interrupt stuck filesystem/DNS
 work or prove an OS scheduling bound; there is no unconditional process-exit
 latency guarantee. Errors spawning service workers also stop/join already started
@@ -130,3 +131,7 @@ No email, webhook, paging account or live monitoring service is configured here.
 
 See the [runtime audit](runtime-audit.md) for the dependency review, tests and
 precise Lean proof boundary.
+
+Proxy route/body/time budgets are captured with the request snapshot. Per-host
+connection accounting survives reload and rollback and applies both captured
+and current caps; see [routing and limits](routing-and-limits.md).

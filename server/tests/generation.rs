@@ -63,3 +63,27 @@ fn generation_preserves_other_proxy_sites_and_never_turns_a_proxy_into_publicati
         .is_err()
     );
 }
+
+#[test]
+fn generation_preserves_mixed_route_policies_and_every_service_budget() {
+    let p=ParsedConfig::parse("site \"app.example\" {\ntls \"auto\"\nroot \"/srv/v1\"\npublish \"/robots.txt\" \"robots.txt\"\ndeny \"/private\"\nproxy-path \"/api\"\nreverse-proxy \"127.0.0.1:3000\"\nproxy-limit \"request-body\" \"16KiB\"\nproxy-limit \"response-body\" \"2MiB\"\nproxy-limit \"connections\" \"1\"\nproxy-timeout \"request-body\" \"7s\"\nproxy-timeout \"connect\" \"3s\"\nproxy-timeout \"response-head\" \"70s\"\nproxy-timeout \"total\" \"90s\"\n}\n").unwrap();
+    let c = p.compile().unwrap();
+    let text = generate(
+        &c,
+        "app.example",
+        "/srv/v2",
+        "robots.txt\nindex.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let p2 = ParsedConfig::parse(&text).unwrap();
+    let c2 = p2.compile().unwrap();
+    let s = &c2.sites()[0];
+    let old = &c.sites()[0];
+    assert_eq!(s.denies(), old.denies());
+    assert_eq!(s.proxy_paths(), old.proxy_paths());
+    assert_eq!(s.proxy_limits(), old.proxy_limits());
+    assert_eq!(s.upstream(), old.upstream());
+    assert_eq!(s.root(), Some("/srv/v2"));
+    assert_eq!(s.resolve(b"/"), Some("index.html"));
+}

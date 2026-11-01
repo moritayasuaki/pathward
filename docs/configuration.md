@@ -49,9 +49,13 @@ DNS, certificate eligibility, or root confinement.
 | Node | Meaning | Required constraints |
 | --- | --- | --- |
 | `site "host" { ... }` | Independent virtual-host table | 1–16 sites; unique lowercase ASCII DNS-style hostname, no port, scheme, wildcard, trailing dot, or empty label |
-| `root "/absolute/path"` | Unix document root declaration | Exactly one for static sites, absent for proxy sites; canonical absolute path, including `/` |
+| `root "/absolute/path"` | Unix document root declaration | Required for publications; canonical absolute path, including `/` |
 | `publish "/url" "relative/file"` | One exact URL-to-target pair | 0–256 per site; zero requires a redirect or proxy mode; duplicate URLs rejected even when targets are identical |
-| `reverse-proxy "127.0.0.1:3000"` | Whole-host delegation to local HTTP app | One numeric loopback endpoint; mutually exclusive with root, publications and configured redirects; see [proxy guide](reverse-proxy.md) |
+| `reverse-proxy "127.0.0.1:3000"` | Whole-host delegation to local HTTP app | One numeric loopback endpoint per site; may coexist with local/denied routes; see [routing and limits](routing-and-limits.md) |
+| `deny "/admin"` | Denied subtree, before all local/proxy routes | Up to 64 distinct canonical paths; `/` rejects all routable paths |
+| `proxy-path "/api"` | Allowed proxy subtree | Up to 64 distinct canonical paths; requires reverse-proxy |
+| `proxy-limit "request-body" "16KiB"` | Service body or concurrency limit | Bounded, unit-bearing values; see [limits](routing-and-limits.md) |
+| `proxy-timeout "total" "90s"` | Service phase/total timeout | Bounded milliseconds/seconds; see [limits](routing-and-limits.md) |
 | `tls "auto"` | Automatic TLS policy | Exactly one per site; only `auto` is accepted |
 
 Hostname labels contain ASCII letters, digits, and hyphens, start/end with a
@@ -75,7 +79,7 @@ does not perform that filesystem lookup.
 Bounded `redirect`, `redirect-prefix` and `header` declarations are described in
 [production basics](production-basics.md); prefix matching applies only to redirects,
 never file grants. There are no includes, environment substitutions, globs,
-rewrites or implicit file grants. Proxy delegation is explicit and site-wide. Directive order does not change lookup.
+rewrites or implicit file grants. Proxy delegation is explicit, optionally scoped by `proxy-path`. Directive order does not change lookup.
 A duplicate root/TLS declaration or any unknown setting is an error. If any site
 is invalid, compilation returns no configuration, including no earlier sites.
 
@@ -86,7 +90,8 @@ after one byte beyond that limit; callers of the string API already own their
 input allocation. A linear, nonrecursive preflight admits only:
 
 - Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`,
-  `header` and `reverse-proxy`, with the validated schemas.
+  `header`, `reverse-proxy`, `deny`, `proxy-path`, `proxy-limit` and
+  `proxy-timeout`, with the validated schemas.
 - Ordinary, single-line double-quoted strings. Literal characters inside values
   must be printable ASCII. Standard simple KDL escapes and valid `\u{...}` scalar
   escapes are accepted, then decoded by the pinned upstream KDL parser. The
@@ -96,9 +101,10 @@ input allocation. A linear, nonrecursive preflight admits only:
   before `}`. A top-level closing brace may be followed by EOF.
 - `//` line comments, including Unicode text. Comment/newline handling uses the
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
-- A single children level (sites only); at most 16 sites and 355 directives per
+- A single children level (sites only); at most 16 sites and 490 directives per
   site before the upstream parser runs. Compilation separately enforces 256 URLs,
-  64 redirects, 32 headers, one root, one TLS directive and one proxy directive, subject to mode exclusivity.
+  64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials, 64 proxy scopes and
+  seven distinct budget settings. Publications require a root.
 
 Raw/multiline strings, block comments, slashdash (`/-`), quoted node names,
 properties, type annotations, bare arguments, line continuations, BOM, and other
