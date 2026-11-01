@@ -80,10 +80,11 @@ class Rehearsal:
         self.context.load_verify_locations(cafile=os.environ['PATHWARD_TEST_CA'])
         self.context.set_alpn_protocols(['http/1.1'])
         self.process = None
+        self.reader = None
         self.kind = None
         self.logs = []
         self.events = collections.Counter()
-        self.counts = collections.Counter()
+        self.counts = collections.Counter(steady_errors=0, transition_errors=0)
         self.certificates = set()
         self.overlap = 0
         self.order_active = False
@@ -171,7 +172,7 @@ http://%s:%d {
         return result
 
     def snapshot(self):
-        paths = [BIN, DRIVER, GATE, Path(self.caddy), self.caddyfile, *self.configs.values()]
+        paths = [BIN, DRIVER, GATE, Path(self.caddy), self.caddyfile, self.control/'.config', *self.configs.values()]
         paths += [self.work/r/n for r in ('a','b') for n in self.content]
         paths += [self.work/r/f'release-{r}.txt' for r in ('a','b')]
         return sha(json.dumps([self.ports, [(str(p),sha(p.read_bytes())) for p in paths]],sort_keys=True).encode())
@@ -181,14 +182,14 @@ http://%s:%d {
                                  *(str(x).lower() for x in flags)],capture_output=True,timeout=5)
         require((result.returncode == 0) == ok, 'migration gate outcome')
 
-    def response(self, target='/', method='GET', plain=False, authority=HOST):
+    def response(self, target='/', method='GET', plain=False, authority=HOST, monitor=False):
         with self.lock:
             self.peer = (self.peer+1) % 200
             peer = f'127.0.1.{self.peer+1}'
-        port = self.ports['http'] if plain else self.ports['tls']
+        port = self.ports['monitor'] if monitor else self.ports['http'] if plain else self.ports['tls']
         stream = socket.create_connection(('127.0.0.1',port),timeout=2,source_address=(peer,0))
         try:
-            if not plain:
+            if not (plain or monitor):
                 stream = self.context.wrap_socket(stream,server_hostname=HOST)
                 with self.lock:
                     self.certificates.add(sha(stream.getpeercert(binary_form=True)))
@@ -265,7 +266,8 @@ http://%s:%d {
                         if event=='acme_order_started':self.order_active=True
                         if event=='reload_committed' and self.order_active:self.overlap+=1
                         if event in ('acme_activated','acme_failed'):self.order_active=False
-        threading.Thread(target=drain,daemon=True).start()
+        self.reader=threading.Thread(target=drain,daemon=True)
+        self.reader.start()
 
     def ready(self, timeout=20):
         deadline=time.monotonic()+timeout
@@ -273,7 +275,10 @@ http://%s:%d {
             require(self.process.poll() is None, 'candidate exited during startup')
             try:
                 code,_,body=self.response()
-                if code==200 and body==self.content['index.html']:return
+                if code==200 and body==self.content['index.html']:
+                    if self.kind=='pathward':
+                        require(self.response('/readyz',authority='localhost',monitor=True)[0]==200,'monitor readiness')
+                    return
             except (OSError,ValueError):pass
             time.sleep(.1)
         raise RuntimeError('readiness deadline')
@@ -287,6 +292,10 @@ http://%s:%d {
                     self.process.kill();self.process.wait(timeout=5)
                     raise RuntimeError('graceful shutdown exceeded 12 seconds')
             self.process=None
+            if self.reader:
+                self.reader.join(timeout=2)
+                require(not self.reader.is_alive(),'log reader did not stop')
+                self.reader=None
 
     def handoff(self, kind, broken=False):
         if kind=='pathward':self.gate()
@@ -351,6 +360,11 @@ http://%s:%d {
         worker.start()
         try:
             self.handoff('pathward')
+            for target in ('/%69ndex.html','/../private.txt','/%2e%2e/private.txt'):
+                require(self.response(target)[0]==404,'unsafe path')
+            require(self.response(authority='unknown.pathward.test')[0]==421,'SNI/Host mismatch')
+            require(self.response(authority=HOST+':'+str(self.ports['tls']))[0]==400,'internal TLS port authority')
+            require(self.response(plain=True,authority=HOST+':'+str(self.ports['http']))[0]==400,'internal HTTP port authority')
             began=time.monotonic()
             turn=0
             while time.monotonic()-began<self.seconds:
@@ -372,6 +386,16 @@ http://%s:%d {
                     fds=len(list(Path(f'/proc/{self.process.pid}/fd').iterdir()))
                     require(rss<131072 and threads<=32 and fds<=128,'resource ceiling')
                     self.resources.append({'rss_kib':rss,'threads':threads,'fds':fds})
+                    code,_,body=self.response('/metrics',authority='localhost',monitor=True)
+                    metrics={line.split()[0]:float(line.split()[1]) for line in body.decode().splitlines() if line and not line.startswith('#')}
+                    require(code==200 and metrics['pathward_ready']==1 and metrics['pathward_acme_errors_total']==0
+                            and metrics['pathward_log_dropped_total']==0
+                            and metrics['pathward_certificate_not_after_seconds']>time.time(),'monitor health')
+                    self.counts['monitor_checks']+=1
+                if turn%60==0:
+                    print('REHEARSAL_PROGRESS '+json.dumps({'elapsed_seconds':round(time.monotonic()-began),
+                        'commits':self.counts['commits'],'renewals':self.events['acme_activated'],
+                        'steady_errors':self.counts['steady_errors']}),flush=True)
                 require(not self.failures,'steady request failure')
                 turn+=1
                 time.sleep(.5)
@@ -403,6 +427,10 @@ http://%s:%d {
             require(self.snapshot()==self.inspected,'rehearsal inputs changed')
             require(self.counts['automatic_rollbacks']==2,'rollback coverage')
             return {'state':'passed','scope':'isolated static subset; shared Caddy replacement NO-GO',
+                    'completed_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+                    'harness_sha256':sha(Path(__file__).read_bytes()),
+                    'binary_sha256':{name:sha(path.read_bytes()) for name,path in
+                        (('pathward-server',BIN),('soak_server',DRIVER),('migration_gate',GATE),('caddy',Path(self.caddy)))},
                     'seconds':self.seconds,'content_files':len(self.content),'content_bytes':sum(map(len,self.content.values())),
                     'content_manifest_sha256':sha(json.dumps({n:sha(v) for n,v in self.content.items()},sort_keys=True).encode()),
                     'caddy_version':subprocess.check_output([self.caddy,'version'],text=True).strip(),
@@ -433,6 +461,14 @@ def main():
     with tempfile.TemporaryDirectory(prefix='pathward-rehearsal-') as directory:
         test=Rehearsal(Path(directory),content,args.seconds,headers)
         try:result=test.run()
+        except BaseException as error:
+            args.report.parent.mkdir(parents=True,exist_ok=True)
+            args.report.write_text(json.dumps({'state':'failed','error':str(error)[:200],
+                                               'counts':dict(test.counts),'handoffs':test.handoffs})+'\n')
+            for log in test.logs:
+                log.flush()
+                print(Path(log.name).read_text()[-2000:])
+            raise
         finally:
             test.stop()
             for log in test.logs:log.close()
