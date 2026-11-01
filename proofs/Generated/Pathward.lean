@@ -1668,6 +1668,149 @@ def serving.file_allowed
     else ok false
   else ok false
 
+/-- [pathward::streaming::upgrade_request]:
+    Source: 'src/streaming.rs', lines 4:0-15:1
+    Visibility: public -/
+def streaming.upgrade_request
+  (enabled : Bool) (get : Bool) (length : Std.U64) (prefetched : Std.U64)
+  (upgrade : Bool) (version : Bool) (key : Bool) (origin : Bool) :
+  RustM Bool
+  := do
+  if enabled
+  then
+    if get
+    then
+      if length = 0#u64
+      then
+        if prefetched = 0#u64
+        then
+          if upgrade
+          then
+            if version
+            then if key
+                 then ok origin
+                 else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::streaming::upgrade_response]:
+    Source: 'src/streaming.rs', lines 18:0-38:1
+    Visibility: public -/
+def streaming.upgrade_response
+  (requested : Bool) (version : Bool) (status : Std.U16) (upgrade : Bool)
+  (accept : Bool) (protocol : Bool) (extensions : Bool) (length : Bool)
+  (transfer : Bool) :
+  RustM Bool
+  := do
+  if requested
+  then
+    if version
+    then
+      if status = 101#u16
+      then
+        if upgrade
+        then
+          if accept
+          then
+            if protocol
+            then
+              if extensions
+              then ok false
+              else if length
+                   then ok false
+                   else ok (¬ transfer)
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::streaming::sse_response]:
+    Source: 'src/streaming.rs', lines 40:0-48:1
+    Visibility: public -/
+def streaming.sse_response
+  (enabled : Bool) (head : Bool) (status : Std.U16) (event_type : Bool)
+  (encoded : Bool) :
+  RustM Bool
+  := do
+  if enabled
+  then
+    if head
+    then ok false
+    else
+      if status = 200#u16
+      then if event_type
+           then ok (¬ encoded)
+           else ok false
+      else ok false
+  else ok false
+
+/-- [pathward::streaming::byte_limit]:
+    Source: 'src/streaming.rs', lines 50:0-52:1
+    Visibility: public -/
+def streaming.byte_limit (limit : Std.U64) : RustM Bool := do
+  if limit > 0#u64
+  then ok (limit <= 1073741824#u64)
+  else ok false
+
+/-- [pathward::streaming::bytes_fit]:
+    Source: 'src/streaming.rs', lines 53:0-55:1
+    Visibility: public -/
+def streaming.bytes_fit
+  (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do
+  let b ← streaming.byte_limit limit
+  if b
+  then
+    if used <= limit
+    then let i ← limit - used
+         ok (next <= i)
+    else ok false
+  else ok false
+
+/-- [pathward::streaming::time_limits]:
+    Source: 'src/streaming.rs', lines 58:0-60:1
+    Visibility: public -/
+def streaming.time_limits (idle : Std.U64) (total : Std.U64) : RustM Bool := do
+  if idle >= 100#u64
+  then
+    if idle <= 300000#u64
+    then if idle <= total
+         then ok (total <= 3600000#u64)
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::streaming::running]:
+    Source: 'src/streaming.rs', lines 61:0-63:1
+    Visibility: public -/
+def streaming.running
+  (stopped : Bool) (elapsed : Std.U64) (quiet : Std.U64) (idle : Std.U64)
+  (total : Std.U64) :
+  RustM Bool
+  := do
+  if stopped
+  then ok false
+  else
+    let b ← streaming.time_limits idle total
+    if b
+    then if elapsed < total
+         then ok (quiet < idle)
+         else ok false
+    else ok false
+
+/-- [pathward::streaming::admission]:
+    Source: 'src/streaming.rs', lines 64:0-66:1
+    Visibility: public -/
+def streaming.admission (active : Std.U64) (stopped : Bool) : RustM Bool := do
+  if stopped
+  then ok false
+  else ok (active < 2#u64)
+
 /-- [pathward::tls::identity_allowed]:
     Source: 'src/tls.rs', lines 5:0-7:1
     Visibility: public -/

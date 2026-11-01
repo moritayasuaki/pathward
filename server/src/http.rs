@@ -6,11 +6,20 @@ use std::time::{Duration, Instant};
 pub trait Transport: Read + Write {
     fn deadline(&mut self, deadline: Instant) -> io::Result<()>;
     fn local_port(&self) -> io::Result<u16>;
+    fn nonblocking(&mut self) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "stream transport",
+        ))
+    }
     fn peer_ip(&self) -> Option<std::net::IpAddr> {
         None
     }
 }
 impl Transport for TcpStream {
+    fn nonblocking(&mut self) -> io::Result<()> {
+        self.set_nonblocking(true)
+    }
     fn deadline(&mut self, deadline: Instant) -> io::Result<()> {
         let left = remaining(deadline)?;
         self.set_read_timeout(Some(left))?;
@@ -38,6 +47,7 @@ pub struct Request<'a> {
     pub host: String,
     pub headers: Vec<httparse::Header<'a>>,
     pub content_length: u64,
+    pub upgrade: bool,
 }
 
 fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
@@ -80,7 +90,7 @@ fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
 /// `authority_port` is the trusted external port, not necessarily the socket port.
 pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection> {
     let req = parse_framed(head, authority_port)?;
-    if req.content_length != 0 {
+    if req.content_length != 0 || req.upgrade {
         return Err(Rejection(400));
     }
     Ok(req)
@@ -138,6 +148,8 @@ pub(crate) fn parse_framed(head: &[u8], authority_port: u16) -> Result<Request<'
     }
     let mut host = None;
     let mut content_length = None;
+    let mut upgrade = None;
+    let mut connection = None;
     for h in req.headers.iter() {
         if !h
             .value
@@ -156,26 +168,43 @@ pub(crate) fn parse_framed(head: &[u8], authority_port: u16) -> Result<Request<'
                 return Err(Rejection(400));
             }
             content_length = Some(decimal(h.value).ok_or(Rejection(400))?);
-        } else if ["transfer-encoding", "trailer", "upgrade"]
+        } else if ["transfer-encoding", "trailer"]
             .iter()
             .any(|name| h.name.eq_ignore_ascii_case(name))
         {
             return Err(Rejection(400));
         } else if h.name.eq_ignore_ascii_case("expect") {
             return Err(Rejection(417));
-        } else if h.name.eq_ignore_ascii_case("connection")
-            && !h.value.eq_ignore_ascii_case(b"close")
-            && !h.value.eq_ignore_ascii_case(b"keep-alive")
+        } else if h.name.eq_ignore_ascii_case("upgrade") {
+            if upgrade.replace(h.value).is_some() {
+                return Err(Rejection(400));
+            }
+        } else if h.name.eq_ignore_ascii_case("connection") && connection.replace(h.value).is_some()
         {
             return Err(Rejection(400));
         }
     }
+    let upgrade = if let Some(value) = upgrade {
+        if !value.eq_ignore_ascii_case(b"websocket") || !connection.is_some_and(upgrade_connection)
+        {
+            return Err(Rejection(400));
+        }
+        true
+    } else {
+        if connection.is_some_and(|v| {
+            !v.eq_ignore_ascii_case(b"close") && !v.eq_ignore_ascii_case(b"keep-alive")
+        }) {
+            return Err(Rejection(400));
+        }
+        false
+    };
     Ok(Request {
         method,
         target,
         host: host.ok_or(Rejection(400))?,
         headers: req.headers.to_vec(),
         content_length: content_length.unwrap_or(0),
+        upgrade,
     })
 }
 
@@ -263,6 +292,7 @@ pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
         301 => "Moved Permanently",
         308 => "Permanent Redirect",
         400 => "Bad Request",
+        403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
         408 => "Request Timeout",
@@ -295,4 +325,24 @@ pub(crate) fn date_header() -> String {
         .filter(|d| d.as_secs() < 253_402_300_800)
         .map(|_| format!("Date: {}\r\n", httpdate::fmt_http_date(now)))
         .unwrap_or_default()
+}
+
+/// Only these connection options are accepted on the WebSocket handshake.
+/// In particular, the peer cannot nominate Host or security fields for removal.
+pub(crate) fn upgrade_connection(value: &[u8]) -> bool {
+    let Ok(value) = std::str::from_utf8(value) else {
+        return false;
+    };
+    let mut upgrade = false;
+    let mut keep = false;
+    for v in value.split(',').map(str::trim) {
+        if v.eq_ignore_ascii_case("upgrade") && !upgrade {
+            upgrade = true;
+        } else if v.eq_ignore_ascii_case("keep-alive") && !keep {
+            keep = true;
+        } else {
+            return false;
+        }
+    }
+    upgrade
 }

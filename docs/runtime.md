@@ -135,3 +135,8 @@ precise Lean proof boundary.
 Proxy route/body/time budgets are captured with the request snapshot. Per-host
 connection accounting survives reload and rollback and applies both captured
 and current caps; see [routing and limits](routing-and-limits.md).
+
+Opt-in WebSocket/SSE relays observe shutdown without waiting for their full
+session lifetime. Established streams close their transports on stop; clients
+must reconnect and may see an abnormal/incomplete close. Ordinary HTTP and
+handshakes retain their existing drain budgets. See [streaming](streaming.md).

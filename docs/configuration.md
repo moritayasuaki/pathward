@@ -101,7 +101,7 @@ input allocation. A linear, nonrecursive preflight admits only:
   before `}`. A top-level closing brace may be followed by EOF.
 - `//` line comments, including Unicode text. Comment/newline handling uses the
   same newline set as KDL, so a Unicode newline cannot hide a following directive.
-- A single children level (sites only); at most 16 sites and 490 directives per
+- A single children level (sites only); at most 16 sites and 496 directives per
   site before the upstream parser runs. Compilation separately enforces 256 URLs,
   64 redirects, 32 headers, one root, one TLS directive, one upstream, 64 denials, 64 proxy scopes and
   seven distinct budget settings. Publications require a root.
@@ -142,3 +142,7 @@ adapter, host dispatch, `Vec` allocation/movement, and Rust string conversion ar
 reviewed/tested trusted code. **There is no end-to-end Lean theorem from arbitrary
 KDL text to a served file.** The separate HTTP/Linux adapter is reviewed and tested, with additional pure
 serving decisions verified in Lean; OS operations remain trusted. See [HTTP serving](http-serving.md) and [TLS/ACME](tls-serving.md).
+
+WebSocket and SSE require explicit `proxy-stream` opt-ins. See
+[streaming configuration and audit](streaming.md) for handshake policy, per-session
+capacity/time budgets, concurrency and shutdown behavior.

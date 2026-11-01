@@ -142,7 +142,7 @@ logs and optional loopback monitoring are described in [runtime operation](runti
 ## Verification
 
 `make check` checks the core, configuration and server; it regenerates and compares
-the actual Rust extraction and checks Lean proofs/185 axiom-audited statements.
+the actual Rust extraction and checks Lean proofs/207 axiom-audited statements.
 On Linux, server tests exercise real TCP serving, virtual-host isolation,
 GET/HEAD/query behavior, malformed framing, limits, excess connections, symlinks,
 hard links, special files, pinned roots and directory/symlink replacement races.

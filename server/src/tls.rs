@@ -334,6 +334,10 @@ impl Write for TlsTransport {
     }
 }
 impl Transport for TlsTransport {
+    fn nonblocking(&mut self) -> io::Result<()> {
+        self.stream.conn.set_buffer_limit(Some(32768));
+        self.stream.sock.stream.set_nonblocking(true)
+    }
     fn deadline(&mut self, deadline: Instant) -> io::Result<()> {
         self.stream.sock.deadline = deadline;
         self.stream.sock.prepare()

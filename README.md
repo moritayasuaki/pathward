@@ -76,7 +76,8 @@ with bounded request/response buffering and regenerated forwarding headers.
 Use [mixed routing and per-service limits](docs/routing-and-limits.md) to combine
 denied subtrees, explicit local files and proxy scopes, with bounded service budgets.
 See the [proxy guide and audit](docs/reverse-proxy.md) for the trust boundary,
-Lean proofs and limits: WebSockets, SSE and streaming are not yet supported.
+Lean proofs and limits. Opt in to [WebSocket/SSE streaming](docs/streaming.md) with
+bounded buffers, session budgets and shutdown cancellation.
 
 ## TLS and automatic renewal
 
@@ -262,7 +263,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 185 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 207 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 
