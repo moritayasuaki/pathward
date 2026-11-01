@@ -7,6 +7,11 @@ and optional redirect-only plaintext listeners. It is not yet a complete Caddy r
 
 ## Implemented
 
+- Explicit whole-host reverse proxy to a numeric loopback HTTP application, with
+  bounded body buffering, strict framing, regenerated forwarding fields, TLS/Host
+  checks and atomic upstream/header reload. No added dependencies; 29 new extracted
+  Lean statements. [Guide, source audit and limits](reverse-proxy.md).
+
 - P0.1: automatic HTTP→HTTPS and configured exact/component-prefix 301/308
   redirects to configured hosts, with validated query preservation.
 - P0.2: allowlisted scoped response headers, including CSP/HSTS; framing/control
@@ -48,7 +53,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 124 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 153 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving
@@ -74,13 +79,13 @@ occupying all workers while retaining queued CA validation connections.
    Host/ACME identity changes require restart.
 4. **Load and protocol hardening.** Perform broader coverage-guided fuzzing,
    prolonged race/stress testing and realistic throughput/slow-storage testing.
-   Tune the fixed connection/rate limits and add bandwidth fairness where needed. Keep-alive, HTTP/2, proxy
-   integration and forwarded headers require separate protocol review; none is
-   enabled in the minimal server. IPv6 transport is supported for loopback binding,
+   Tune the fixed connection/rate limits and add bandwidth fairness where needed. Keep-alive, HTTP/2, streaming/WebSockets and realistic application proxy
+   load tests still require separate protocol/resource review. The bounded
+   local proxy regenerates forwarding fields and does not trust incoming chains. IPv6 transport is supported for loopback binding,
    but configured authorities remain DNS-style names rather than IPv6 literals.
 5. **HTTP functionality.** Add reviewed ranges,
    conditional caching/ETags, suitable cache policies and broader URL support for any legacy redirects.
-   Current responses use no-store, fixed content types and no compression. A
+   Current static responses use no-store, fixed content types and no compression. A
    Range header does not activate partial serving, and conditional fields do not
    activate cache validators.
 
@@ -91,16 +96,18 @@ advisory scan does not replace integration review.
 
 ## Deliberate limitations
 
-No reverse proxying, upstream health checks, WebSockets, authentication, wildcard
+No upstream health checks, WebSockets/SSE/streaming, path-level proxy routing,
+remote HTTPS upstreams, authentication, wildcard
 domains, environment expansion, includes, directory grants or implicit indexes.
 The KDL profile supports ordinary quoted values and line comments, with 64 KiB,
-16 sites and 256 exact mappings per site. Paths remain ASCII and reject percent
+16 sites and 256 exact mappings per site. Static publication/redirect paths remain ASCII and reject percent
 encoding, hidden components and trailing slashes other than `/`. Files are limited
 to 64 MiB. Larger sites, Unicode filenames, directory URLs and broader KDL syntax
 need explicit policy/resource extensions.
 
 The [isolated migration rehearsal](staging-rehearsal.md) now exercises real Linux
 filesystem storage, resource-limited supervision, actual static content/security
-headers and Caddy rollback. Shared proxy replacement remains blocked. The next
+headers and Caddy rollback. Shared proxy replacement remains blocked until actual application requirements
+and the [proxy limitations](reverse-proxy.md) are reconciled and rehearsed. The next
 milestone is deployment-specific public DNS/443 and CA validation with a dedicated
 service UID, external collectors/alerts and an explicitly reviewed route scope.

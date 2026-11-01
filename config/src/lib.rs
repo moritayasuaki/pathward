@@ -9,6 +9,7 @@ use kdl::{KdlDocument, KdlNode};
 use pathward::rules::{self, Publication};
 use std::fmt;
 use std::io::Read;
+use std::net::SocketAddr;
 
 pub const MAX_CONFIG_BYTES: usize = 65_536;
 pub const MAX_SITES: usize = 16;
@@ -141,6 +142,7 @@ impl ParsedConfig {
                 .ok_or_else(|| self.at(node, "site requires a children block"))?;
             let mut root = None;
             let mut tls = None;
+            let mut upstream = None;
             let mut publications = Vec::new();
             let mut redirects = Vec::new();
             let mut headers = Vec::new();
@@ -149,6 +151,22 @@ impl ParsedConfig {
                     return Err(self.at(child, "nested directive blocks are not supported"));
                 }
                 match child.name().value() {
+                    "reverse-proxy" => {
+                        let values = self.arguments(child, 1)?;
+                        let address = values[0].parse::<SocketAddr>().map_err(|_| {
+                            self.at(child, "proxy requires a literal loopback IP:port")
+                        })?;
+                        if upstream.is_some()
+                            || address.to_string() != values[0]
+                            || !pathward::proxy::endpoint_allowed(
+                                address.ip().to_string().as_bytes(),
+                                address.port(),
+                            )
+                        {
+                            return Err(self.at(child, "invalid or duplicate loopback upstream"));
+                        }
+                        upstream = Some(address);
+                    }
                     "root" => {
                         let values = self.arguments(child, 1)?;
                         if root.is_some() {
@@ -257,10 +275,17 @@ impl ParsedConfig {
                     }
                 }
             }
-            let root = root.ok_or_else(|| self.at(node, "site is missing root"))?;
             let tls = tls.ok_or_else(|| self.at(node, "site is missing tls"))?;
+            if !pathward::proxy::site_mode_allowed(
+                root.is_some(),
+                !publications.is_empty(),
+                !redirects.is_empty(),
+                upstream.is_some(),
+            ) {
+                return Err(self.at(node, "site requires either root and publications/redirects, or one exclusive reverse-proxy"));
+            }
             if (!publications.is_empty() && rules::compile(&publications).is_none())
-                || (publications.is_empty() && redirects.is_empty())
+                || (publications.is_empty() && redirects.is_empty() && upstream.is_none())
             {
                 return Err(self.at(node, "site requires 1 to 256 valid, distinct publish URLs"));
             }
@@ -285,6 +310,7 @@ impl ParsedConfig {
                 host,
                 root,
                 tls,
+                upstream,
                 publications,
                 redirects,
                 headers,
@@ -354,7 +380,8 @@ pub enum TlsPolicy {
 
 pub struct CompiledSite<'a> {
     host: &'a str,
-    root: &'a str,
+    root: Option<&'a str>,
+    upstream: Option<SocketAddr>,
     tls: TlsPolicy,
     publications: Vec<Publication<'a>>,
     redirects: Vec<Redirect<'a>>,
@@ -371,8 +398,11 @@ impl<'a> CompiledSite<'a> {
     pub fn host(&self) -> &'a str {
         self.host
     }
-    pub fn root(&self) -> &'a str {
+    pub fn root(&self) -> Option<&'a str> {
         self.root
+    }
+    pub fn upstream(&self) -> Option<SocketAddr> {
+        self.upstream
     }
     pub fn tls(&self) -> TlsPolicy {
         self.tls

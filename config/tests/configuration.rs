@@ -20,7 +20,7 @@ fn example_compiles_into_only_explicit_rules() {
     let config = parsed.compile().unwrap();
     assert_eq!(config.sites().len(), 1);
     let site = config.site("example.com").unwrap();
-    assert_eq!(site.root(), "/srv/www");
+    assert_eq!(site.root(), Some("/srv/www"));
     assert_eq!(site.tls(), TlsPolicy::Auto);
     assert_eq!(site.publications().len(), 2);
     assert_eq!(site.resolve(b"/"), Some("index.html"));

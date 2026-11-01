@@ -5,6 +5,7 @@ tied to the Rust implementation through Charon and Aeneas extraction. A separate
 KDL configuration crate turns explicit site declarations into checked rules.
 A separate Linux HTTP/1.1 server serves those rules with descriptor-based file
 opening, rustls TLS, private ACME key storage and automatic certificate renewal.
+Explicit whole-host delegation to a bounded local HTTP reverse proxy is also available.
 
 The Rust library has **zero external dependencies**, uses `no_std`, forbids
 `unsafe`, allocates nothing, and performs no I/O. Verification tools are separate
@@ -50,7 +51,7 @@ curl -H 'Host: example.com' http://127.0.0.1:8080/
 
 Prepare the configured root/files first. Linux 5.6+ and trusted procfs are required;
 there is no file-opening fallback on other platforms. The explicit HTTP mode
-accepts loopback listeners only, supports GET/HEAD, bounds connection/head/write
+accepts loopback listeners only, supports GET/HEAD for static sites, bounds connection/head/write
 resources, and never serves an unlisted URL. File resolution rejects symlinks,
 mount crossings below the root, special files and observed multiple hard links.
 
@@ -60,6 +61,21 @@ and [remaining production gaps](docs/production-readiness.md).
 The [isolated Caddy migration rehearsal](docs/staging-rehearsal.md) covers same-port
 TLS handoff, concurrent managed reload/ACME renewal and verified Caddy rollback.
 It does not approve replacing a shared proxy deployment.
+
+## Local application proxy
+
+```kdl
+site "app.example" {
+    tls "auto"
+    reverse-proxy "127.0.0.1:3000"
+}
+```
+
+This explicitly delegates the entire hostname to one numeric loopback endpoint,
+with bounded request/response buffering and regenerated forwarding headers.
+It is exclusive with file publications and configured redirects in that site.
+See the [proxy guide and audit](docs/reverse-proxy.md) for the trust boundary,
+Lean proofs and limits: WebSockets, SSE and streaming are not yet supported.
 
 ## TLS and automatic renewal
 
@@ -245,7 +261,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 124 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 153 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

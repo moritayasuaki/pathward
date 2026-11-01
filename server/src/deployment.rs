@@ -27,7 +27,7 @@ pub fn generate(
     manifest: &str,
     index: Option<&str>,
 ) -> io::Result<String> {
-    if base.site(host).is_none()
+    if base.site(host).is_none_or(|site| site.upstream().is_some())
         || !pathward::valid_path(root.as_bytes())
         || manifest.len() > 65_536
     {
@@ -54,14 +54,21 @@ pub fn generate(
     let mut out = String::new();
     for site in base.sites() {
         out.push_str(&format!(
-            "site {} {{\n    root {}\n    tls \"auto\"\n",
-            quoted(site.host()),
-            quoted(if site.host() == host {
-                root
-            } else {
-                site.root()
-            })
+            "site {} {{\n    tls \"auto\"\n",
+            quoted(site.host())
         ));
+        if let Some(old_root) = site.root() {
+            out.push_str(&format!(
+                "    root {}\n",
+                quoted(if site.host() == host { root } else { old_root })
+            ));
+        }
+        if let Some(upstream) = site.upstream() {
+            out.push_str(&format!(
+                "    reverse-proxy {}\n",
+                quoted(&upstream.to_string())
+            ));
+        }
         let mappings: Vec<(String, String)> = if site.host() == host {
             let mut mappings = Vec::new();
             for file in &files {
@@ -281,7 +288,7 @@ impl Managed {
         if cache.is_some_and(|c| directory.starts_with(c) || c.starts_with(directory)) {
             return Err(error());
         }
-        let roots: Vec<_> = config.sites().iter().map(|s| s.root()).collect();
+        let roots: Vec<_> = config.sites().iter().filter_map(|s| s.root()).collect();
         let store = SecretStore::open(directory, &roots)?;
         if store.load_config()?.as_deref() != Some(config.source().as_bytes()) {
             return Err(error());
@@ -436,7 +443,7 @@ fn read_line(stream: &mut UnixStream, deadline: Instant) -> io::Result<String> {
 }
 pub fn initialize(directory: &Path, config: &CompiledConfig<'_>) -> io::Result<()> {
     validate(config, None)?;
-    let roots: Vec<_> = config.sites().iter().map(|s| s.root()).collect();
+    let roots: Vec<_> = config.sites().iter().filter_map(|s| s.root()).collect();
     let store = SecretStore::open(directory, &roots)?;
     if store.load_config()?.is_some() {
         return Err(error());

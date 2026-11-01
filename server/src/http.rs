@@ -6,6 +6,9 @@ use std::time::{Duration, Instant};
 pub trait Transport: Read + Write {
     fn deadline(&mut self, deadline: Instant) -> io::Result<()>;
     fn local_port(&self) -> io::Result<u16>;
+    fn peer_ip(&self) -> Option<std::net::IpAddr> {
+        None
+    }
 }
 impl Transport for TcpStream {
     fn deadline(&mut self, deadline: Instant) -> io::Result<()> {
@@ -15,6 +18,9 @@ impl Transport for TcpStream {
     }
     fn local_port(&self) -> io::Result<u16> {
         Ok(self.local_addr()?.port())
+    }
+    fn peer_ip(&self) -> Option<std::net::IpAddr> {
+        self.peer_addr().ok().map(|a| a.ip())
     }
 }
 
@@ -30,6 +36,8 @@ pub struct Request<'a> {
     pub method: &'a [u8],
     pub target: &'a [u8],
     pub host: String,
+    pub headers: Vec<httparse::Header<'a>>,
+    pub content_length: u64,
 }
 
 fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
@@ -71,6 +79,27 @@ fn authority(value: &[u8], authority_port: u16) -> Result<String, Rejection> {
 
 /// `authority_port` is the trusted external port, not necessarily the socket port.
 pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection> {
+    let req = parse_framed(head, authority_port)?;
+    if req.content_length != 0 {
+        return Err(Rejection(400));
+    }
+    Ok(req)
+}
+
+pub(crate) fn decimal(value: &[u8]) -> Option<u64> {
+    if value.is_empty()
+        || value.len() > 20
+        || (value.len() > 1 && value[0] == b'0')
+        || !value.iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    std::str::from_utf8(value).ok()?.parse().ok()
+}
+
+/// Only the proxy dispatch path may consume a nonempty body. Static/monitor
+/// callers keep using parse(), which refuses every nonzero Content-Length.
+pub(crate) fn parse_framed(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection> {
     if head.len() > MAX_HEAD_BYTES {
         return Err(Rejection(431));
     }
@@ -108,7 +137,7 @@ pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection>
         return Err(Rejection(400));
     }
     let mut host = None;
-    let mut content_length = false;
+    let mut content_length = None;
     for h in req.headers.iter() {
         if !h
             .value
@@ -123,10 +152,10 @@ pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection>
             }
             host = Some(authority(h.value, authority_port)?);
         } else if h.name.eq_ignore_ascii_case("content-length") {
-            if content_length || h.value != b"0" {
+            if content_length.is_some() {
                 return Err(Rejection(400));
             }
-            content_length = true;
+            content_length = Some(decimal(h.value).ok_or(Rejection(400))?);
         } else if ["transfer-encoding", "trailer", "upgrade"]
             .iter()
             .any(|name| h.name.eq_ignore_ascii_case(name))
@@ -145,6 +174,8 @@ pub fn parse(head: &[u8], authority_port: u16) -> Result<Request<'_>, Rejection>
         method,
         target,
         host: host.ok_or(Rejection(400))?,
+        headers: req.headers.to_vec(),
+        content_length: content_length.unwrap_or(0),
     })
 }
 
@@ -177,7 +208,7 @@ pub fn read_head(stream: &mut impl Transport, deadline: Instant) -> io::Result<V
         let start = data.len().saturating_sub(3);
         data.extend_from_slice(&chunk[..n]);
         if data[start..].windows(4).any(|w| w == b"\r\n\r\n") {
-            return Ok(data); // parse rejects any bytes after the first complete head.
+            return Ok(data); // Caller separates any prefetched body or rejects it.
         }
     }
 }
@@ -235,20 +266,18 @@ pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
         404 => "Not Found",
         405 => "Method Not Allowed",
         408 => "Request Timeout",
+        413 => "Content Too Large",
         417 => "Expectation Failed",
         421 => "Misdirected Request",
         431 => "Request Header Fields Too Large",
         503 => "Service Unavailable",
+        502 => "Bad Gateway",
+        504 => "Gateway Timeout",
         505 => "HTTP Version Not Supported",
+        508 => "Loop Detected",
         _ => "Internal Server Error",
     };
-    let now = std::time::SystemTime::now();
-    let date = now
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .filter(|d| d.as_secs() < 253_402_300_800)
-        .map(|_| format!("Date: {}\r\n", httpdate::fmt_http_date(now)))
-        .unwrap_or_default();
+    let date = date_header();
     let allow = if status == 405 {
         "Allow: GET, HEAD\r\n"
     } else {
@@ -257,4 +286,13 @@ pub fn response_head(status: u16, length: u64, content_type: &str) -> String {
     format!(
         "HTTP/1.1 {status} {reason}\r\n{date}Content-Length: {length}\r\nContent-Type: {content_type}\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}\r\n"
     )
+}
+
+pub(crate) fn date_header() -> String {
+    let now = std::time::SystemTime::now();
+    now.duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .filter(|d| d.as_secs() < 253_402_300_800)
+        .map(|_| format!("Date: {}\r\n", httpdate::fmt_http_date(now)))
+        .unwrap_or_default()
 }

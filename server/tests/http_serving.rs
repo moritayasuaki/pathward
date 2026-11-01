@@ -189,3 +189,83 @@ fn oversized_and_stalled_clients_cannot_grow_the_worker_pool() {
         );
     });
 }
+
+#[test]
+fn reload_switches_exclusive_proxy_and_file_modes_without_a_fallback() {
+    let root = std::env::temp_dir().join(format!(
+        "pathward-proxy-switch-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let tree = Tree(root);
+    fs::write(tree.0.join("public.txt"), b"FILE").unwrap();
+    fs::write(tree.0.join("secret.txt"), b"SECRET").unwrap();
+    let static_text = format!(
+        "site \"app.example\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"public.txt\"\n}}",
+        tree.0.display()
+    );
+    let files = ParsedConfig::parse(&static_text).unwrap();
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    let proxied = ParsedConfig::parse(&format!(
+        "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}",
+        backend.local_addr().unwrap()
+    ))
+    .unwrap();
+    let server = Server::new(&files.compile().unwrap()).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let stop = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| server.serve(listener, &stop));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert!(get(address, "GET", "app.example", "/").ends_with(b"FILE"));
+            assert!(
+                get(address, "GET", "app.example", "/secret.txt").starts_with(b"HTTP/1.1 404 ")
+            );
+            server.reload(&proxied.compile().unwrap(), &stop).unwrap();
+            let origin = scope.spawn(|| {
+                let (mut s, _) = backend.accept().unwrap();
+                s.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+                let mut head = Vec::new();
+                let mut byte = [0];
+                while !head.ends_with(b"\r\n\r\n") {
+                    s.read_exact(&mut byte).unwrap();
+                    head.push(byte[0]);
+                    assert!(head.len() < 16384);
+                }
+                assert!(head.starts_with(b"GET /secret.txt HTTP/1.1\r\n"));
+                s.write_all(b"HTTP/1.1 404 Missing\r\nContent-Length: 6\r\n\r\nORIGIN")
+                    .unwrap();
+            });
+            let response = get(address, "GET", "app.example", "/secret.txt");
+            assert!(response.starts_with(b"HTTP/1.1 404 ") && response.ends_with(b"ORIGIN"));
+            origin.join().unwrap();
+            server.reload(&files.compile().unwrap(), &stop).unwrap();
+            assert!(get(address, "GET", "app.example", "/").ends_with(b"FILE"));
+            assert!(
+                get(address, "GET", "app.example", "/secret.txt").starts_with(b"HTTP/1.1 404 ")
+            );
+            assert!(
+                get(address, "GET", "app.example", "/encoded%2f").starts_with(b"HTTP/1.1 404 ")
+            );
+            assert!(
+                exchange(
+                    address,
+                    b"POST / HTTP/1.1\r\nHost: app.example\r\nContent-Length: 2\r\n\r\nx!"
+                )
+                .starts_with(b"HTTP/1.1 400 ")
+            );
+            backend.set_nonblocking(true).unwrap();
+            assert!(backend.accept().is_err());
+        }));
+        stop.store(true, Ordering::Release);
+        worker.join().unwrap().unwrap();
+        if let Err(panic) = result {
+            std::panic::resume_unwind(panic);
+        }
+    });
+}
