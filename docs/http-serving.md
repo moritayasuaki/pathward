@@ -120,15 +120,16 @@ retain their admitted inode across later renames. Plan deployments accordingly.
 | Request head | 16 KiB, at most 32 headers |
 | Request target | 8192 bytes including query |
 | File size | 1 GiB at admission |
-| Workers | 4 fixed threads |
-| Pending accepted connections | 8; excess accepted sockets are closed |
-| Request-head deadline | 5 seconds from accept, including time in the queue |
-| Socket response deadline | 10 seconds total, recomputed before every write |
+| Ordinary handlers | 4 fixed threads; one separate input/output thread |
+| Admitted ordinary connections | 12 standard / 256 shared-NAT, including input, queue and output |
+| Request-head deadline | 5 seconds for header collection; separate 5-second ready queue |
+| Static response deadline | 120 seconds total; 5 seconds without output progress |
 | Error response deadline | 1 second |
 | Body-copy buffer | 16 KiB per active response |
 
 The accept loop has at most one additional socket while enqueueing; the kernel
-also owns its bounded listen backlog. There is no per-request thread creation.
+also owns its bounded listen backlog. There is no per-request thread creation. See [staged delivery](delivery.md) for
+retained-response byte bounds, shutdown and TLS phase accounting.
 The write deadline is not reset by small successful writes. Filesystem lookup,
 metadata and read syscalls on a blocked device/FUSE/network filesystem cannot be
 interrupted by these socket deadlines. Slow/untrusted storage is outside this

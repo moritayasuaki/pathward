@@ -1,7 +1,7 @@
 {
-  "checked_at": "2026-11-02T09:49:37.413908+00:00",
+  "checked_at": "2026-11-02T18:12:56.712407+00:00",
   "auditor": "cargo-audit 0.22.2",
-  "database_commit": "e52a8212cbf9b915380afd9534da050d6f5d9af1",
+  "database_commit": "263a4d951a0867d4bddc29dddd6d59427c78f9a7",
   "profiles": {
     "server_candidate": {
       "manifest_sha256": "80645dae25eb0fb36fe5238b6c0cd3fc7c94bf4cbae32f6a72890cff2985f6a5",
@@ -31,7 +31,7 @@
   "reports": {
     "core": {
       "database": {
-        "advisory-count": 1395,
+        "advisory-count": 1402,
         "last-commit": null,
         "last-updated": null
       },
@@ -58,7 +58,7 @@
     },
     "server_candidate": {
       "database": {
-        "advisory-count": 1395,
+        "advisory-count": 1402,
         "last-commit": null,
         "last-updated": null
       },
@@ -85,7 +85,7 @@
     },
     "configuration": {
       "database": {
-        "advisory-count": 1395,
+        "advisory-count": 1402,
         "last-commit": null,
         "last-updated": null
       },
@@ -112,7 +112,7 @@
     },
     "http_server": {
       "database": {
-        "advisory-count": 1395,
+        "advisory-count": 1402,
         "last-commit": null,
         "last-updated": null
       },

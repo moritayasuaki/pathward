@@ -134,4 +134,5 @@ pub mod routing;
 pub mod streaming;
 
 pub mod content;
+pub mod delivery;
 pub mod upstream;

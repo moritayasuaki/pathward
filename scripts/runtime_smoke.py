@@ -105,26 +105,17 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         replace(content(directory/"new",path="/new"))
         process.send_signal(signal.SIGHUP)
         wait_for(lambda: metrics()["pathward_config_generation"]==3)
-        # All four workers are active, then queue extra work. Shutdown must keep
-        # the active generation alive, close the listener, and discard the queue.
+        # Header collection no longer occupies ordinary workers. On shutdown,
+        # discard unfinished inputs and never forward their partial requests.
         wait_for(lambda: metrics()["pathward_connections_active"]==0)
-        active = [socket.create_connection(("127.0.0.1",port),timeout=3,source_address=(f"127.0.0.{i+2}",0)) for i in range(4)]
+        active = [socket.create_connection(("127.0.0.1",port),timeout=3) for _ in range(4)]
         for stream in active: stream.sendall(b"GET /new HTTP/1.1\r\nHost: example.com\r\n")
         wait_for(lambda: metrics()["pathward_connections_active"]==4)
-        accepted = metrics()["pathward_connections_total"]
-        queued = [socket.create_connection(("127.0.0.1",port),timeout=3,source_address=(f"127.0.0.{i+10}",0)) for i in range(8)]
-        for stream in queued: stream.sendall(b"GET /new HTTP/1.1\r\nHost: example.com\r\n\r\n")
-        wait_for(lambda: metrics()["pathward_connections_total"]>=accepted+8)
+        # A complete request from the same peer can progress beside the partial head.
+        assert get(port,"/new").endswith(b"NEW")
         process.send_signal(signal.SIGTERM)
-        wait_for(lambda: metrics()["pathward_draining"]==1)
-        assert get(monitor,"/readyz").startswith(b"HTTP/1.1 503")
-        process.send_signal(signal.SIGHUP)
         for stream in active:
-            stream.sendall(b"\r\n")
-            assert response(stream).endswith(b"NEW")
-            stream.close()
-        for stream in queued:
-            assert b"200 OK" not in response(stream)
+            assert response(stream).startswith(b"HTTP/1.1 408 ")
             stream.close()
         assert process.wait(timeout=5)==0
         reader.join(timeout=2)
@@ -139,6 +130,7 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         stream=socket.create_connection(("127.0.0.1",port),timeout=8)
         stream.sendall(b"GET /new HTTP/1.1\r\n")
         wait_for(lambda: metrics()["pathward_connections_active"]==1)
+        assert get(port,"/new").endswith(b"NEW")
         started=time.monotonic()
         process.send_signal(signal.SIGINT)
         assert response(stream).startswith(b"HTTP/1.1 408")
@@ -147,4 +139,4 @@ with tempfile.TemporaryDirectory(prefix="pathward-runtime-") as temporary:
         assert time.monotonic()-started<7
     finally:
         if process.poll() is None: process.kill(); process.wait(timeout=5)
-print("Runtime CLI passed: atomic reload/rejection/FIFO, SIGTERM/SIGINT, active drain/queue discard/deadline, health/metrics/redacted JSON logs.")
+print("Runtime CLI passed: atomic reload/rejection/FIFO, SIGTERM/SIGINT, incomplete-input discard/deadline, health/metrics/redacted JSON logs.")

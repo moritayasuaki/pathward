@@ -97,6 +97,10 @@ def main():
                         "--start-from", "pathward::upstream::probe_next",
                         "--start-from", "pathward::upstream::probe_owned",
                         "--start-from", "pathward::upstream::query_match",
+                        "--start-from", "pathward::delivery::reserve_allowed",
+                        "--start-from", "pathward::delivery::shrink_allowed",
+                        "--start-from", "pathward::delivery::phase_live",
+                        "--start-from", "pathward::delivery::input_timeout_status",
                         "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",

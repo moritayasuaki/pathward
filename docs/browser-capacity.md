@@ -17,7 +17,9 @@ The new opt-in profile allows 256 refill credits/second per peer and 512 globall
 with unchanged bursts of 384/512. Admitted and queued sockets are capped at
 192 per peer and 256 globally, with a 252-socket dispatch queue. Four workers,
 two running jobs per peer, 256 peer-table entries, service/stream limits, body
-bounds and deadlines are unchanged. The standard profile is unchanged.
+bounds remain finite. The subsequent [delivery correction](delivery.md) separates
+input/queue/output phases and releases ordinary workers during downstream waits.
+The standard admission profile is unchanged.
 
 This permits four times the previous sustained unauthenticated connection rate
 and 64 additional globally admitted sockets (33%). A peer still cannot occupy
@@ -193,7 +195,7 @@ nevertheless recorded three 201 responses. The driver does not retry such
 mutations. Four asset requests received 408. No admission refusal was counted.
 These are failed user operations, not harmless reload cancellations.
 
-`Server::respond` reads the header against `accepted + READ_BUDGET` (five
+In the recorded pre-delivery implementation, `Server::respond` reads the header against `accepted + READ_BUDGET` (five
 seconds), including time spent queued. One 408 was emitted after only about
 100 microseconds in the worker, demonstrating an already-expired read deadline;
 other requests spent seconds in image writes. The available evidence supports

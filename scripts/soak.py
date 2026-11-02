@@ -350,7 +350,7 @@ try:
                 m = metrics(ports["monitor"])
                 assert m["pathward_ready"] == 1, "readiness lost during overlap"
                 assert m["pathward_certificate_not_after_seconds"] > time.time(), "expired certificate"
-                assert m["pathward_connections_active"] <= 4
+                assert m["pathward_connections_active"] <= m["pathward_admission_global_limit"]
                 assert m["pathward_acme_errors_total"] == 0
                 assert m["pathward_log_dropped_total"] == 0
                 r = sample(process.pid)

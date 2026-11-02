@@ -350,6 +350,9 @@ impl Transport for TlsTransport {
     }
 }
 impl TlsTransport {
+    pub(crate) fn blocking(&mut self) -> io::Result<()> {
+        self.stream.sock.stream.set_nonblocking(false)
+    }
     pub fn finish(&mut self) -> io::Result<()> {
         self.stream.conn.send_close_notify();
         self.stream.flush()

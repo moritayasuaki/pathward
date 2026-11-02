@@ -40,6 +40,7 @@ jobs:
           python3 scripts/deployment_smoke.py
           python3 scripts/load_smoke.py
           python3 scripts/fairness_smoke.py
+          python3 scripts/delivery_smoke.py
           python3 scripts/capacity_smoke.py
           python3 scripts/stream_smoke.py
           cargo +1.99.1 run --offline --locked --release --manifest-path server/Cargo.toml --example fuzz_http -- 100000

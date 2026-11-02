@@ -33,14 +33,16 @@ descriptors) under a short write lock. Any parse, schema, identity, isolation,
 root-open, generation-overflow or draining failure retains the current generation.
 Successful no-op reloads also increment the generation, starting from 1.
 
-Every dispatched HTTP request clones exactly one snapshot before reading its
-headers. Its host selection, publication lookup and file open all use that
+Every dispatched HTTP request clones exactly one snapshot before parsing its
+collected headers. Its host selection, publication lookup and file open all use that
 snapshot. Requests already in progress may finish with the previous rules after a
 reload, including a removed publication. Queued connections choose the current
 snapshot when their worker starts HTTP processing. Reload is not immediate
-revocation of active requests or already established TLS sessions. At most four
-requests retain old snapshots; repeated signals cannot create an unbounded
-queue of configurations. Old root descriptors close when their last request ends.
+revocation of active requests or already established TLS sessions. At most four ordinary handlers retain full old snapshots, plus the bounded
+stream pool. Completed file responses retain only their already-opened file,
+serialized headers and generation; buffered proxy responses retain their bytes,
+headers and generation. Repeated signals cannot create an unbounded queue of
+configurations. Old root descriptors close when their last snapshot reference ends.
 
 **Reloadable:** exact publications, redirects, headers and document roots, including replacing a root
 pathname with another directory. Missing published files are still denied at
@@ -57,13 +59,15 @@ same validated cache pathname to `Server::new_with_cache` and `Manager::new`.
 ## Graceful shutdown
 
 SIGTERM/SIGINT set an atomic flag. The accept loop closes the serving listener,
-marks the server draining, discards queued sockets, and joins the four ordinary and 16 stream
-workers. Established streams have separate global/peer/host leases and release
+marks the server draining, discards queued sockets, and joins the four ordinary workers, 16 stream workers and one input/output
+thread. Established streams have separate global/peer/host leases and release
 ordinary admission/dispatch slots at handoff. The bounded dispatcher runs at most two jobs per peer, skips busy peers
 without dropping their queued work, and wakes waiting workers during shutdown.
-Active HTTP/TLS exchanges finish under their existing total deadlines:
-5 seconds for TLS handshake, 5 seconds for HTTP headers, 10 seconds for a
-response, or 1 second for an error. New reload commits are refused after the
+Partial HTTP heads are discarded; an empty preconnection closes without a
+408. Completed downstream responses have at most five seconds to drain, capped
+by their existing absolute/idle deadlines. TLS handshakes retain their five-second
+acceptance deadline. Blocking upstream operations retain their configured total
+budget. See [staged delivery](delivery.md) for the separate header/queue budgets. New reload commits are refused after the
 server enters draining; a concurrent signal is sampled again inside the commit
 lock. The ACME worker cancels its pending asynchronous order, clears challenges,
 and exits. Durable private-key writes already running finish normally. The
