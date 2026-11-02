@@ -1,5 +1,11 @@
 # Real-browser capacity rehearsal
 
+**Acceptance status: incomplete. Do not treat this as a 24-user production pass.**
+The admission correction passes Rust/Linux/Lean checks, but the last cold-cache
+browser attempt still failed with four asset 408 responses and six aborted room
+creation requests on the available test connection. The PR remains a draft.
+Public-CA testing has not run.
+
 The shared-NAT profile needed additional headroom for 24 simultaneous browser
 reloads. Its old 64-per-peer / 128-global connection refill rates covered the
 protocol-client workload, but actual browser reloads produced a multi-second
@@ -29,10 +35,13 @@ background timer/renderer throttling is disabled to represent active users.
 The normal browser profile is never opened. No browser automation package is
 installed. This is one client machine, not 24 independent physical devices.
 
-All application requests go through an SSH loopback tunnel to a private Linux
-staging service, appearing as one source IP. The final functional run enables
-SSH transport compression; this is not PathWard HTTP compression or a public-link
-performance benchmark. The application uses captured public
+Application requests go through private SSH forwarding to a Linux staging
+service, appearing as one source IP. Diagnostic transports include one shared
+TCP tunnel, a compressed shared tunnel, and 24 independent SOCKS tunnels with
+one per browser context. The latter preserve the same browser origin and
+loopback source identity; browser proxy bypass is disabled only for loopback
+so requests actually take the test tunnel. None is a public-link performance
+benchmark, and SSH compression does not implement PathWard HTTP compression. The application uses captured public
 frontend files and two separately launched backend versions with synthetic state
 and empty private-photo storage. Six rooms are created through the actual UI,
 with one host and three guests in each; all 24 actor IDs must be distinct.
@@ -55,8 +64,9 @@ monotonic revisions, four members per room and the configured generation header.
 Only synthetic room identifiers are inspected; bearer tokens and response bodies
 are not saved in the report.
 
-Admission rejection, overload, request I/O error, 5xx and lost-log counters must
-remain zero. Navigation cancellations are recorded separately from empty-response
+Admission rejection, overload, request I/O error, unexpected 4xx (including 408),
+5xx and lost-log counters must remain zero. A create/join/command cancellation
+outside navigation is a failure, even when its transport code is ERR_ABORTED. Navigation cancellations are recorded separately from empty-response
 or connection failures. A response body invalidated by a new document loader is
 recorded as a CDP navigation diagnostic; other verification errors fail the test.
 Browser counters and server counters are reported separately: browser cache and
@@ -97,7 +107,11 @@ That run still measured about 224 seconds for a JavaScript response at the brows
 while server-side writes completed promptly with zero rejection/I/O counters. It
 was stopped during room setup, not counted as a pass. The slow shared test link
 therefore remains a limitation even without fixture transfer; final functional
-verification uses SSH compression and public-network performance remains unproven.
+verification also tried SSH compression, which still encountered 408 responses
+and aborted room creation. This attempt is a failure, not a pass. Independent
+per-context SSH transports were then used to separate shared-connection effects.
+Slow initial transfer persisted with modest client CPU use; the available test
+link remains a constraint and public-network performance remains unproven.
 
 ## Regression, proof and audit
 
@@ -154,3 +168,44 @@ occupancy must be resolved or explicitly accepted before full migration.
 Primary browser references: [Chrome Headless](https://developer.chrome.com/docs/automation-and-testing/headless),
 [CDP Target](https://chromedevtools.github.io/devtools-protocol/tot/Target/),
 [CDP Network](https://chromedevtools.github.io/devtools-protocol/tot/Network/).
+
+## Recorded result
+
+The [sanitized result](browser-capacity-result-2026-11-02.json) records the failed
+acceptance result, earlier candidates, exact binary/source identity and counters.
+The last run completed 229 configuration switches and rejected 33 attempted
+capacity changes without mixed-release/private-file failures. PathWard peaked at
+14,544 KiB sampled RSS, 25 threads and 25 descriptors; these measurements are not
+worst-case capacity guarantees. All three isolated server processes exited with
+code zero. Seven retained environment comparisons found production configuration,
+routes, service PIDs and TCP listeners unchanged.
+
+Runtime source `3a919a1` passed [Linux/Rust/Lean CI](https://github.com/moritayasuaki/pathward/actions/runs/41428275462).
+The documentation/audit snapshot `99b0c85` also passed [PR CI](https://github.com/moritayasuaki/pathward/actions/runs/41443505623).
+Neither green CI nor bounded-resource proofs turn the failed browser acceptance
+into a pass.
+
+## Remaining capacity blocker
+
+The last independent-transport run reached no verified actors/rooms in the
+browser oracle. Six create requests were aborted by the client; the server
+nevertheless recorded three 201 responses. The driver does not retry such
+mutations. Four asset requests received 408. No admission refusal was counted.
+These are failed user operations, not harmless reload cancellations.
+
+`Server::respond` reads the header against `accepted + READ_BUDGET` (five
+seconds), including time spent queued. One 408 was emitted after only about
+100 microseconds in the worker, demonstrating an already-expired read deadline;
+other requests spent seconds in image writes. The available evidence supports
+queue/deadline and slow-transfer contention as a remaining mechanism. It does
+not establish that every aborted create request has the same cause. Browser
+connection scheduling and application abort deadlines also need separate
+measurement; do not infer failure solely from the absence of a 5xx or I/O error.
+
+Do not fix this by removing deadlines, retrying create/join commands or making
+queues unbounded. Before migration, compare cold entry and rapid UI actions
+against the existing server on the intended public link, and address bounded
+response dispatch/queue deadlines and asset delivery as necessary. HTTP
+compression and HTTP/2 may change that workload, but neither is validated here.
+A complete rerun must retain zero unexpected 4xx and mutation aborts through
+cold entry, two synchronized reloads and configuration churn.
