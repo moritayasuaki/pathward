@@ -52,6 +52,9 @@ pub fn generate(
         return Err(error());
     }
     let mut out = String::new();
+    if base.shared_nat() {
+        out.push_str("capacity \"shared-nat\"\n");
+    }
     for site in base.sites() {
         out.push_str(&format!(
             "site {} {{\n    tls \"auto\"\n",
@@ -319,6 +322,7 @@ impl Server {
             let parsed = ParsedConfig::parse(text).map_err(|_| error())?;
             let config = parsed.compile().map_err(|_| error())?;
             if !old.same_hosts(&config)
+                || !pathward::release::capacity_reload_allowed(self.shared_nat, config.shared_nat())
                 || !self.isolated(&config)
                 || !Snapshot::isolated(&config, Some(directory))
             {

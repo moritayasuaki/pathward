@@ -54,6 +54,58 @@ pub fn dispatch_allowed(running: u64, peer_running: u64, draining: bool) -> bool
     !draining && running < 4 && peer_running < 2
 }
 
+/// Explicit startup-only capacity profile; running workers and deadlines are unchanged.
+pub fn capacity_global(shared_nat: bool) -> u64 {
+    if shared_nat { 192 } else { 12 }
+}
+pub fn capacity_peer(shared_nat: bool) -> u64 {
+    if shared_nat { 144 } else { 6 }
+}
+pub fn capacity_queue(shared_nat: bool) -> u64 {
+    if shared_nat { 188 } else { 8 }
+}
+pub fn capacity_rate(shared_nat: bool, peer: bool) -> u64 {
+    if shared_nat {
+        if peer { 64 } else { 128 }
+    } else if peer {
+        8
+    } else {
+        64
+    }
+}
+pub fn capacity_burst(shared_nat: bool, peer: bool) -> u64 {
+    if shared_nat {
+        if peer { 384 } else { 512 }
+    } else if peer {
+        16
+    } else {
+        128
+    }
+}
+pub fn capacity_rejection(
+    active: u64,
+    per_peer: u64,
+    tokens: u64,
+    draining: bool,
+    shared_nat: bool,
+) -> u64 {
+    if draining {
+        1
+    } else if active >= capacity_global(shared_nat) {
+        2
+    } else if per_peer >= capacity_peer(shared_nat) {
+        3
+    } else if tokens == 0 {
+        4
+    } else {
+        0
+    }
+}
+/// A reload/activation must never silently replace live admission accounting.
+pub fn capacity_reload_allowed(current: bool, candidate: bool) -> bool {
+    current == candidate
+}
+
 /// Staging handoff gate. The adapter hashes the inspected binaries, configuration,
 /// explicit content manifest and listener plan, then rechecks immediately before
 /// stopping the fallback. Evidence and the OS handoff remain trusted I/O.

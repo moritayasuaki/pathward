@@ -107,6 +107,89 @@ theorem rejection_exhausted (a p : U64) (ha : a.val < 12) (hp : p.val < 6) :
 theorem rejection_total (a p t : U64) (d : Bool) :
     ∃ c, release.admission_rejection a p t d = ok c := ⟨_, rejection_eq a p t d⟩
 
+theorem capacity_global_eq (n : Bool) :
+    release.capacity_global n = ok (if n then 192#u64 else 12#u64) := by cases n <;> rfl
+theorem capacity_peer_eq (n : Bool) :
+    release.capacity_peer n = ok (if n then 144#u64 else 6#u64) := by cases n <;> rfl
+theorem capacity_queue_eq (n : Bool) :
+    release.capacity_queue n = ok (if n then 188#u64 else 8#u64) := by cases n <;> rfl
+theorem capacity_rate_eq (n p : Bool) :
+    release.capacity_rate n p = ok
+      (if n then (if p then 64#u64 else 128#u64) else (if p then 8#u64 else 64#u64)) := by
+  cases n <;> cases p <;> rfl
+theorem capacity_burst_eq (n p : Bool) :
+    release.capacity_burst n p = ok
+      (if n then (if p then 384#u64 else 512#u64) else (if p then 16#u64 else 128#u64)) := by
+  cases n <;> cases p <;> rfl
+
+theorem capacity_limits_bounded (n : Bool) (g p q : U64)
+    (hg : release.capacity_global n = ok g)
+    (hp : release.capacity_peer n = ok p)
+    (hq : release.capacity_queue n = ok q) :
+    0 < p.val ∧ p.val < g.val ∧ g.val ≤ 192 ∧ q.val + 4 = g.val := by
+  cases n <;> simp [release.capacity_global, release.capacity_peer, release.capacity_queue] at hg hp hq
+  all_goals subst g; subst p; subst q; decide
+
+theorem capacity_credit_bounded (n p : Bool) (r b : U64)
+    (hr : release.capacity_rate n p = ok r)
+    (hb : release.capacity_burst n p = ok b) :
+    0 < r.val ∧ r.val ≤ 128 ∧ r.val ≤ b.val ∧ b.val ≤ 512 ∧
+      60000 * r.val + 1000 * b.val < 2^64 := by
+  cases n <;> cases p <;> simp [release.capacity_rate, release.capacity_burst] at hr hb
+  all_goals subst r; subst b; decide
+
+theorem capacity_rejection_eq (a p t : U64) (d n : Bool) :
+    release.capacity_rejection a p t d n = ok
+      (if d then 1#u64 else if (if n then 192 else 12) ≤ a.val then 2#u64 else
+       if (if n then 144 else 6) ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64) := by
+  cases n <;> simp [release.capacity_rejection, capacity_global_eq, capacity_peer_eq, UScalar.eq_equiv]
+  all_goals split_ifs <;> rfl
+
+theorem capacity_accepts_exactly (a p t : U64) (d n : Bool) :
+    release.capacity_rejection a p t d n = ok 0#u64 ↔
+      d = false ∧ a.val < (if n then 192 else 12) ∧
+        p.val < (if n then 144 else 6) ∧ 0 < t.val := by
+  rw [capacity_rejection_eq]
+  cases d
+  · cases n
+    all_goals simp only [Bool.false_eq_true, ↓reduceIte, true_and]
+    all_goals split_ifs
+    all_goals simp_all
+    all_goals omega
+  · simp
+
+theorem capacity_standard_unchanged (a p t : U64) (d : Bool) :
+    release.capacity_rejection a p t d false = release.admission_rejection a p t d := by
+  simp [capacity_rejection_eq, rejection_eq]
+
+theorem capacity_code_bounded (a p t c : U64) (d n : Bool)
+    (h : release.capacity_rejection a p t d n = ok c) : c.val ≤ 4 := by
+  rw [capacity_rejection_eq] at h
+  split_ifs at h <;> cases h <;> decide
+
+theorem capacity_no_draining (a p t : U64) (n : Bool) :
+    release.capacity_rejection a p t true n = ok 1#u64 := by simp [capacity_rejection_eq]
+
+theorem capacity_no_credit (a p : U64) (n : Bool)
+    (ha : a.val < (if n then 192 else 12))
+    (hp : p.val < (if n then 144 else 6)) :
+    release.capacity_rejection a p 0#u64 false n = ok 4#u64 := by
+  simp [capacity_rejection_eq, Nat.not_le_of_gt ha, Nat.not_le_of_gt hp]
+
+theorem capacity_total (a p t : U64) (d n : Bool) :
+    ∃ c, release.capacity_rejection a p t d n = ok c := ⟨_, capacity_rejection_eq a p t d n⟩
+
+theorem capacity_reload_eq (current candidate : Bool) :
+    release.capacity_reload_allowed current candidate = ok (decide (current = candidate)) := by
+  cases current <;> cases candidate <;> rfl
+
+theorem capacity_reload_unchanged (current candidate : Bool)
+    (h : release.capacity_reload_allowed current candidate = ok true) : current = candidate := by
+  simpa [capacity_reload_eq] using h
+
+theorem capacity_reload_total (current candidate : Bool) :
+    ∃ b, release.capacity_reload_allowed current candidate = ok b := ⟨_, capacity_reload_eq current candidate⟩
+
 theorem gates_total (c e : Slice U8) (p s d : Bool) (a n t : U64) :
     (∃ b, release.commit_allowed c e p s d = ok b) ∧
     (∃ b, release.admission_allowed a n t d = ok b) :=

@@ -9,6 +9,13 @@ use crate::{
 pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
     let mut input = Surface { source, pos: 0 };
     input.layout();
+    if source[input.pos..].starts_with("capacity") {
+        input.name("capacity")?;
+        input.space()?;
+        input.string()?;
+        input.end(false)?;
+        input.layout();
+    }
     let mut sites = 0;
     while !input.eof() {
         sites += 1;

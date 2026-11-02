@@ -138,7 +138,21 @@ impl ParsedConfig {
     /// Interpret only the documented schema and call the extracted Rust
     /// compiler before returning each immutable site's publication table.
     pub fn compile(&self) -> Result<CompiledConfig<'_>, ConfigError> {
-        let nodes = self.document.nodes();
+        let mut nodes = self.document.nodes();
+        let mut shared_nat = false;
+        if let Some(node) = nodes.first()
+            && node.name().value() == "capacity"
+        {
+            if node.children().is_some() {
+                return Err(self.at(node, "capacity cannot have children"));
+            }
+            shared_nat = match self.arguments(node, 1)?[0] {
+                "standard" => false,
+                "shared-nat" => true,
+                _ => return Err(self.at(node, "capacity must be standard or shared-nat")),
+            };
+            nodes = &nodes[1..];
+        }
         if nodes.is_empty() || nodes.len() > MAX_SITES {
             return Err(error(&self.source, 0, "expected 1 to 16 site blocks"));
         }
@@ -505,6 +519,7 @@ impl ParsedConfig {
         Ok(CompiledConfig {
             sites,
             source: &self.source,
+            shared_nat,
         })
     }
 
@@ -618,9 +633,13 @@ impl<'a> CompiledSite<'a> {
 pub struct CompiledConfig<'a> {
     sites: Vec<CompiledSite<'a>>,
     source: &'a str,
+    shared_nat: bool,
 }
 
 impl<'a> CompiledConfig<'a> {
+    pub fn shared_nat(&self) -> bool {
+        self.shared_nat
+    }
     pub fn source(&self) -> &'a str {
         self.source
     }

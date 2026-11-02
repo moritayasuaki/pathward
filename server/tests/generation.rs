@@ -1,6 +1,21 @@
 use pathward_config::ParsedConfig;
 use pathward_server::deployment::generate;
 #[test]
+fn generation_preserves_explicit_startup_capacity() {
+    let text = "capacity \"shared-nat\"\nsite \"app.example\" {\n tls \"auto\"\n root \"/srv/old\"\n publish \"/\" \"index.html\"\n}\n";
+    let parsed = ParsedConfig::parse(text).unwrap();
+    let output = generate(
+        &parsed.compile().unwrap(),
+        "app.example",
+        "/srv/new",
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    let updated = ParsedConfig::parse(&output).unwrap();
+    assert!(updated.compile().unwrap().shared_nat());
+}
+#[test]
 fn explicit_manifest_round_trips_without_expansion_and_preserves_other_policies() {
     let parsed=ParsedConfig::parse("site \"example.com\" {\nroot \"/srv/old\"\ntls \"auto\"\npublish \"/\" \"index.html\"\nheader \"*\" \"content-security-policy\" \"default-src 'none'\"\nredirect \"/legacy\" \"example.com\" \"/\" \"308\"\n}\nsite \"other.example\" {\nroot \"/srv/other\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}").unwrap();
     let base = parsed.compile().unwrap();
