@@ -22,6 +22,11 @@ implicit index or directory publishing. `tls "auto"` selects automatic TLS when 
 CLI still only validates/resolves; the server command takes a private cache path,
 CA environment and explicit terms acceptance. `serve-http` remains loopback-only.
 
+An optional first top-level `capacity "shared-nat"` selects bounded connection
+budgets for a reviewed shared-NAT workload. Omission or `capacity "standard"`
+keeps the original limits. This setting requires restart and is preserved by
+publication generation; see [capacity profiles and audit](nat-capacity.md).
+
 ## Try it
 
 From the repository root:

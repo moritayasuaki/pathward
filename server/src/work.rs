@@ -14,6 +14,7 @@ struct State<T> {
     closed: bool,
 }
 pub(crate) struct Queue<T> {
+    capacity: usize,
     state: Mutex<State<T>>,
     changed: Condvar,
 }
@@ -22,8 +23,9 @@ pub(crate) struct Running<T> {
     peer: IpAddr,
 }
 impl<T> Queue<T> {
-    pub fn new() -> Arc<Self> {
+    pub fn new(shared_nat: bool) -> Arc<Self> {
         Arc::new(Self {
+            capacity: pathward::release::capacity_queue(shared_nat) as usize,
             state: Mutex::new(State {
                 pending: VecDeque::new(),
                 running: Vec::new(),
@@ -36,7 +38,7 @@ impl<T> Queue<T> {
         let Ok(mut state) = self.state.lock() else {
             return Err(job);
         };
-        if state.closed || state.pending.len() >= crate::QUEUE_CAPACITY {
+        if state.closed || state.pending.len() >= self.capacity {
             return Err(job);
         }
         state.pending.push_back((peer, job));
@@ -100,7 +102,7 @@ mod tests {
     use super::*;
     #[test]
     fn bypasses_busy_peer_without_rejecting_its_queued_work_and_releases_slots() {
-        let q = Queue::new();
+        let q = Queue::new(false);
         let a = "127.0.0.1".parse().unwrap();
         let b = "127.0.0.2".parse().unwrap();
         let stop = AtomicBool::new(false);
@@ -125,7 +127,7 @@ mod tests {
     }
     #[test]
     fn queue_capacity_and_shutdown_are_fail_closed() {
-        let q = Queue::new();
+        let q = Queue::new(false);
         let peer = "::1".parse().unwrap();
         for i in 0..crate::QUEUE_CAPACITY {
             q.push(peer, i).unwrap();
@@ -133,5 +135,29 @@ mod tests {
         assert_eq!(q.push(peer, 100), Err(100));
         assert!(q.take(&AtomicBool::new(true)).is_none());
         q.close();
+    }
+    #[test]
+    fn larger_queue_preserves_worker_fairness_and_bounded_storage() {
+        let q = Queue::new(true);
+        let peer = "127.0.0.20".parse().unwrap();
+        let other = "127.0.0.1".parse().unwrap();
+        let stop = AtomicBool::new(false);
+        for i in 0..144 {
+            q.push(peer, i).unwrap();
+        }
+        q.push(other, 999).unwrap();
+        let (_, a) = q.take(&stop).unwrap();
+        let (_, b) = q.take(&stop).unwrap();
+        let (value, c) = q.take(&stop).unwrap();
+        assert_eq!(value, 999);
+        for i in 0..46 {
+            q.push(peer, i).unwrap();
+        }
+        assert_eq!(q.state.lock().unwrap().pending.len(), 188);
+        assert!(q.push(peer, 1000).is_err());
+        q.close();
+        drop((a, b, c));
+        assert!(q.state.lock().unwrap().running.is_empty());
+        assert!(q.state.lock().unwrap().pending.is_empty());
     }
 }

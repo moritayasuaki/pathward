@@ -19,6 +19,53 @@ struct Store {
     fail_from: usize,
     fail_once: bool,
 }
+#[test]
+fn capacity_change_is_rejected_before_reload_or_durable_activation() {
+    let site = "site \"app.example\" {\n tls \"auto\"\n reverse-proxy \"127.0.0.1:3000\"\n}\n";
+    for initial in [false, true] {
+        let text = if initial {
+            format!("capacity \"shared-nat\"\n{site}")
+        } else {
+            site.to_owned()
+        };
+        let other = if initial {
+            site.to_owned()
+        } else {
+            format!("capacity \"shared-nat\"\n{site}")
+        };
+        let parsed = ParsedConfig::parse(&text).unwrap();
+        let candidate = ParsedConfig::parse(&other).unwrap();
+        let server = Server::new(&parsed.compile().unwrap()).unwrap();
+        let stop = AtomicBool::new(false);
+        let original = server.status();
+        assert!(server.reload(&candidate.compile().unwrap(), &stop).is_err());
+        let store = Store {
+            current: Mutex::new(text.as_bytes().to_vec()),
+            previous: Mutex::new(vec![]),
+            writes: AtomicUsize::new(0),
+            fail_from: usize::MAX,
+            fail_once: true,
+        };
+        assert!(
+            server
+                .activate(
+                    &store,
+                    std::path::Path::new("/private-control"),
+                    original.0,
+                    &original.1,
+                    other.as_bytes(),
+                    &stop
+                )
+                .is_err()
+        );
+        assert_eq!(store.writes.load(Ordering::Relaxed), 0);
+        assert!(store.previous().unwrap().unwrap().is_empty());
+        assert_eq!(store.current().unwrap().unwrap(), text.as_bytes());
+        assert_eq!(server.status(), original);
+        assert!(!stop.load(Ordering::Acquire));
+        assert!(server.reload(&parsed.compile().unwrap(), &stop).is_ok());
+    }
+}
 impl ConfigStore for Store {
     fn current(&self) -> io::Result<Option<Vec<u8>>> {
         Ok(Some(self.current.lock().unwrap().clone()))

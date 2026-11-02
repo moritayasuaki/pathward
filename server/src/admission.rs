@@ -44,8 +44,9 @@ fn gate(
     tokens: u64,
     draining: bool,
     global: bool,
+    shared_nat: bool,
 ) -> Result<(), Rejection> {
-    match pathward::release::admission_rejection(active, peer, tokens, draining) {
+    match pathward::release::capacity_rejection(active, peer, tokens, draining, shared_nat) {
         0 => Ok(()),
         1 => Err(Rejection::Draining),
         2 => Err(Rejection::GlobalActive),
@@ -97,7 +98,7 @@ struct State {
     global: Bucket,
     peers: HashMap<IpAddr, Peer>,
 }
-pub(crate) struct Admission(Mutex<State>);
+pub(crate) struct Admission(Mutex<State>, bool);
 pub(crate) struct Permit {
     admission: Arc<Admission>,
     peer: IpAddr,
@@ -116,12 +117,19 @@ pub(crate) fn key(ip: IpAddr) -> IpAddr {
     }
 }
 impl Admission {
-    pub fn new() -> Self {
-        Self(Mutex::new(State {
-            active: 0,
-            global: Bucket::new(Instant::now(), 64, 128),
-            peers: HashMap::new(),
-        }))
+    pub fn new(shared_nat: bool) -> Self {
+        Self(
+            Mutex::new(State {
+                active: 0,
+                global: Bucket::new(
+                    Instant::now(),
+                    pathward::release::capacity_rate(shared_nat, false),
+                    pathward::release::capacity_burst(shared_nat, false),
+                ),
+                peers: HashMap::new(),
+            }),
+            shared_nat,
+        )
     }
     pub fn acquire(self: &Arc<Self>, ip: IpAddr, draining: bool) -> Result<Permit, Rejection> {
         self.at(ip, draining, Instant::now())
@@ -130,7 +138,14 @@ impl Admission {
         let ip = key(ip);
         let mut state = self.0.lock().map_err(|_| Rejection::StateUnavailable)?;
         state.global.refill(now);
-        gate(state.active, 0, state.global.credit / 1000, draining, true)?;
+        gate(
+            state.active,
+            0,
+            state.global.credit / 1000,
+            draining,
+            true,
+            self.1,
+        )?;
         if !state.peers.contains_key(&ip) {
             if state.peers.len() == PEERS {
                 state.peers.retain(|_, p| {
@@ -144,7 +159,11 @@ impl Admission {
                 ip,
                 Peer {
                     active: 0,
-                    bucket: Bucket::new(now, 8, 16),
+                    bucket: Bucket::new(
+                        now,
+                        pathward::release::capacity_rate(self.1, true),
+                        pathward::release::capacity_burst(self.1, true),
+                    ),
                     seen: now,
                 },
             );
@@ -162,6 +181,7 @@ impl Admission {
             peer.bucket.credit / 1000,
             draining,
             false,
+            self.1,
         )?;
         peer.active += 1;
         peer.bucket.credit -= 1000;
@@ -192,8 +212,37 @@ impl Drop for Permit {
 mod tests {
     use super::*;
     #[test]
+    fn shared_nat_profile_retains_finite_occupancy_credit_and_drain_gates() {
+        let a = Arc::new(Admission::new(true));
+        let now = Instant::now();
+        let ip = "127.0.0.20".parse().unwrap();
+        let held: Vec<_> = (0..144).map(|_| a.at(ip, false, now).unwrap()).collect();
+        assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerActive));
+        let other: Vec<_> = (0..48)
+            .map(|i| a.at(IpAddr::from([127, 0, 1, i]), false, now).unwrap())
+            .collect();
+        assert_eq!(
+            a.at(IpAddr::from([127, 0, 2, 1]), false, now).err(),
+            Some(Rejection::GlobalActive)
+        );
+        drop((held, other));
+        for _ in 0..240 {
+            drop(a.at(ip, false, now).unwrap());
+        }
+        assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerRate));
+        for _ in 0..64 {
+            drop(a.at(ip, false, now + Duration::from_secs(1)).unwrap());
+        }
+        assert_eq!(
+            a.at(ip, false, now + Duration::from_secs(1)).err(),
+            Some(Rejection::PeerRate)
+        );
+        assert_eq!(a.at(ip, true, now).err(), Some(Rejection::Draining));
+        assert_eq!(a.0.lock().unwrap().active, 0);
+    }
+    #[test]
     fn peer_global_rate_limits_refill_and_leases() {
-        let a = Arc::new(Admission::new());
+        let a = Arc::new(Admission::new(false));
         let now = Instant::now();
         let ip = "127.0.0.1".parse().unwrap();
         let leases: Vec<_> = (0..6).map(|_| a.at(ip, false, now).unwrap()).collect();
@@ -219,7 +268,7 @@ mod tests {
 
     #[test]
     fn global_rate_and_poison_are_distinguished_without_admitting_work() {
-        let a = Arc::new(Admission::new());
+        let a = Arc::new(Admission::new(false));
         let now = Instant::now();
         for i in 0..128 {
             drop(a.at(IpAddr::from([10, 0, 0, i]), false, now).unwrap());
@@ -251,7 +300,7 @@ mod tests {
 
     #[test]
     fn denied_new_peers_cannot_fill_the_table_while_all_slots_are_in_use() {
-        let a = Arc::new(Admission::new());
+        let a = Arc::new(Admission::new(false));
         let now = Instant::now();
         let held: Vec<_> = (0..12)
             .map(|i| a.at(IpAddr::from([10, 0, 0, i]), false, now).unwrap())
@@ -273,7 +322,7 @@ mod tests {
             key("2001:db8::1".parse().unwrap()),
             key("2001:db8::2".parse().unwrap())
         );
-        let a = Arc::new(Admission::new());
+        let a = Arc::new(Admission::new(false));
         let now = Instant::now();
         for i in 0..256 {
             drop(

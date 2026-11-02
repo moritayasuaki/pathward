@@ -42,6 +42,7 @@ struct State {
 }
 
 pub struct Server {
+    shared_nat: bool,
     state: RwLock<State>,
     reload_lock: Mutex<()>,
     stream_quota: streaming::Quota,
@@ -57,6 +58,7 @@ impl Server {
     /// The cache path must be the same canonical absolute path passed to Manager.
     pub fn new_with_cache(config: &CompiledConfig<'_>, cache: Option<&Path>) -> io::Result<Self> {
         Ok(Self {
+            shared_nat: config.shared_nat(),
             state: RwLock::new(State {
                 generation: 1,
                 draining: false,
@@ -66,7 +68,7 @@ impl Server {
             stream_quota: streaming::Quota::default(),
             cache: cache.map(Path::to_owned),
             protected: RwLock::new(Vec::new()),
-            observe: Arc::new(observe::Observability::default()),
+            observe: Arc::new(observe::Observability::for_capacity(config.shared_nat())),
         })
     }
     pub fn check_files(&self) -> io::Result<usize> {
@@ -176,7 +178,11 @@ impl Server {
             (state.generation, state.snapshot.same_hosts(config))
         };
         let isolated = self.isolated(config);
-        if !identity_matches || !isolated || shutdown.load(Ordering::Acquire) || self.is_draining()
+        if !identity_matches
+            || !pathward::release::capacity_reload_allowed(self.shared_nat, config.shared_nat())
+            || !isolated
+            || shutdown.load(Ordering::Acquire)
+            || self.is_draining()
         {
             return Err(io::Error::other("reload policy rejected"));
         }
@@ -649,9 +655,10 @@ impl Server {
             }
             self.observe.serving.store(true, Ordering::Release);
         }
-        let admission = Arc::new(admission::Admission::new());
+        let admission = Arc::new(admission::Admission::new(self.shared_nat));
         let result = thread::scope(|scope| {
-            let receive = work::Queue::<(TcpStream, Instant, bool, admission::Permit)>::new();
+            let receive =
+                work::Queue::<(TcpStream, Instant, bool, admission::Permit)>::new(self.shared_nat);
             let streams = stream_pool::Pool::new();
             for i in 0..stream_pool::WORKERS {
                 let pool = streams.clone();

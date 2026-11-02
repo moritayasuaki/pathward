@@ -12,6 +12,7 @@ use std::{
 
 #[derive(Default)]
 pub struct Observability {
+    shared_nat: bool,
     log: Mutex<Option<SyncSender<String>>>,
     pub(crate) serving: AtomicBool,
     pub(crate) accepted: AtomicU64,
@@ -32,6 +33,12 @@ pub struct Observability {
     log_dropped: AtomicU64,
 }
 impl Observability {
+    pub(crate) fn for_capacity(shared_nat: bool) -> Self {
+        Self {
+            shared_nat,
+            ..Self::default()
+        }
+    }
     /// A stalled collector cannot block serving or shutdown. The detached writer
     /// and its at most 256 pending records are best effort at process exit.
     pub fn enable_stderr(&self) -> io::Result<()> {
@@ -157,6 +164,41 @@ impl Observability {
     ) -> String {
         let mut out = String::new();
         for (name, kind, value) in [
+            (
+                "admission_global_limit",
+                "gauge",
+                pathward::release::capacity_global(self.shared_nat),
+            ),
+            (
+                "admission_peer_limit",
+                "gauge",
+                pathward::release::capacity_peer(self.shared_nat),
+            ),
+            (
+                "admission_queue_limit",
+                "gauge",
+                pathward::release::capacity_queue(self.shared_nat),
+            ),
+            (
+                "admission_global_rate",
+                "gauge",
+                pathward::release::capacity_rate(self.shared_nat, false),
+            ),
+            (
+                "admission_peer_rate",
+                "gauge",
+                pathward::release::capacity_rate(self.shared_nat, true),
+            ),
+            (
+                "admission_global_burst",
+                "gauge",
+                pathward::release::capacity_burst(self.shared_nat, false),
+            ),
+            (
+                "admission_peer_burst",
+                "gauge",
+                pathward::release::capacity_burst(self.shared_nat, true),
+            ),
             (
                 "connections_total",
                 "counter",

@@ -281,3 +281,21 @@ import ReleaseProofs
 #print axioms ResponseProofs.forwarded_port_mismatch
 #print axioms ResponseProofs.forwarded_port_standard
 #print axioms ResponseProofs.forwarded_port_total
+
+#print axioms ReleaseProofs.capacity_global_eq
+#print axioms ReleaseProofs.capacity_peer_eq
+#print axioms ReleaseProofs.capacity_queue_eq
+#print axioms ReleaseProofs.capacity_rate_eq
+#print axioms ReleaseProofs.capacity_burst_eq
+#print axioms ReleaseProofs.capacity_limits_bounded
+#print axioms ReleaseProofs.capacity_credit_bounded
+#print axioms ReleaseProofs.capacity_rejection_eq
+#print axioms ReleaseProofs.capacity_accepts_exactly
+#print axioms ReleaseProofs.capacity_standard_unchanged
+#print axioms ReleaseProofs.capacity_code_bounded
+#print axioms ReleaseProofs.capacity_no_draining
+#print axioms ReleaseProofs.capacity_no_credit
+#print axioms ReleaseProofs.capacity_total
+#print axioms ReleaseProofs.capacity_reload_eq
+#print axioms ReleaseProofs.capacity_reload_unchanged
+#print axioms ReleaseProofs.capacity_reload_total

@@ -57,7 +57,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 246 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 275 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving
@@ -83,16 +83,19 @@ occupying all workers while retaining queued CA validation connections.
    Host/ACME identity changes require restart.
 4. **Load and protocol hardening.** Perform broader coverage-guided fuzzing,
    prolonged race/stress testing and realistic throughput/slow-storage testing.
-   Tune the fixed connection/rate limits and add bandwidth fairness where needed. Keep-alive and HTTP/2 still require separate protocol/resource review.
+   Evaluate the explicit [capacity profiles](nat-capacity.md) against same-NAT
+   clients, cold assets and reconnect bursts; neither profile establishes an
+   application user-count guarantee. Add bandwidth fairness where needed. Keep-alive and HTTP/2 still require separate protocol/resource review.
    Opt-in WebSocket/SSE is implemented with bounded buffers and cancellation;
    realistic application streaming load/reconnect tests remain required. The bounded
    local proxy regenerates forwarding fields and does not trust incoming chains. IPv6 transport is supported for loopback binding,
    but configured authorities remain DNS-style names rather than IPv6 literals.
-5. **HTTP functionality.** Add reviewed ranges,
-   conditional caching/ETags, suitable cache policies and broader URL support for any legacy redirects.
-   Current static responses use no-store, fixed content types and no compression. A
-   Range header does not activate partial serving, and conditional fields do not
-   activate cache validators.
+5. **Deployment-specific HTTP parity.** Single byte ranges, conditional requests,
+   weak metadata validators, typed cache policies and explicit directory URLs are
+   implemented; see [site compatibility](site-compatibility.md). Check the actual
+   manifest, runtime-generated assets and legacy URLs. Multipart ranges, strong
+   If-Range validation, implicit indexes, broader encoded/Unicode static paths and
+   HTTP compression remain unsupported.
 
 The [TLS integration audit](tls-audit.md) records how the actual implementation
 addresses the historical candidate findings without using its high-level runtime.

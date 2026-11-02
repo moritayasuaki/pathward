@@ -941,8 +941,87 @@ def release.dispatch_allowed
        then ok (peer_running < 2#u64)
        else ok false
 
+/-- [pathward::release::capacity_global]:
+    Source: 'src/release.rs', lines 58:0-60:1
+    Visibility: public -/
+def release.capacity_global (shared_nat : Bool) : RustM Std.U64 := do
+  if shared_nat
+  then ok 192#u64
+  else ok 12#u64
+
+/-- [pathward::release::capacity_peer]:
+    Source: 'src/release.rs', lines 61:0-63:1
+    Visibility: public -/
+def release.capacity_peer (shared_nat : Bool) : RustM Std.U64 := do
+  if shared_nat
+  then ok 144#u64
+  else ok 6#u64
+
+/-- [pathward::release::capacity_queue]:
+    Source: 'src/release.rs', lines 64:0-66:1
+    Visibility: public -/
+def release.capacity_queue (shared_nat : Bool) : RustM Std.U64 := do
+  if shared_nat
+  then ok 188#u64
+  else ok 8#u64
+
+/-- [pathward::release::capacity_rate]:
+    Source: 'src/release.rs', lines 67:0-75:1
+    Visibility: public -/
+def release.capacity_rate
+  (shared_nat : Bool) (peer : Bool) : RustM Std.U64 := do
+  if shared_nat
+  then if peer
+       then ok 64#u64
+       else ok 128#u64
+  else if peer
+       then ok 8#u64
+       else ok 64#u64
+
+/-- [pathward::release::capacity_burst]:
+    Source: 'src/release.rs', lines 76:0-84:1
+    Visibility: public -/
+def release.capacity_burst
+  (shared_nat : Bool) (peer : Bool) : RustM Std.U64 := do
+  if shared_nat
+  then if peer
+       then ok 384#u64
+       else ok 512#u64
+  else if peer
+       then ok 16#u64
+       else ok 128#u64
+
+/-- [pathward::release::capacity_rejection]:
+    Source: 'src/release.rs', lines 85:0-103:1
+    Visibility: public -/
+def release.capacity_rejection
+  (active : Std.U64) (per_peer : Std.U64) (tokens : Std.U64) (draining : Bool)
+  (shared_nat : Bool) :
+  RustM Std.U64
+  := do
+  if draining
+  then ok 1#u64
+  else
+    let i ← release.capacity_global shared_nat
+    if active >= i
+    then ok 2#u64
+    else
+      let i1 ← release.capacity_peer shared_nat
+      if per_peer >= i1
+      then ok 3#u64
+      else if tokens = 0#u64
+           then ok 4#u64
+           else ok 0#u64
+
+/-- [pathward::release::capacity_reload_allowed]:
+    Source: 'src/release.rs', lines 105:0-107:1
+    Visibility: public -/
+def release.capacity_reload_allowed
+  (current : Bool) (candidate : Bool) : RustM Bool := do
+  ok (current = candidate)
+
 /-- [pathward::release::migration_allowed]:
-    Source: 'src/release.rs', lines 60:0-74:1
+    Source: 'src/release.rs', lines 112:0-126:1
     Visibility: public -/
 def release.migration_allowed
   (current : Slice Std.U8) (inspected : Slice Std.U8) (candidate_ready : Bool)
