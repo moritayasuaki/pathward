@@ -216,9 +216,9 @@ mod tests {
         let a = Arc::new(Admission::new(true));
         let now = Instant::now();
         let ip = "127.0.0.20".parse().unwrap();
-        let held: Vec<_> = (0..144).map(|_| a.at(ip, false, now).unwrap()).collect();
+        let held: Vec<_> = (0..192).map(|_| a.at(ip, false, now).unwrap()).collect();
         assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerActive));
-        let other: Vec<_> = (0..48)
+        let other: Vec<_> = (0..64)
             .map(|i| a.at(IpAddr::from([127, 0, 1, i]), false, now).unwrap())
             .collect();
         assert_eq!(
@@ -226,7 +226,7 @@ mod tests {
             Some(Rejection::GlobalActive)
         );
         drop((held, other));
-        for _ in 0..240 {
+        for _ in 0..192 {
             drop(a.at(ip, false, now).unwrap());
         }
         assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerRate));

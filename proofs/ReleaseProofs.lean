@@ -108,11 +108,11 @@ theorem rejection_total (a p t : U64) (d : Bool) :
     ∃ c, release.admission_rejection a p t d = ok c := ⟨_, rejection_eq a p t d⟩
 
 theorem capacity_global_eq (n : Bool) :
-    release.capacity_global n = ok (if n then 192#u64 else 12#u64) := by cases n <;> rfl
+    release.capacity_global n = ok (if n then 256#u64 else 12#u64) := by cases n <;> rfl
 theorem capacity_peer_eq (n : Bool) :
-    release.capacity_peer n = ok (if n then 144#u64 else 6#u64) := by cases n <;> rfl
+    release.capacity_peer n = ok (if n then 192#u64 else 6#u64) := by cases n <;> rfl
 theorem capacity_queue_eq (n : Bool) :
-    release.capacity_queue n = ok (if n then 188#u64 else 8#u64) := by cases n <;> rfl
+    release.capacity_queue n = ok (if n then 252#u64 else 8#u64) := by cases n <;> rfl
 theorem capacity_rate_eq (n p : Bool) :
     release.capacity_rate n p = ok
       (if n then (if p then 128#u64 else 256#u64) else (if p then 8#u64 else 64#u64)) := by
@@ -126,7 +126,7 @@ theorem capacity_limits_bounded (n : Bool) (g p q : U64)
     (hg : release.capacity_global n = ok g)
     (hp : release.capacity_peer n = ok p)
     (hq : release.capacity_queue n = ok q) :
-    0 < p.val ∧ p.val < g.val ∧ g.val ≤ 192 ∧ q.val + 4 = g.val := by
+    0 < p.val ∧ p.val < g.val ∧ g.val ≤ 256 ∧ q.val + 4 = g.val := by
   cases n <;> simp [release.capacity_global, release.capacity_peer, release.capacity_queue] at hg hp hq
   all_goals subst g; subst p; subst q; decide
 

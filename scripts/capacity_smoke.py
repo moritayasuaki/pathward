@@ -47,8 +47,8 @@ with tempfile.TemporaryDirectory(prefix='pathward-capacity-') as tmp:
             with socket.create_connection(('127.0.0.1', monitor), timeout=2) as stream:
                 stream.sendall(b'GET /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n')
                 return receive(stream)
-        assert b'pathward_admission_global_limit 192\n' in metrics()
-        assert b'pathward_admission_peer_limit 144\n' in metrics()
+        assert b'pathward_admission_global_limit 256\n' in metrics()
+        assert b'pathward_admission_peer_limit 192\n' in metrics()
         barrier = threading.Barrier(24)
         def client(_):
             barrier.wait()
@@ -64,8 +64,8 @@ with tempfile.TemporaryDirectory(prefix='pathward-capacity-') as tmp:
             assert time.monotonic()<deadline
             time.sleep(.02)
         assert b'pathward_config_generation 1\n' in metrics()
-        assert b'pathward_admission_peer_limit 144\n' in metrics()
-        for _ in range(144):
+        assert b'pathward_admission_peer_limit 192\n' in metrics()
+        for _ in range(192):
             stream = socket.create_connection(('127.0.0.1', port), timeout=2, source_address=('127.0.0.20',0))
             stream.sendall(b'GET / HTTP/1.1\r\n'); held.append(stream)
         time.sleep(.1)
@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix='pathward-capacity-') as tmp:
         assert get(port,'127.0.0.21').endswith(b'HEALTHY')
         assert time.monotonic()-started<1.5
         assert b'pathward_admission_rejections_total{reason="peer_active"} 1\n' in metrics()
-        print('Shared-NAT capacity passed: 24 clients, fixed reload identity, 144-peer cap and healthy-peer progress.')
+        print('Shared-NAT capacity passed: 24 clients, fixed reload identity, 192-peer cap and healthy-peer progress.')
     finally:
         for stream in held:stream.close()
         process.terminate()

@@ -17,9 +17,9 @@ Host selection. It is not a per-host policy or an authentication mechanism.
 
 | Admission resource | Standard | Shared NAT |
 | --- | ---: | ---: |
-| Global admitted/queued connections | 12 | 192 |
-| Per-peer admitted/queued connections | 6 | 144 |
-| Pending dispatch queue | 8 | 188 |
+| Global admitted/queued connections | 12 | 256 |
+| Per-peer admitted/queued connections | 6 | 192 |
+| Pending dispatch queue | 8 | 252 |
 | Global connections/second | 64 | 256 |
 | Global burst | 128 | 512 |
 | Per-peer connections/second | 8 | 128 |
@@ -41,13 +41,16 @@ storage device or workload. Distributed floods can still consume global budgets.
 The scheduler leaves workers available to other peers, including CA validation;
 that is not an availability guarantee under arbitrary load.
 
-The browser-reload revision raises only the shared-NAT refill rates from
+The browser-reload revision raises the shared-NAT refill rates from
 128/64 to 256/128 global/per-peer connections per second. A 24-browser
 game reload produced repeated image fetches over several seconds, beyond the
 earlier one-off asset burst and 700 ms polling simulation. The old profile
 exhausted peer credit even with normal browser caching. This doubles the allowed
-sustained unauthenticated connection rate; simultaneous occupancy, burst credit,
-workers, body limits and deadlines remain unchanged. A deterministic 20-second
+sustained unauthenticated connection rate. Admitted/queued limits also grow from
+192/144 to 256/192 globally/per peer, with a 252-socket queue, to allow
+old and new browser connections to overlap on reload. This adds 64 globally
+admitted sockets (33%); peer occupancy still cannot consume the whole global
+budget. Burst credit, workers, body limits and deadlines remain unchanged. A deterministic 20-second
 120-request/second peer wave also checks progress for an independent 60-request/
 second peer. This regression is a capacity envelope, not a browser model.
 
@@ -78,7 +81,7 @@ KDL surface review covers one optional flat node before the bounded site list,
 one decoded string argument, canonical enum matching and fail-closed handling of
 duplicates, malformed/nested/unknown settings. Generator and both activation
 paths preserve or check the capacity identity. Native Linux tests cover rejection
-before durable writes, 24 simultaneous clients, the 144-peer bound, healthy-peer
+before durable writes, 24 simultaneous clients, the 192-peer bound, healthy-peer
 progress behind slow sockets and shutdown. The existing standard-profile tests
 remain in CI. No package, feature, manifest, lockfile or vendored source changes
 are required.

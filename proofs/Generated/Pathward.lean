@@ -946,7 +946,7 @@ def release.dispatch_allowed
     Visibility: public -/
 def release.capacity_global (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 192#u64
+  then ok 256#u64
   else ok 12#u64
 
 /-- [pathward::release::capacity_peer]:
@@ -954,7 +954,7 @@ def release.capacity_global (shared_nat : Bool) : RustM Std.U64 := do
     Visibility: public -/
 def release.capacity_peer (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 144#u64
+  then ok 192#u64
   else ok 6#u64
 
 /-- [pathward::release::capacity_queue]:
@@ -962,7 +962,7 @@ def release.capacity_peer (shared_nat : Bool) : RustM Std.U64 := do
     Visibility: public -/
 def release.capacity_queue (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 188#u64
+  then ok 252#u64
   else ok 8#u64
 
 /-- [pathward::release::capacity_rate]:
