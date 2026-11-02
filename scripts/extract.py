@@ -47,6 +47,7 @@ def main():
                         "--start-from", "pathward::release::generated_rule",
                         "--start-from", "pathward::release::commit_allowed",
                         "--start-from", "pathward::release::admission_allowed",
+                        "--start-from", "pathward::release::admission_rejection",
                         "--start-from", "pathward::release::dispatch_allowed",
                         "--start-from", "pathward::release::migration_allowed",
                         "--start-from", "pathward::proxy::site_mode_allowed",

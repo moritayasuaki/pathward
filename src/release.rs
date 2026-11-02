@@ -33,6 +33,22 @@ pub fn admission_allowed(active: u64, per_peer: u64, tokens: u64, draining: bool
     !draining && active < 12 && per_peer < 6 && tokens > 0
 }
 
+/// Fixed diagnostic code for the same gate: 0 allows; 1 drains; 2/3 bound
+/// global/peer occupancy; 4 requires credit. No client data enters the code.
+pub fn admission_rejection(active: u64, per_peer: u64, tokens: u64, draining: bool) -> u64 {
+    if draining {
+        1
+    } else if active >= 12 {
+        2
+    } else if per_peer >= 6 {
+        3
+    } else if tokens == 0 {
+        4
+    } else {
+        0
+    }
+}
+
 /// Separate running-work quota; queued connections still count toward admission.
 pub fn dispatch_allowed(running: u64, peer_running: u64, draining: bool) -> bool {
     !draining && running < 4 && peer_running < 2

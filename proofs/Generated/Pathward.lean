@@ -908,8 +908,28 @@ def release.admission_allowed
          else ok false
     else ok false
 
+/-- [pathward::release::admission_rejection]:
+    Source: 'src/release.rs', lines 38:0-50:1
+    Visibility: public -/
+def release.admission_rejection
+  (active : Std.U64) (per_peer : Std.U64) (tokens : Std.U64) (draining : Bool)
+  :
+  RustM Std.U64
+  := do
+  if draining
+  then ok 1#u64
+  else
+    if active >= 12#u64
+    then ok 2#u64
+    else
+      if per_peer >= 6#u64
+      then ok 3#u64
+      else if tokens = 0#u64
+           then ok 4#u64
+           else ok 0#u64
+
 /-- [pathward::release::dispatch_allowed]:
-    Source: 'src/release.rs', lines 37:0-39:1
+    Source: 'src/release.rs', lines 53:0-55:1
     Visibility: public -/
 def release.dispatch_allowed
   (running : Std.U64) (peer_running : Std.U64) (draining : Bool) :
@@ -922,7 +942,7 @@ def release.dispatch_allowed
        else ok false
 
 /-- [pathward::release::migration_allowed]:
-    Source: 'src/release.rs', lines 44:0-58:1
+    Source: 'src/release.rs', lines 60:0-74:1
     Visibility: public -/
 def release.migration_allowed
   (current : Slice Std.U8) (inspected : Slice Std.U8) (candidate_ready : Bool)

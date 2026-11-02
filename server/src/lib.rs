@@ -771,14 +771,15 @@ impl Server {
                         Ok((stream, peer)) => {
                             accepted_any = true;
                             self.observe.accepted.fetch_add(1, Ordering::Relaxed);
-                            let Some(permit) =
-                                admission.acquire(peer.ip(), shutdown.load(Ordering::Acquire))
-                            else {
-                                self.observe
-                                    .admission_rejected
-                                    .fetch_add(1, Ordering::Relaxed);
-                                let _ = stream.shutdown(Shutdown::Both);
-                                continue;
+                            let permit = match admission
+                                .acquire(peer.ip(), shutdown.load(Ordering::Acquire))
+                            {
+                                Ok(permit) => permit,
+                                Err(reason) => {
+                                    self.observe.admission_rejected(reason);
+                                    let _ = stream.shutdown(Shutdown::Both);
+                                    continue;
+                                }
                             };
                             if let Err((stream, _, _, _permit)) = receive.push(
                                 permit.peer(),

@@ -16,7 +16,8 @@ pub struct Observability {
     pub(crate) serving: AtomicBool,
     pub(crate) accepted: AtomicU64,
     pub(crate) overloaded: AtomicU64,
-    pub(crate) admission_rejected: AtomicU64,
+    admission_rejected: AtomicU64,
+    admission_reasons: [AtomicU64; 7],
     active: AtomicU64,
     requests: AtomicU64,
     responses: [AtomicU64; 6],
@@ -116,6 +117,14 @@ impl Observability {
     }
     pub(crate) fn tls_failed(&self) {
         self.tls_errors.fetch_add(1, Ordering::Relaxed);
+    }
+    pub(crate) fn admission_rejected(&self, reason: crate::admission::Rejection) {
+        self.admission_rejected.fetch_add(1, Ordering::Relaxed);
+        self.admission_reasons[reason as usize].fetch_add(1, Ordering::Relaxed);
+        self.emit(format!(
+            "\"event\":\"admission_rejected\",\"reason\":\"{}\"",
+            reason.label()
+        ));
     }
     pub(crate) fn acme(&self, result: Option<bool>, retry: u64) {
         let event = match result {
@@ -238,6 +247,14 @@ impl Observability {
                 "# TYPE pathward_{name} {kind}\npathward_{name} {value}\n"
             ));
         }
+        out.push_str("# TYPE pathward_admission_rejections_total counter\n");
+        for reason in crate::admission::Rejection::ALL {
+            out.push_str(&format!(
+                "pathward_admission_rejections_total{{reason=\"{}\"}} {}\n",
+                reason.label(),
+                self.admission_reasons[reason as usize].load(Ordering::Relaxed)
+            ));
+        }
         out.push_str("# TYPE pathward_responses_total counter\n");
         for class in 1..=5 {
             out.push_str(&format!(
@@ -258,6 +275,26 @@ impl Drop for Active {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn admission_reasons_are_fixed_and_do_not_log_peer_or_request_data() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(7);
+        *obs.log.lock().unwrap() = Some(tx);
+        for reason in crate::admission::Rejection::ALL {
+            obs.admission_rejected(reason);
+            let line = rx.recv().unwrap();
+            assert!(line.contains(&format!("\"reason\":\"{}\"", reason.label())));
+            assert!(!line.contains("peer_ip") && !line.contains("host") && !line.contains("path"));
+        }
+        let metrics = obs.metrics(1, true, false, false, None);
+        assert!(metrics.contains("pathward_admission_rejected_total 7\n"));
+        for reason in crate::admission::Rejection::ALL {
+            assert!(metrics.contains(&format!(
+                "pathward_admission_rejections_total{{reason=\"{}\"}} 1\n",
+                reason.label()
+            )));
+        }
+    }
     #[test]
     fn full_log_queue_drops_without_blocking_and_has_only_fixed_fields() {
         let obs = Observability::default();

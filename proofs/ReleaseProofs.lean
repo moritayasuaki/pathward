@@ -74,6 +74,37 @@ theorem admission_no_exhausted_tokens (a p : U64) (d : Bool) :
 theorem admission_no_draining (a p t : U64) :
     release.admission_allowed a p t true = ok false := by simp [admission_eq]
 
+theorem rejection_eq (a p t : U64) (d : Bool) :
+    release.admission_rejection a p t d = ok
+      (if d then 1#u64 else if 12 ≤ a.val then 2#u64 else
+       if 6 ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64) := by
+  simp [release.admission_rejection, UScalar.eq_equiv]
+  split_ifs <;> rfl
+
+theorem rejection_accepts_exactly (a p t : U64) (d : Bool) :
+    release.admission_rejection a p t d = ok 0#u64 ↔
+      release.admission_allowed a p t d = ok true := by
+  rw [rejection_eq, admission_contract]
+  cases d
+  · simp only [Bool.false_eq_true, ↓reduceIte, true_and]
+    split_ifs <;> simp_all <;> omega
+  · simp
+
+theorem rejection_code_bounded (a p t c : U64) (d : Bool)
+    (h : release.admission_rejection a p t d = ok c) : c.val ≤ 4 := by
+  rw [rejection_eq] at h
+  split_ifs at h <;> cases h <;> decide
+
+theorem rejection_draining (a p t : U64) :
+    release.admission_rejection a p t true = ok 1#u64 := by simp [rejection_eq]
+
+theorem rejection_exhausted (a p : U64) (ha : a.val < 12) (hp : p.val < 6) :
+    release.admission_rejection a p 0#u64 false = ok 4#u64 := by
+  simp [rejection_eq, Nat.not_le_of_gt ha, Nat.not_le_of_gt hp]
+
+theorem rejection_total (a p t : U64) (d : Bool) :
+    ∃ c, release.admission_rejection a p t d = ok c := ⟨_, rejection_eq a p t d⟩
+
 theorem gates_total (c e : Slice U8) (p s d : Bool) (a n t : U64) :
     (∃ b, release.commit_allowed c e p s d = ok b) ∧
     (∃ b, release.admission_allowed a n t d = ok b) :=

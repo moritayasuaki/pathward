@@ -3,7 +3,7 @@ name: Staging binaries
 on:
   workflow_dispatch:
   push:
-    branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging]
+    branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics]
     paths: ["src/**", "server/**", "config/**", "vendor/**", ".github/workflows/staging-build.yml"]
 
 permissions:

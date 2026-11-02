@@ -124,6 +124,12 @@ import ReleaseProofs
 #print axioms ReleaseProofs.admission_contract
 #print axioms ReleaseProofs.admission_no_exhausted_tokens
 #print axioms ReleaseProofs.admission_no_draining
+#print axioms ReleaseProofs.rejection_eq
+#print axioms ReleaseProofs.rejection_accepts_exactly
+#print axioms ReleaseProofs.rejection_code_bounded
+#print axioms ReleaseProofs.rejection_draining
+#print axioms ReleaseProofs.rejection_exhausted
+#print axioms ReleaseProofs.rejection_total
 #print axioms ReleaseProofs.gates_total
 
 #print axioms ReleaseProofs.dispatch_eq
