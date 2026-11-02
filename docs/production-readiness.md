@@ -83,7 +83,8 @@ occupying all workers while retaining queued CA validation connections.
    Host/ACME identity changes require restart.
 4. **Load and protocol hardening.** Perform broader coverage-guided fuzzing,
    prolonged race/stress testing and realistic throughput/slow-storage testing.
-   Evaluate the explicit [capacity profiles](nat-capacity.md) against same-NAT
+   Evaluate the explicit [capacity profiles](nat-capacity.md) and
+   [24-browser rehearsal](browser-capacity.md) against same-NAT
    clients, cold assets and reconnect bursts; neither profile establishes an
    application user-count guarantee. Add bandwidth fairness where needed. Keep-alive and HTTP/2 still require separate protocol/resource review.
    Opt-in WebSocket/SSE is implemented with bounded buffers and cancellation;

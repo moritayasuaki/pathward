@@ -93,6 +93,11 @@ clients, failures without automatic POST retry, certificate changes, config
 commits during actual ACME orders, latency and resource ceilings. Local-CA and
 loopback results do not establish public-network or public-CA behavior.
 
+The subsequent [real-browser rehearsal](browser-capacity.md) exercises actual UI
+entry and repeated reloads, and explains why this profile now has additional
+headroom. The historical protocol-client results below used the original smaller
+shared-NAT limits; they do not retroactively validate the new bounds.
+
 ## Completed application capacity rehearsal — 2026-11-02
 
 The [sanitized result](nat-capacity-result-2026-11-02.json) records a 24-user target
