@@ -115,7 +115,7 @@ theorem capacity_queue_eq (n : Bool) :
     release.capacity_queue n = ok (if n then 252#u64 else 8#u64) := by cases n <;> rfl
 theorem capacity_rate_eq (n p : Bool) :
     release.capacity_rate n p = ok
-      (if n then (if p then 128#u64 else 256#u64) else (if p then 8#u64 else 64#u64)) := by
+      (if n then (if p then 256#u64 else 512#u64) else (if p then 8#u64 else 64#u64)) := by
   cases n <;> cases p <;> rfl
 theorem capacity_burst_eq (n p : Bool) :
     release.capacity_burst n p = ok
@@ -133,7 +133,7 @@ theorem capacity_limits_bounded (n : Bool) (g p q : U64)
 theorem capacity_credit_bounded (n p : Bool) (r b : U64)
     (hr : release.capacity_rate n p = ok r)
     (hb : release.capacity_burst n p = ok b) :
-    0 < r.val ∧ r.val ≤ 256 ∧ r.val ≤ b.val ∧ b.val ≤ 512 ∧
+    0 < r.val ∧ r.val ≤ 512 ∧ r.val ≤ b.val ∧ b.val ≤ 512 ∧
       60000 * r.val + 1000 * b.val < 2^64 := by
   cases n <;> cases p <;> simp [release.capacity_rate, release.capacity_burst] at hr hb
   all_goals subst r; subst b; decide

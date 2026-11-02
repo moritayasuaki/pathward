@@ -972,8 +972,8 @@ def release.capacity_rate
   (shared_nat : Bool) (peer : Bool) : RustM Std.U64 := do
   if shared_nat
   then if peer
-       then ok 128#u64
-       else ok 256#u64
+       then ok 256#u64
+       else ok 512#u64
   else if peer
        then ok 8#u64
        else ok 64#u64

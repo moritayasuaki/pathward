@@ -66,7 +66,7 @@ pub fn capacity_queue(shared_nat: bool) -> u64 {
 }
 pub fn capacity_rate(shared_nat: bool, peer: bool) -> u64 {
     if shared_nat {
-        if peer { 128 } else { 256 }
+        if peer { 256 } else { 512 }
     } else if peer {
         8
     } else {
