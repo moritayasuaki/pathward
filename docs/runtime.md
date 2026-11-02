@@ -46,7 +46,7 @@ queue of configurations. Old root descriptors close when their last request ends
 pathname with another directory. Missing published files are still denied at
 request time; reload validates roots and rules, not every file's contents.
 
-**Restart required:** adding/removing/changing hostnames, listener and monitoring
+**Restart required:** the top-level capacity profile, adding/removing/changing hostnames, listener and monitoring
 addresses, ACME directory/contact/cache identity and other CLI options. Host order
 may change. The fixed domain set keeps every reloaded publication aligned with
 the existing certificate/ACME identity; this release does not implement a

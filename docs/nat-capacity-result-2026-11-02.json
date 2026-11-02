@@ -1,0 +1,835 @@
+{
+  "scope": "Private loopback Linux staging; synthetic rooms; captured public assets; stdlib HTTP/TLS load clients, not 24 browser renderers",
+  "date": "2026-11-02",
+  "target_users": 24,
+  "identity": {
+    "baseline_main_commit": "56b1f7662a538b5b5383ba5245afb21591573f5f",
+    "baseline_binary_source_commit": "5713fab73b89ab66244432a9ddc12be5ce57128b",
+    "baseline_runtime_matches_main": "Production sources, manifests, lockfiles and vendor tree unchanged; intervening docs/proof/test changes are not in the binary",
+    "candidate_binary_source_commit": "b2ade498c707d0871b6acff5cdbcf781d144938c",
+    "candidate_build": "https://github.com/moritayasuaki/pathward/actions/runs/41380338214",
+    "candidate_source_ci": "https://github.com/moritayasuaki/pathward/actions/runs/41380338321",
+    "candidate_artifact_sha256": "d3e84b9481c100153e7d4c71b3331527c274aea6154bca18c5066671036a13cc",
+    "candidate_binaries_sha256": {
+      "pathward-server": "ba2608fb587a4dabb8d0b85c9b03e0ed489d81935aeb7e0a400a95a2f7a3d8ce",
+      "soak_server": "c6f9f23dad5db7cdccf7f1c3fc00522ff39be18b2e4df30e1da811dab629dbbc",
+      "migration_gate": "8b19d9404d7c3352d751c8f6bbfb28748c83088e6b2447d221261e715a2ae627",
+      "pebble": "4e35cad137f20f62a8e71fd104b98417daa592e901bb01ab4227074ee1990e3c",
+      "SOURCE_COMMIT": "0a0f5dcade1e3eb35e121d3afdaef6f7efe7fc599b88abc1894e3f46c835b9ba"
+    },
+    "backend_binaries_sha256": [
+      "6df748b8ff0c6b7dbd0910042afebc5b8551a50cef330040cfbafd9884a7398d",
+      "bac751741ac870b744fdbf3d12ee3373c0b9ac6f67bff21ee941c53c5246fdaf"
+    ],
+    "private_stdlib_harness_sha256": {
+      "baseline.py": "55a7bb7a08a1063bd9c496435d247496deb237291dd5138068af1d2355566516",
+      "probe.py": "37b726163b5336f601aeb1118f77c0108b321c473757c2cb27dde500c7e28814",
+      "tls_capacity.py": "bbe8dce4325a4891dfa1339f402f1699a6dfbda2a31ff5555a69d8d70edfde8d",
+      "tls_supervisor.py": "9fcc123822b0aef01a8552c0d03426c602cec62d6fcc1b7c5a301d48e42e7db1",
+      "acme_capacity.py": "e228e9a3d76ff384be51e63edb83ecc62b54b1e5fa2fb557485302b19e6b3b83"
+    },
+    "frontend_app_js_sha256": "efae2a32eb074817e0006ca94542f2a5068ac1255acb7fd8e219028c4ba908fe",
+    "cold_assets": [
+      {
+        "path": "/",
+        "sha256": "862796f894e27e1788750ef6684ce285c9b7d68d5c5eb6d89c7f56cc03018e21"
+      },
+      {
+        "path": "/app.js",
+        "sha256": "efae2a32eb074817e0006ca94542f2a5068ac1255acb7fd8e219028c4ba908fe"
+      },
+      {
+        "path": "/style.css",
+        "sha256": "4e86b3fccde253d98e705adb22fed33c61a939038a486926433a1a05a43b3a2e"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-1-9a60f6bca845.webp",
+        "sha256": "a6bf260601e5dc15deccf4a397e72fa0cb9c9edf5f5babf36d8c9544b878879a"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-10-a9cef091025c.webp",
+        "sha256": "9faf9c15f954bedaff151b452b139a562a5d2424b102487b2a499e0221377a2b"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-11-76c90344d2d8.webp",
+        "sha256": "06a8a1ede0b7b16f267cc9819d77a7175917e6938c3c69b74438186263fb7023"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-12-b9cdc1e4cfa1.webp",
+        "sha256": "3881b066144847fc073ceae8d3890a118e1c84621795584f3061e78398c65865"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-13-007960ccde26.webp",
+        "sha256": "f8fea2cc6497784887759d2039abebe142034a8c911b4d14a4f621b84c4db8a6"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-2-9fa7970b6566.webp",
+        "sha256": "333686f97269f15a67f12829040ff63c9c68680f3ec77967042651cfd37845de"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-3-f52f670398f8.webp",
+        "sha256": "b02a80421c04fe5d01e2dcc7dac556227177cb83cda2fb4bedd6b574d2a08259"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-4-f0f3d6723058.webp",
+        "sha256": "e295006b8b9c7260e991df8fdccc10a20811cf51ed48874ac753ea6e4372493f"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-6-8856043a2ea8.webp",
+        "sha256": "526080a2d15b08da9560f071033af890cad738edc2a21b717e1d045beb2bf8ee"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-7-7e06a392925e.webp",
+        "sha256": "a4948db617392bc99d7b4884ccb7af7a30c2943577850f72733be3946b37ad70"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-8-2d3aa28a0bbb.webp",
+        "sha256": "895d8be610234ebd3a9973c89b88643293600a1178f06562c04def3a59a9bc61"
+      },
+      {
+        "path": "/avatars/v6/preserved-garden-9-7687951b70cf.webp",
+        "sha256": "fbbbe325e22b8ba074c16933128e561a1288d9b2959ff35e041c210fa61fbab5"
+      }
+    ]
+  },
+  "method": {
+    "same_nat_clients": "All workload sockets bind the same loopback source IPv4; distinct comparison uses 24 separate loopback source IPs",
+    "polling_interval_ms": 700,
+    "rooms": 6,
+    "clients_per_room": 4,
+    "cold_assets_per_client": 15,
+    "max_parallel_asset_connections_per_client": 6,
+    "transport": "HTTP baseline; candidate TLS chain/hostname verified, HTTP/1.1, fresh connection per request",
+    "cold_workflow_difference": "Baseline joins existing rooms; candidate creates 6 new rooms plus 18 guest joins; asset request schedule is the same",
+    "room_checks": [
+      "room identity",
+      "stable authenticated actor identity",
+      "monotonic revision",
+      "four members in each new room",
+      "successful game start in all six new rooms"
+    ],
+    "reload_checks": [
+      "public marker and header match acknowledged release",
+      "private canary remains 404",
+      "backend discovery candidate order alternates",
+      "different startup capacity rejected before durable configuration change"
+    ],
+    "ca": "Pinned local Pebble, real TLS-ALPN-01, 60-second certificates, authorization reuse and ALWAYS_VALID disabled",
+    "post_retries": 0
+  },
+  "baseline": {
+    "source": "56b1f7662a538b5b5383ba5245afb21591573f5f",
+    "mode": "HTTP baseline, no CA/churn yet",
+    "target_users": 24,
+    "phases": [
+      {
+        "phase": "poll-6-nat",
+        "elapsed_seconds": 19.51,
+        "requests": 168,
+        "successful": 168,
+        "outcomes": {
+          "200": 168
+        },
+        "latency_ms": {
+          "p50": 10.131,
+          "p95": 14.823,
+          "p99": 16.329,
+          "max": 20.713
+        },
+        "metric_delta": {
+          "pathward_connections_total": 168.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 168.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 2287040.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 168.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-12-nat",
+        "elapsed_seconds": 19.553,
+        "requests": 336,
+        "successful": 170,
+        "outcomes": {
+          "200": 170,
+          "RemoteDisconnected": 166
+        },
+        "latency_ms": {
+          "p50": 7.629,
+          "p95": 13.846,
+          "p99": 14.614,
+          "max": 14.943
+        },
+        "metric_delta": {
+          "pathward_connections_total": 336.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 166.0,
+          "pathward_requests_total": 170.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 2314504.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 166.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 170.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-24-nat",
+        "elapsed_seconds": 19.59,
+        "requests": 672,
+        "successful": 169,
+        "outcomes": {
+          "200": 169,
+          "RemoteDisconnected": 503
+        },
+        "latency_ms": {
+          "p50": 6.845,
+          "p95": 12.946,
+          "p99": 14.917,
+          "max": 15.553
+        },
+        "metric_delta": {
+          "pathward_connections_total": 672.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 503.0,
+          "pathward_requests_total": 169.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 2291693.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 503.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 169.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-24-distinct",
+        "elapsed_seconds": 19.607,
+        "requests": 672,
+        "successful": 672,
+        "outcomes": {
+          "200": 672
+        },
+        "latency_ms": {
+          "p50": 9.523,
+          "p95": 14.139,
+          "p99": 14.815,
+          "max": 19.244
+        },
+        "metric_delta": {
+          "pathward_connections_total": 672.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 672.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 9114336.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 672.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "cold-entry-24-nat",
+        "elapsed_seconds": 0.551,
+        "requests": 384,
+        "successful": 20,
+        "outcomes": {
+          "RemoteDisconnected": 360,
+          "200": 19,
+          "BrokenPipeError": 4,
+          "201": 1
+        },
+        "latency_ms": {
+          "p50": 9.252,
+          "p95": 48.665,
+          "p99": 55.355,
+          "max": 123.446
+        },
+        "metric_delta": {
+          "pathward_connections_total": 384.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 364.0,
+          "pathward_requests_total": 20.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 3416492.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 10.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 354.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 20.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "reconnect-24-nat",
+        "elapsed_seconds": 11.243,
+        "requests": 408,
+        "successful": 105,
+        "outcomes": {
+          "200": 105,
+          "RemoteDisconnected": 303
+        },
+        "latency_ms": {
+          "p50": 15.421,
+          "p95": 25.104,
+          "p99": 27.439,
+          "max": 28.041
+        },
+        "metric_delta": {
+          "pathward_connections_total": 408.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 303.0,
+          "pathward_requests_total": 105.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 1433356.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 0.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 120.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 183.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 105.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 0.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "state": "passed",
+    "source_commit": "b2ade498c707d0871b6acff5cdbcf781d144938c",
+    "elapsed_seconds": 628.623,
+    "target_users": 24,
+    "phases": [
+      {
+        "phase": "poll-6-nat",
+        "elapsed_seconds": 19.518,
+        "requests": 168,
+        "successful": 168,
+        "outcomes": {
+          "200": 168
+        },
+        "latency_ms": {
+          "p50": 13.912,
+          "p95": 19.773,
+          "p99": 21.726,
+          "max": 22.712
+        },
+        "metric_delta": {
+          "pathward_connections_total": 188.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 188.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 2287050.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 10.0,
+          "pathward_reload_errors_total": 2.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 178.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 10.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-12-nat",
+        "elapsed_seconds": 19.564,
+        "requests": 336,
+        "successful": 336,
+        "outcomes": {
+          "200": 336
+        },
+        "latency_ms": {
+          "p50": 14.711,
+          "p95": 19.983,
+          "p99": 21.203,
+          "max": 22.655
+        },
+        "metric_delta": {
+          "pathward_connections_total": 359.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 356.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 4574146.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 10.0,
+          "pathward_reload_errors_total": 1.0,
+          "pathward_acme_orders_total": 1.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 346.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 10.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-24-nat",
+        "elapsed_seconds": 19.599,
+        "requests": 672,
+        "successful": 672,
+        "outcomes": {
+          "200": 672
+        },
+        "latency_ms": {
+          "p50": 13.445,
+          "p95": 19.005,
+          "p99": 22.57,
+          "max": 41.316
+        },
+        "metric_delta": {
+          "pathward_connections_total": 690.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 690.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 9114345.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 9.0,
+          "pathward_reload_errors_total": 2.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 1.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 681.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 9.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "poll-24-distinct",
+        "elapsed_seconds": 19.6,
+        "requests": 672,
+        "successful": 672,
+        "outcomes": {
+          "200": 672
+        },
+        "latency_ms": {
+          "p50": 14.179,
+          "p95": 19.651,
+          "p99": 21.889,
+          "max": 32.933
+        },
+        "metric_delta": {
+          "pathward_connections_total": 692.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 692.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 9114346.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 10.0,
+          "pathward_reload_errors_total": 1.0,
+          "pathward_acme_orders_total": 0.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 682.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 10.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "cold-entry-24-nat",
+        "elapsed_seconds": 7.063,
+        "requests": 384,
+        "successful": 384,
+        "outcomes": {
+          "200": 360,
+          "201": 24
+        },
+        "latency_ms": {
+          "p50": 1311.068,
+          "p95": 1619.824,
+          "p99": 2707.979,
+          "max": 2999.156
+        },
+        "metric_delta": {
+          "pathward_connections_total": 393.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 390.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 161109771.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 3.0,
+          "pathward_reload_errors_total": 0.0,
+          "pathward_acme_orders_total": 1.0,
+          "pathward_acme_activations_total": 0.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 387.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 3.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        },
+        "entry_completion_max_ms": 6992.63,
+        "ready_clients": 24
+      },
+      {
+        "phase": "poll-24-nat",
+        "elapsed_seconds": 479.519,
+        "requests": 16440,
+        "successful": 16440,
+        "outcomes": {
+          "200": 16440
+        },
+        "latency_ms": {
+          "p50": 16.744,
+          "p95": 22.674,
+          "p99": 24.804,
+          "max": 39.205
+        },
+        "metric_delta": {
+          "pathward_connections_total": 16941.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 16908.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 366965694.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 234.0,
+          "pathward_reload_errors_total": 34.0,
+          "pathward_acme_orders_total": 11.0,
+          "pathward_acme_activations_total": 11.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 16674.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 234.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      },
+      {
+        "phase": "reconnect-24-nat",
+        "elapsed_seconds": 59.129,
+        "requests": 2040,
+        "successful": 2040,
+        "outcomes": {
+          "200": 2040
+        },
+        "latency_ms": {
+          "p50": 174.94,
+          "p95": 299.568,
+          "p99": 322.349,
+          "max": 398.37
+        },
+        "metric_delta": {
+          "pathward_connections_total": 2101.0,
+          "pathward_connections_overloaded_total": 0.0,
+          "pathward_admission_rejected_total": 0.0,
+          "pathward_requests_total": 2098.0,
+          "pathward_request_io_errors_total": 0.0,
+          "pathward_body_bytes_total": 45535889.0,
+          "pathward_tls_handshake_errors_total": 0.0,
+          "pathward_reloads_total": 29.0,
+          "pathward_reload_errors_total": 4.0,
+          "pathward_acme_orders_total": 1.0,
+          "pathward_acme_activations_total": 1.0,
+          "pathward_acme_errors_total": 0.0,
+          "pathward_log_dropped_total": 0.0,
+          "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+          "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+          "pathward_responses_total{class=\"1xx\"}": 0.0,
+          "pathward_responses_total{class=\"2xx\"}": 2069.0,
+          "pathward_responses_total{class=\"3xx\"}": 0.0,
+          "pathward_responses_total{class=\"4xx\"}": 29.0,
+          "pathward_responses_total{class=\"5xx\"}": 0.0
+        }
+      }
+    ],
+    "events": {
+      "request": 21366,
+      "acknowledged_switches": 306,
+      "reload_committed": 306,
+      "reload_rejected": 44,
+      "capacity_change_rejected": 44,
+      "certificate_ready": 15,
+      "certificate_renewal_due": 14,
+      "acme_order_started": 14,
+      "commits_during_acme_order": 40,
+      "acme_activated": 14,
+      "draining": 1,
+      "stopped": 1
+    },
+    "distinct_certificates": 15,
+    "failures": [],
+    "scope": "stdlib HTTP/TLS clients reproduce captured asset requests and room polling, not 24 interactive browser renderers; local CA and loopback only",
+    "runtime_budget": {
+      "CPUQuota": "100% across isolated test processes",
+      "MemoryMax": "512MiB",
+      "TasksMax": 256
+    },
+    "post_retries": 0
+  },
+  "candidate_final_metrics": {
+    "pathward_admission_global_limit": 192.0,
+    "pathward_admission_peer_limit": 144.0,
+    "pathward_admission_queue_limit": 188.0,
+    "pathward_admission_global_rate": 128.0,
+    "pathward_admission_peer_rate": 64.0,
+    "pathward_admission_global_burst": 512.0,
+    "pathward_admission_peer_burst": 384.0,
+    "pathward_connections_total": 21460.0,
+    "pathward_connections_active": 0.0,
+    "pathward_connections_overloaded_total": 0.0,
+    "pathward_admission_rejected_total": 0.0,
+    "pathward_requests_total": 21391.0,
+    "pathward_request_io_errors_total": 0.0,
+    "pathward_body_bytes_total": 599654379.0,
+    "pathward_tls_handshake_errors_total": 24.0,
+    "pathward_reloads_total": 306.0,
+    "pathward_reload_errors_total": 44.0,
+    "pathward_acme_orders_total": 15.0,
+    "pathward_acme_activations_total": 15.0,
+    "pathward_acme_errors_total": 0.0,
+    "pathward_log_dropped_total": 0.0,
+    "pathward_config_generation": 307.0,
+    "pathward_ready": 1.0,
+    "pathward_draining": 0.0,
+    "pathward_tls_enabled": 1.0,
+    "pathward_certificate_present": 1.0,
+    "pathward_certificate_not_before_seconds": 1793589156.0,
+    "pathward_certificate_not_after_seconds": 1793589215.0,
+    "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+    "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+    "pathward_responses_total{class=\"1xx\"}": 0.0,
+    "pathward_responses_total{class=\"2xx\"}": 21085.0,
+    "pathward_responses_total{class=\"3xx\"}": 0.0,
+    "pathward_responses_total{class=\"4xx\"}": 306.0,
+    "pathward_responses_total{class=\"5xx\"}": 0.0
+  },
+  "expected_negative_results": {
+    "private_canary_404": 306,
+    "capacity_change_rejections": 44,
+    "startup_inclusive_tls_errors": 24,
+    "tls_error_delta_in_each_measured_phase": 0,
+    "startup_explanation": "Readiness retries while the initial certificate was unavailable; initial ACME order took about six seconds"
+  },
+  "resources": {
+    "sampling_interval_seconds": 1,
+    "sample_count": 627,
+    "server_peaks": {
+      "rss_kib": 16856,
+      "fds": 112,
+      "threads": 28
+    },
+    "windows": [
+      {
+        "seconds": [
+          100,
+          160
+        ],
+        "sample_count": 60,
+        "median": {
+          "rss_kib": 16800.0,
+          "fds": 13.0,
+          "threads": 28.0
+        }
+      },
+      {
+        "seconds": [
+          550,
+          610
+        ],
+        "sample_count": 60,
+        "median": {
+          "rss_kib": 16852.0,
+          "fds": 13.0,
+          "threads": 28.0
+        }
+      }
+    ],
+    "median_rss_growth_kib": 52.0,
+    "cgroup_peak_bytes_last_observed": 95559680,
+    "cgroup_scope": "Clients, backends, CA and PathWard combined; last sampled lifetime peak before unit cleanup, not a final accounting snapshot"
+  },
+  "cleanup": {
+    "units_inactive": true,
+    "child_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "remaining_processes_in_owned_directory": 0,
+    "owned_private_directory_and_test_keys_removed": true,
+    "production_inventory_unchanged": {
+      "caddy_sha256": true,
+      "servers": true,
+      "units": true,
+      "listeners": true
+    }
+  },
+  "verification": {
+    "rust_config_server": "pass",
+    "linux_integration_capacity_acme_churn": "pass",
+    "lean_audited_statements": 275,
+    "new_lean_statements": 17,
+    "lean_scope": "Extracted pure Rust capacity bounds, rejection classifier and reload profile equality; adapters/locks/OS/crypto outside formal proof",
+    "dependencies_added": 0,
+    "manifest_lockfile_feature_vendor_changes": false,
+    "rustsec_db": "2295466c4e9df26647fd67d8fa1c705ac2fc7f81",
+    "rustsec_findings_and_warnings": 0
+  },
+  "limitations": [
+    "Loopback and local CA do not establish public-network/public-CA behavior",
+    "HTTP/TLS emulation of captured requests, not 24 interactive browser renderers",
+    "About 10.5 minutes, not an endurance or maximum-throughput test",
+    "Baseline and candidate differ in transport, concurrent CA/reload work and create/join mix",
+    "Unauthenticated admission bursts are larger only under the explicit shared-nat profile",
+    "WebSocket/SSE quotas remain 16 global and 8 per peer; no 24-stream capacity claim"
+  ]
+}

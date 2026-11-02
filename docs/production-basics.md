@@ -170,7 +170,11 @@ listener/ACME identity changes still require a restart.
 
 ## Admission limits and test scope
 
-Before TLS work, one shared gate limits active plus queued connections to 12 and
+The optional [shared-NAT profile](nat-capacity.md) expands finite admission and
+queue budgets. It requires restart and leaves worker fairness, deadlines and
+per-service limits unchanged.
+
+In the standard profile, before TLS work one shared gate limits active plus queued connections to 12 and
 each peer to 6. Token buckets allow 8 admissions/second per peer (burst 16) and
 64/second globally (burst 128). Tokens count connections, including invalid TLS or
 HTTP attempts. IPv4-mapped IPv6 shares its IPv4 key; IPv6 peers share a /64 key.
@@ -179,7 +183,7 @@ when full. If it has no evictable entry, an unknown peer is refused. Denied
 connections close immediately without HTTP output. Permits release on every
 queue/error/connection exit. The bounded dispatcher runs at most two jobs per
 peer and four globally, allowing another peer's queued work to bypass a busy
-peer. A third validation connection may wait; no ACME exemption is used. These are fixed limits in this release. Six per peer accommodates ordinary
+peer. A third validation connection may wait; no ACME exemption is used. These are fixed limits within each startup profile. Six per peer accommodates ordinary
 parallel HTTP/1.1 clients and simultaneous CA validation probes. All traffic,
 including ACME validation, remains subject to the same global and peer gates.
 

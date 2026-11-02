@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity]
-    paths: ["src/**", "server/**", "config/**", "vendor/**", "scripts/load_smoke.py", "scripts/nat_capacity.py", ".github/workflows/staging-build.yml"]
+    paths: ["src/**", "server/**", "config/**", "vendor/**", "scripts/load_smoke.py", "scripts/capacity_smoke.py", ".github/workflows/staging-build.yml"]
 
 permissions:
   contents: read

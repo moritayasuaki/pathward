@@ -122,7 +122,7 @@ quadratic but is capped at 4096 entries per site and 1 MiB of input.
 Lean verifies the current Rust extraction, including range bounds without wrap,
 conditional precedence, restrictions on shared caches, read-only/bodyless/anonymous
 probe gates, bounded candidate counts, 404-only discovery continuation and terminal
-authorization/gone statuses. The complete axiom audit covers 258 statements.
+authorization/gone statuses. The complete axiom audit covers 275 statements.
 Socket orchestration, header parsing, filesystem metadata and application ownership
 semantics are tested/audited adapters, outside those proofs. The discovery gate's
 GET/credential flags are tied to the fixed constructed probe in that adapter.
