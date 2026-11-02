@@ -20,9 +20,9 @@ Host selection. It is not a per-host policy or an authentication mechanism.
 | Global admitted/queued connections | 12 | 192 |
 | Per-peer admitted/queued connections | 6 | 144 |
 | Pending dispatch queue | 8 | 188 |
-| Global connections/second | 64 | 128 |
+| Global connections/second | 64 | 256 |
 | Global burst | 128 | 512 |
-| Per-peer connections/second | 8 | 64 |
+| Per-peer connections/second | 8 | 128 |
 | Per-peer burst | 16 | 384 |
 
 Both profiles retain four ordinary workers, at most two running jobs per peer,
@@ -40,6 +40,16 @@ the deployment. It is not a guarantee of 24 users for every application, network
 storage device or workload. Distributed floods can still consume global budgets.
 The scheduler leaves workers available to other peers, including CA validation;
 that is not an availability guarantee under arbitrary load.
+
+The browser-reload revision raises only the shared-NAT refill rates from
+128/64 to 256/128 global/per-peer connections per second. A 24-browser
+game reload produced repeated image fetches over several seconds, beyond the
+earlier one-off asset burst and 700 ms polling simulation. The old profile
+exhausted peer credit even with normal browser caching. This doubles the allowed
+sustained unauthenticated connection rate; simultaneous occupancy, burst credit,
+workers, body limits and deadlines remain unchanged. A deterministic 20-second
+120-request/second peer wave also checks progress for an independent 60-request/
+second peer. This regression is a capacity envelope, not a browser model.
 
 Capacity changes require a restart. Both SIGHUP and managed activation reject a
 different profile before committing; managed activation rejects it before writing

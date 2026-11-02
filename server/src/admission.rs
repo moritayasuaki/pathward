@@ -230,7 +230,7 @@ mod tests {
             drop(a.at(ip, false, now).unwrap());
         }
         assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerRate));
-        for _ in 0..64 {
+        for _ in 0..128 {
             drop(a.at(ip, false, now + Duration::from_secs(1)).unwrap());
         }
         assert_eq!(
@@ -238,6 +238,24 @@ mod tests {
             Some(Rejection::PeerRate)
         );
         assert_eq!(a.at(ip, true, now).err(), Some(Rejection::Draining));
+        assert_eq!(a.0.lock().unwrap().active, 0);
+    }
+    #[test]
+    fn shared_nat_browser_reload_wave_leaves_other_peer_credit() {
+        // Real 24-browser reloads can repeat image fetches while the room UI
+        // renders. A one-off cold asset burst or 700 ms polling misses this
+        // multi-second wave. Virtual time makes the regression deterministic.
+        let a = Arc::new(Admission::new(true));
+        let now = Instant::now();
+        let browsers = "127.0.0.20".parse().unwrap();
+        let independent = "127.0.0.21".parse().unwrap();
+        for tick in 0..2400 {
+            let at = now + Duration::from_micros(tick * 1_000_000 / 120);
+            drop(a.at(browsers, false, at).unwrap());
+            if tick % 2 == 0 {
+                drop(a.at(independent, false, at).unwrap());
+            }
+        }
         assert_eq!(a.0.lock().unwrap().active, 0);
     }
     #[test]
