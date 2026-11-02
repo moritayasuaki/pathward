@@ -120,6 +120,8 @@ Metrics include accepted/active/overloaded connections, completed responses,
 request I/O and handshake errors, completed body bytes, reload successes/errors,
 configuration generation, admission rejections, ACME attempts/activations/errors, dropped logs, readiness,
 draining, TLS enablement and certificate presence/not-before/not-after UNIX times.
+Admission has an aggregate counter and seven fixed reason labels; see
+[admission diagnostics](production-basics.md#admission-limits-and-test-scope).
 Counters reset on process restart; a scrape is a collection of atomic observations,
 not a transaction across all counters. Readiness does not check every file or
 predict successful future renewal. A removed/unreadable file remains a 404.

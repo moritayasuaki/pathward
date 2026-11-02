@@ -87,7 +87,9 @@ theorem rejection_accepts_exactly (a p t : U64) (d : Bool) :
   rw [rejection_eq, admission_contract]
   cases d
   · simp only [Bool.false_eq_true, ↓reduceIte, true_and]
-    split_ifs <;> simp_all <;> omega
+    split_ifs
+    all_goals simp_all
+    all_goals omega
   · simp
 
 theorem rejection_code_bounded (a p t c : U64) (d : Bool)

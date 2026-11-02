@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bounded adversarial connections plus healthy-peer progress; Linux loopback."""
 from pathlib import Path
-import json,queue,signal,socket,subprocess,tempfile,threading,time
+import json,queue,re,signal,socket,subprocess,tempfile,threading,time
 ROOT=Path(__file__).resolve().parents[1]
 BIN=ROOT/'server/target/release/pathward-server'
 def receive(s):
@@ -55,6 +55,9 @@ with tempfile.TemporaryDirectory(prefix='pathward-load-') as tmp:
             s.sendall(b'GET /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n');data=receive(s)
         assert b'pathward_admission_rejected_total 0\n' not in data
         assert b'pathward_admission_rejected_total ' in data
+        for reason in ('peer_active', 'peer_rate'):
+            count = re.search(rb'pathward_admission_rejections_total\{reason="' + reason.encode() + rb'"\} (\d+)\n', data)
+            assert count and int(count[1]) > 0, ('missing rejection reason', reason)
         p.send_signal(signal.SIGTERM);assert p.wait(timeout=7)==0
     finally:
         for s in held:s.close()
