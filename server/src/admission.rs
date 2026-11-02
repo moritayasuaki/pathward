@@ -6,6 +6,58 @@ use std::{
     time::{Duration, Instant},
 };
 const PEERS: usize = 256;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Rejection {
+    Draining,
+    GlobalActive,
+    PeerActive,
+    GlobalRate,
+    PeerRate,
+    PeerTableFull,
+    StateUnavailable,
+}
+impl Rejection {
+    pub const ALL: [Self; 7] = [
+        Self::Draining,
+        Self::GlobalActive,
+        Self::PeerActive,
+        Self::GlobalRate,
+        Self::PeerRate,
+        Self::PeerTableFull,
+        Self::StateUnavailable,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Draining => "draining",
+            Self::GlobalActive => "global_active",
+            Self::PeerActive => "peer_active",
+            Self::GlobalRate => "global_rate",
+            Self::PeerRate => "peer_rate",
+            Self::PeerTableFull => "peer_table_full",
+            Self::StateUnavailable => "state_unavailable",
+        }
+    }
+}
+fn gate(
+    active: u64,
+    peer: u64,
+    tokens: u64,
+    draining: bool,
+    global: bool,
+) -> Result<(), Rejection> {
+    match pathward::release::admission_rejection(active, peer, tokens, draining) {
+        0 => Ok(()),
+        1 => Err(Rejection::Draining),
+        2 => Err(Rejection::GlobalActive),
+        3 => Err(Rejection::PeerActive),
+        4 => Err(if global {
+            Rejection::GlobalRate
+        } else {
+            Rejection::PeerRate
+        }),
+        _ => Err(Rejection::StateUnavailable),
+    }
+}
 struct Bucket {
     credit: u64,
     updated: Instant,
@@ -71,21 +123,14 @@ impl Admission {
             peers: HashMap::new(),
         }))
     }
-    pub fn acquire(self: &Arc<Self>, ip: IpAddr, draining: bool) -> Option<Permit> {
+    pub fn acquire(self: &Arc<Self>, ip: IpAddr, draining: bool) -> Result<Permit, Rejection> {
         self.at(ip, draining, Instant::now())
     }
-    fn at(self: &Arc<Self>, ip: IpAddr, draining: bool, now: Instant) -> Option<Permit> {
+    fn at(self: &Arc<Self>, ip: IpAddr, draining: bool, now: Instant) -> Result<Permit, Rejection> {
         let ip = key(ip);
-        let mut state = self.0.lock().ok()?;
+        let mut state = self.0.lock().map_err(|_| Rejection::StateUnavailable)?;
         state.global.refill(now);
-        if !pathward::release::admission_allowed(
-            state.active,
-            0,
-            state.global.credit / 1000,
-            draining,
-        ) {
-            return None;
-        }
+        gate(state.active, 0, state.global.credit / 1000, draining, true)?;
         if !state.peers.contains_key(&ip) {
             if state.peers.len() == PEERS {
                 state.peers.retain(|_, p| {
@@ -93,7 +138,7 @@ impl Admission {
                 });
             }
             if state.peers.len() == PEERS {
-                return None;
+                return Err(Rejection::PeerTableFull);
             }
             state.peers.insert(
                 ip,
@@ -105,22 +150,24 @@ impl Admission {
             );
         }
         let global = state.active;
-        let peer = state.peers.get_mut(&ip)?;
+        let peer = state
+            .peers
+            .get_mut(&ip)
+            .ok_or(Rejection::StateUnavailable)?;
         peer.bucket.refill(now);
         peer.seen = now;
-        if !pathward::release::admission_allowed(
+        gate(
             global,
             peer.active,
             peer.bucket.credit / 1000,
             draining,
-        ) {
-            return None;
-        }
+            false,
+        )?;
         peer.active += 1;
         peer.bucket.credit -= 1000;
         state.active += 1;
         state.global.credit -= 1000;
-        Some(Permit {
+        Ok(Permit {
             admission: self.clone(),
             peer: ip,
         })
@@ -150,21 +197,56 @@ mod tests {
         let now = Instant::now();
         let ip = "127.0.0.1".parse().unwrap();
         let leases: Vec<_> = (0..6).map(|_| a.at(ip, false, now).unwrap()).collect();
-        assert!(a.at(ip, false, now).is_none());
+        assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerActive));
         drop(leases);
         for _ in 0..10 {
             drop(a.at(ip, false, now).unwrap());
         }
-        assert!(a.at(ip, false, now).is_none());
-        assert!(a.at(ip, false, now + Duration::from_secs(1)).is_some());
-        assert!(a.at(ip, true, now).is_none());
+        assert_eq!(a.at(ip, false, now).err(), Some(Rejection::PeerRate));
+        assert!(a.at(ip, false, now + Duration::from_secs(1)).is_ok());
+        assert_eq!(a.at(ip, true, now).err(), Some(Rejection::Draining));
         let mut leases = Vec::new();
         for i in 2..14 {
             leases.push(a.at(IpAddr::from([127, 0, 0, i]), false, now).unwrap());
         }
-        assert!(a.at(IpAddr::from([127, 0, 0, 20]), false, now).is_none());
+        assert_eq!(
+            a.at(IpAddr::from([127, 0, 0, 20]), false, now).err(),
+            Some(Rejection::GlobalActive)
+        );
         drop(leases);
         assert_eq!(a.0.lock().unwrap().active, 0);
+    }
+
+    #[test]
+    fn global_rate_and_poison_are_distinguished_without_admitting_work() {
+        let a = Arc::new(Admission::new());
+        let now = Instant::now();
+        for i in 0..128 {
+            drop(a.at(IpAddr::from([10, 0, 0, i]), false, now).unwrap());
+        }
+        assert_eq!(
+            a.at(IpAddr::from([10, 0, 1, 1]), false, now).err(),
+            Some(Rejection::GlobalRate)
+        );
+        assert_eq!(a.0.lock().unwrap().peers.len(), 128);
+        assert!(
+            a.at(
+                IpAddr::from([10, 0, 1, 1]),
+                false,
+                now + Duration::from_secs(1)
+            )
+            .is_ok()
+        );
+        let b = a.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = b.0.lock().unwrap();
+            panic!("poison test");
+        })
+        .join();
+        assert_eq!(
+            a.at(IpAddr::from([10, 0, 1, 2]), false, now).err(),
+            Some(Rejection::StateUnavailable)
+        );
     }
 
     #[test]
@@ -175,11 +257,11 @@ mod tests {
             .map(|i| a.at(IpAddr::from([10, 0, 0, i]), false, now).unwrap())
             .collect();
         for i in 0..255 {
-            assert!(a.at(IpAddr::from([10, 0, 1, i]), false, now).is_none());
+            assert!(a.at(IpAddr::from([10, 0, 1, i]), false, now).is_err());
         }
         assert_eq!(a.0.lock().unwrap().peers.len(), 12);
         drop(held);
-        assert!(a.at(IpAddr::from([10, 0, 2, 1]), false, now).is_some());
+        assert!(a.at(IpAddr::from([10, 0, 2, 1]), false, now).is_ok());
     }
     #[test]
     fn ipv6_prefix_and_mapped_v4_share_a_limit_and_table_is_bounded() {
@@ -203,13 +285,14 @@ mod tests {
                 .unwrap(),
             );
         }
-        assert!(
+        assert_eq!(
             a.at(
                 IpAddr::from([10, 0, 1, 1]),
                 false,
                 now + Duration::from_secs(6)
             )
-            .is_none()
+            .err(),
+            Some(Rejection::PeerTableFull)
         );
         assert_eq!(a.0.lock().unwrap().peers.len(), 256);
         assert!(
@@ -218,7 +301,7 @@ mod tests {
                 false,
                 now + Duration::from_secs(66)
             )
-            .is_some()
+            .is_ok()
         );
     }
 }

@@ -189,6 +189,31 @@ NAT clients share one budget. Health/metrics use a separate loopback listener;
 `pathward_admission_rejected_total` reports gate rejections. Process/network
 budgets, supervision and deployment-specific alerts remain necessary.
 
+`pathward_admission_rejections_total{reason="..."}` separates seven fixed causes:
+`draining`, `global_active`, `peer_active`, `global_rate`, `peer_rate`,
+`peer_table_full`, and `state_unavailable`. The existing aggregate counter remains
+available. A bounded, nonblocking `admission_rejected` log event has the same
+reason; it contains no peer address, hostname, URL, query, or credentials. The
+first failing gate is reported: global eligibility precedes peer-table lookup,
+then peer eligibility. Scrapes across counters are not transactional.
+
+The classifier does not relax admission. Its actual Rust extraction is proved
+equivalent to the original Boolean gate, with a bounded result code, totality,
+and explicit drain/exhausted-credit results. Locking, monotonic clocks, bucket
+accounting and metrics delivery remain trusted, tested adapters. Unit tests
+exercise every rejection reason; Linux socket tests distinguish simultaneous
+connections from exhausted peer credit and verify healthy-peer progress/refill.
+
+Browser staging must include runtime-generated asset URLs, not only links found
+in HTML. A sprite-sheet capture omission caused repeated image 404 requests
+during initial room rendering, exhausting the existing peer bucket. Supplying
+the referenced public images with the upstream's immutable caching removed the
+reproduced rejection without changing the limits. An older aggregate count alone
+cannot retrospectively establish the cause of every rejected connection. Record
+reason counters, failed browser resources and the exact fixture manifest before
+declaring a migration ready. This diagnosis does not establish capacity for a
+shared NAT or a larger production workload.
+
 Linux CI runs a bounded burst/slow-client/healthy-peer/rate-refill test, managed
 CLI concurrency/unsafe-file/rollback/forced-restart tests, local ACME lifecycle
 checks, and 100,000 deterministic mutated HTTP inputs. Mutation tests are not

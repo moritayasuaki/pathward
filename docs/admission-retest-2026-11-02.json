@@ -1,0 +1,57 @@
+{
+  "scope": "Disposable loopback Linux staging, public frontend fixtures and synthetic rooms",
+  "binary_source_commit": "5713fab73b89ab66244432a9ddc12be5ce57128b",
+  "binary_build": "https://github.com/moritayasuaki/pathward/actions/runs/41365167051",
+  "merged_main_commit": "875f0b2482f6d52eb0385a5d199eb8ee16fce283",
+  "merged_main_ci": "https://github.com/moritayasuaki/pathward/actions/runs/41364669795",
+  "browser": "Safari 27.2, Apple Safari MCP dedicated tabs",
+  "original_observation": {
+    "connections": 2105,
+    "requests": 1917,
+    "admission_rejections": 188,
+    "responses_4xx": 263,
+    "request_io_errors": 0,
+    "limitation": "Only aggregate admission counts were retained; individual causes of all 188 historical rejections cannot be reconstructed."
+  },
+  "controlled_reproduction": {
+    "policy_changed": false,
+    "missing_fixture_files": 90,
+    "missing_fixture_bytes": 29182596,
+    "initial_room_creation": {
+      "requests": 62,
+      "responses_2xx": 14,
+      "responses_4xx": 48,
+      "admission_rejections": 14,
+      "reasons": {"peer_rate": 14},
+      "browser_evidence": "Repeated /avatars/v6/ sprite-sheet requests returned 404 during rerenders."
+    },
+    "same_flow_with_complete_fixtures": {
+      "requests": 28,
+      "responses_2xx": 28,
+      "responses_4xx": 0,
+      "admission_rejections": 0
+    },
+    "complete_fixture_multiplayer": {
+      "elapsed_seconds": 343,
+      "requests": 418,
+      "responses_2xx": 418,
+      "responses_4xx": 0,
+      "responses_5xx": 0,
+      "admission_rejections": 0,
+      "queue_overload": 0,
+      "request_io_errors": 0,
+      "actions": ["create room", "join from second tab", "confirm two participants", "start game", "open first cell", "verify six opened cells and first-cell state in both tabs"]
+    },
+    "conclusion": "Omitted runtime sprite sheets caused repeated noncached errors and exhausted peer connection credit. Restoring captured public images and the upstream immutable cache behavior removed the reproduced rejection without relaxing admission."
+  },
+  "verification": {
+    "rust_config_server": "pass",
+    "linux_admission_smoke": "pass, including peer_active/peer_rate counters, other-peer progress, refill and shutdown",
+    "lean_audited_statements": 258,
+    "lean": "actual Rust extraction, gate/classifier equivalence, bounded code, drain/exhausted-credit results, totality and standard-axiom audit pass",
+    "dependencies_added": 0,
+    "rustsec_db": "2295466c4e9df26647fd67d8fa1c705ac2fc7f81",
+    "dependency_audit": "no findings or warnings across core, configuration, server and isolated candidate lockfiles"
+  },
+  "limits": ["HTTP through loopback SSH, not public HTTPS", "Not a shared-NAT or production-capacity test", "Historical aggregate counts cannot be assigned exact reasons retrospectively"]
+}
