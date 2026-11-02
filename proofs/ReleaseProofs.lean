@@ -140,15 +140,15 @@ theorem capacity_credit_bounded (n p : Bool) (r b : U64)
 
 theorem capacity_rejection_eq (a p t : U64) (d n : Bool) :
     release.capacity_rejection a p t d n = ok
-      (if d then 1#u64 else if (if n then 192 else 12) ≤ a.val then 2#u64 else
-       if (if n then 144 else 6) ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64) := by
+      (if d then 1#u64 else if (if n then 256 else 12) ≤ a.val then 2#u64 else
+       if (if n then 192 else 6) ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64) := by
   cases n <;> simp [release.capacity_rejection, capacity_global_eq, capacity_peer_eq, UScalar.eq_equiv]
   all_goals split_ifs <;> rfl
 
 theorem capacity_accepts_exactly (a p t : U64) (d n : Bool) :
     release.capacity_rejection a p t d n = ok 0#u64 ↔
-      d = false ∧ a.val < (if n then 192 else 12) ∧
-        p.val < (if n then 144 else 6) ∧ 0 < t.val := by
+      d = false ∧ a.val < (if n then 256 else 12) ∧
+        p.val < (if n then 192 else 6) ∧ 0 < t.val := by
   rw [capacity_rejection_eq]
   cases d
   · cases n
@@ -171,8 +171,8 @@ theorem capacity_no_draining (a p t : U64) (n : Bool) :
     release.capacity_rejection a p t true n = ok 1#u64 := by simp [capacity_rejection_eq]
 
 theorem capacity_no_credit (a p : U64) (n : Bool)
-    (ha : a.val < (if n then 192 else 12))
-    (hp : p.val < (if n then 144 else 6)) :
+    (ha : a.val < (if n then 256 else 12))
+    (hp : p.val < (if n then 192 else 6)) :
     release.capacity_rejection a p 0#u64 false n = ok 4#u64 := by
   simp [capacity_rejection_eq, Nat.not_le_of_gt ha, Nat.not_le_of_gt hp]
 

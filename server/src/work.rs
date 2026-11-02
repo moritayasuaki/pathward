@@ -142,7 +142,7 @@ mod tests {
         let peer = "127.0.0.20".parse().unwrap();
         let other = "127.0.0.1".parse().unwrap();
         let stop = AtomicBool::new(false);
-        for i in 0..144 {
+        for i in 0..192 {
             q.push(peer, i).unwrap();
         }
         q.push(other, 999).unwrap();
@@ -150,10 +150,10 @@ mod tests {
         let (_, b) = q.take(&stop).unwrap();
         let (value, c) = q.take(&stop).unwrap();
         assert_eq!(value, 999);
-        for i in 0..46 {
+        for i in 0..62 {
             q.push(peer, i).unwrap();
         }
-        assert_eq!(q.state.lock().unwrap().pending.len(), 188);
+        assert_eq!(q.state.lock().unwrap().pending.len(), 252);
         assert!(q.push(peer, 1000).is_err());
         q.close();
         drop((a, b, c));
