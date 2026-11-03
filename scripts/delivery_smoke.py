@@ -196,6 +196,19 @@ site "example.com" {{
         waiting.close()
         held = []
 
+        # An idle preconnection has no HTTP request; a partial head expires
+        # with 408, including when transport expiry races the phase check.
+        idle, partial = connect(), connect()
+        held = [idle, partial]
+        for s in held:
+            s.settimeout(7)
+        partial.sendall(b"GET / HTTP/1.1\r\n")
+        assert head(partial).startswith(b"HTTP/1.1 408 ")
+        assert finish(partial) == b"" and finish(idle) == b""
+        for s in held:
+            s.close()
+        held = []
+
         # Incomplete input is discarded on shutdown, while delivery is bounded.
         stalled = connect()
         stalled.sendall(b"GET / HTTP/1.1\r\n")

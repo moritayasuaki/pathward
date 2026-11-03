@@ -373,6 +373,16 @@ impl Reactor {
                         self.heads.push_back(input);
                         continue;
                     }
+                    Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                        // The deadline can expire between the phase check and
+                        // the transport read. Preserve the same timeout policy.
+                        let status =
+                            pathward::delivery::input_timeout_status(input.prefix.len() as u64);
+                        if status != 0 {
+                            self.reject(input, status, generation());
+                        }
+                        continue;
+                    }
                     Err(_) => continue,
                 }
                 if input.prefix.windows(4).any(|w| w == b"\r\n\r\n") {

@@ -78,6 +78,12 @@ the output loop; trusted local storage and an external supervisor remain require
 The runtime commit `92a6bf1` passed [Linux CI](https://github.com/moritayasuaki/pathward/actions/runs/41498881113),
 including HTTP/stream regression, TLS-ALPN issuance, renewal/restart/persistence
 failure, overlapping ACME/release churn, RustSec and all Lean proofs.
+Final adapter review also corrected a timeout race: if the transport deadline
+expires just after the input phase check, a partial head still receives 408 rather
+than silently closing. The socket regression now checks partial-head expiry and
+silent idle-preconnection expiry. The extracted classification gate is unchanged.
+The browser report below identifies the preceding `92a6bf1` binary; this small
+follow-up has not been given a new full browser acceptance run.
 
 ## Real-browser result — 2026-11-03
 
