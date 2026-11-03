@@ -168,8 +168,6 @@
     "configuration_churn": false,
     "backend_count": 1,
     "comparison_limit": "Sequential diagnostic, not a controlled throughput comparison: no churn, one backend instead of two, and snapshot guard corrected",
-    "aborted_join_without_observed_send_event": 1,
-    "aborted_join_after_observed_send_event": 3,
     "max_successful_join_send_start_ms": 5130.034,
     "max_successful_join_response_headers_ms": 9741.158,
     "public_tls": false,
@@ -178,7 +176,10 @@
       0,
       0
     ],
-    "production_inventory_unchanged": true
+    "production_inventory_unchanged": true,
+    "aborted_join_without_extra_info_event": 1,
+    "aborted_join_with_extra_info_event": 3,
+    "extra_info_limit": "Network.requestWillBeSentExtraInfo is network-stack metadata, not proof of wire delivery or non-delivery."
   },
   "conclusion": "Staged socket regression and Linux/ACME/Lean CI pass; real-browser acceptance remains failed. The Caddy diagnostic also reaches the client 10-second abort budget. Browser/link wait is implicated but does not explain away the PathWard-specific empty responses or establish HTTP/2 as a proven fix."
 }

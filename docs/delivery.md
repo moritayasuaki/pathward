@@ -111,8 +111,10 @@ their pre-test inventory.
 A separate Caddy 2.11.7 diagnostic used the same public asset fixture, cold Chrome
 contexts and SSH topology, with HTTP/1.1 and no compression. Six creates and 14 of
 18 joins returned 201; four joins aborted, leaving 20 verified actors. For one
-aborted join, no actual-send event was observed; three had a send event. Successful
-joins had up to 5.130 seconds before send and 9.741 seconds before response headers.
+aborted join, no `requestWillBeSentExtraInfo` event was observed; three had that
+network-stack metadata event. Its presence/absence is not proof of wire delivery
+or non-delivery. Successful joins had up to 5.130 seconds before send and 9.741
+seconds before response headers in CDP `ResourceTiming`.
 Both Caddy children exited zero and the production inventory again matched.
 
 This establishes that the available browser/link path also reaches the client
