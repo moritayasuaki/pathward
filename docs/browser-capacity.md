@@ -1,10 +1,15 @@
 # Real-browser capacity rehearsal
 
 **Acceptance status: incomplete. Do not treat this as a 24-user production pass.**
-The admission correction passes Rust/Linux/Lean checks, but the last cold-cache
-browser attempt still failed with four asset 408 responses and six aborted room
-creation requests on the available test connection. The PR remains a draft.
-Public-CA testing has not run.
+The admission and staged-delivery corrections pass Rust/Linux/Lean checks, but
+browser acceptance still fails. The latest delivery run created all six rooms,
+then aborted 18 guest joins and reported nine empty asset responses. The earlier
+four-408/six-aborted-create run below is retained as historical evidence. The PR
+remains a draft. Public-CA testing has not run.
+
+See the [delivery result](delivery-browser-result-2026-11-03.json) and
+[analysis](delivery.md#real-browser-result--2026-11-03) for the latest run and a
+separate isolated Caddy HTTP/1.1 diagnostic. Neither completed 24-user cold entry.
 
 The shared-NAT profile needed additional headroom for 24 simultaneous browser
 reloads. Its old 64-per-peer / 128-global connection refill rates covered the

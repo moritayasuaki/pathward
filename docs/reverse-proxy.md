@@ -81,9 +81,9 @@ Probe a representative application URL separately before switching traffic.
 | Client protocol | HTTP/1.1, one exchange per connection |
 | Methods | GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS |
 | Request framing | One canonical Content-Length; default 1 MiB, configurable up to 16 MiB |
-| Request body deadline | Default 5 seconds from acceptance, including queue/TLS/head |
+| Request body deadline | Default 5 seconds including HTTP head reception; excludes TLS/ready queue |
 | Upstream connect | Default 2 seconds, within total exchange budget |
-| Successful exchange | Default 15 seconds from acceptance through downstream writes |
+| Successful exchange | Default 15 seconds including HTTP head reception through downstream writes; excludes TLS/ready queue |
 | Error response | At most 1 additional second to report failure |
 | Upstream protocol | HTTP/1.0 or HTTP/1.1, final 200–599 response |
 | Response framing | One Content-Length, finite chunked, or connection-close |
@@ -112,7 +112,8 @@ application. A lost response therefore does not imply a failed application write
 Late surplus bytes cannot become another exchange because sockets are not reused.
 A slow downstream can still interrupt delivery after validation.
 
-Buffered HTTP data is bounded per worker. WebSocket/SSE adds finite streaming
+Buffered HTTP data uses the shared [delivery reservation budget](delivery.md),
+with a separate bound on request data per worker. WebSocket/SSE adds finite streaming
 budgets, backpressure, cancellation and a 16-stream global quota. Slow ordinary
 applications can still occupy the shared workers. Backend-aware admission and
 real application load tests remain required before migration.

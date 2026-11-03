@@ -26,12 +26,13 @@ Host selection. It is not a per-host policy or an authentication mechanism.
 | Per-peer burst | 16 | 384 |
 
 Both profiles retain four ordinary workers, at most two running jobs per peer,
-256 peer-table entries, the existing socket deadlines and independent service
-and streaming budgets. IPv6 peers share a /64; mapped IPv4 shares its IPv4 key.
+256 peer-table entries and independent service/streaming budgets. The subsequent
+[staged-delivery change](delivery.md) separates header and ready-queue deadlines
+and releases ordinary workers during downstream writes. IPv6 peers share a /64; mapped IPv4 shares its IPv4 key.
 Forwarded headers never select an admission identity. The larger queue stores
-owned sockets/permits, not parsed request bodies. It does not create a thread per
-connection, increase ordinary response buffers, or promise that queued work will
-finish before its original deadline. Kernel socket buffers add deployment-specific
+owned sockets/permits and bounded collected heads, not parsed request bodies.
+It does not create a thread per connection or promise completion before each
+phase deadline. Retained responses have a separate finite byte budget. Kernel socket buffers add deployment-specific
 memory overhead. Keep process/FD/memory/CPU limits and measure their effects.
 
 The larger peer burst accommodates a reviewed 24-client cold-asset workload;
@@ -74,7 +75,8 @@ the startup-identity comparison. Seventeen additional Lean statements establish
 finite capacity/credit arithmetic, queue-plus-workers consistency, a strictly
 smaller peer cap, equivalence of the standard profile to the old gate, drain and
 exhausted-credit rejection, bounded diagnostic codes, totality and unchanged
-capacity on accepted reload. The complete audit contains 275 statements. This
+capacity on accepted reload. That revision audited 275 statements; staged delivery raises the complete audit
+to 289. This
 does not formally verify the KDL adapter, locks, sockets, clocks or OS resources.
 
 KDL surface review covers one optional flat node before the bounded site list,
