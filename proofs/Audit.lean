@@ -84,6 +84,7 @@ import UpstreamProofs
 #print axioms DeliveryProofs.cancel_slot_eq
 #print axioms DeliveryProofs.cancelled_heads_bounded
 #print axioms DeliveryProofs.cancel_slot_total
+#print axioms DeliveryProofs.multiplex_refusal_is_retirement
 #print axioms PathwardProofs.name_byte_eq
 #print axioms PathwardProofs.step_eq
 #print axioms PathwardProofs.accepting_eq

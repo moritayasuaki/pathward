@@ -244,4 +244,10 @@ theorem cancelled_heads_bounded (n t : U64)
 theorem cancel_slot_total (n t : U64) :
     ∃ b, delivery.cancel_slot n t = ok b := ⟨_, cancel_slot_eq n t⟩
 
+theorem multiplex_refusal_is_retirement (a n t : U64) (d : Bool)
+    (ha : a.val < 32) (h : delivery.multiplex_slot a n t d = ok false) :
+    d = true ∨ 100 ≤ n.val ∨ 120000 ≤ t.val := by
+  cases d <;> simp [multiplex_eq] at h ⊢
+  omega
+
 end DeliveryProofs

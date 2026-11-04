@@ -49,6 +49,16 @@
   ],
   "goals": [
     {
+      "id": "H2-RETIRE-CLASS",
+      "priority": "P0",
+      "status": "proved",
+      "title": "接続更新の拒否と全体容量不足を混同しない",
+      "acceptance": "同時処理32枠に余裕がある前提で、抽出した多重化ゲートの拒否は件数100・経過120秒・停止のいずれかと証明。実TLSで101件のPOSTを送り、上流実行100件・最後の1件のREFUSED_STREAMを確認。非同期アダプター全体の対応は別課題。",
+      "theorems": [
+        "DeliveryProofs.multiplex_refusal_is_retirement"
+      ]
+    },
+    {
       "id": "CANCEL-LIFETIME",
       "priority": "P0",
       "status": "proved",

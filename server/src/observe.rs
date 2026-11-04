@@ -31,6 +31,7 @@ pub struct Observability {
     tls_errors: AtomicU64,
     h2_idle_timeout: AtomicU64,
     h2_idle_eof: AtomicU64,
+    h2_retired_streams: AtomicU64,
     reloads: AtomicU64,
     reload_errors: AtomicU64,
     acme_attempts: AtomicU64,
@@ -297,6 +298,10 @@ impl Observability {
         self.active.fetch_add(1, Ordering::Relaxed);
         Active(self.clone())
     }
+    pub(crate) fn h2_retired_stream(&self, generation: u64, admitted: u64) {
+        self.h2_retired_streams.fetch_add(1, Ordering::Relaxed);
+        self.event("h2_retired_stream", generation, admitted);
+    }
     pub(crate) fn h2_idle_closed(&self, timed_out: bool) {
         if timed_out {
             &self.h2_idle_timeout
@@ -315,6 +320,11 @@ impl Observability {
     ) -> String {
         let mut out = String::new();
         for (name, kind, value) in [
+            (
+                "h2_retired_streams_total",
+                "counter",
+                self.h2_retired_streams.load(Ordering::Relaxed),
+            ),
             (
                 "h2_idle_preface_timeout_total",
                 "counter",

@@ -928,14 +928,12 @@ pub async fn serve_h2(
                         shutdown.load(Ordering::Acquire) || server.is_draining(),
                     ) {
                         progressed = true;
-                        server.observe.event(
-                            "h2_stream_window_exhausted",
-                            server.generation(),
-                            count,
-                        );
-                        server
-                            .observe
-                            .admission_rejected(admission::Rejection::GlobalActive);
+                        // head_slot already keeps active < 32. This is the
+                        // connection's count/age/stop boundary, not exhaustion
+                        // of global admission. REFUSED_STREAM guarantees that
+                        // this head has not been dispatched to the responder.
+                        debug_assert!(tasks.len() < 32);
+                        server.observe.h2_retired_stream(server.generation(), count);
                         response.send_reset(h2::Reason::REFUSED_STREAM);
                         connection.graceful_shutdown();
                         retirement.begin();
@@ -1390,6 +1388,118 @@ mod tests {
     #[test]
     fn h2_unconsumed_reset_abuse_is_still_bounded() {
         h2_cancel_window(101);
+    }
+    #[test]
+    fn h2_retirement_refusal_never_dispatches_a_mutation() {
+        let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+        backend.set_nonblocking(true).unwrap();
+        let config = pathward_config::ParsedConfig::parse(&format!(
+            "capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}",backend.local_addr().unwrap()
+        )).unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        let mutations = std::sync::atomic::AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let upstream = scope.spawn(|| {
+                while !stop.load(Ordering::Acquire) {
+                    match backend.accept() {
+                        Ok((mut socket,_)) => {
+                            socket.set_nonblocking(false).unwrap();
+                            socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                            let mut head=Vec::new();let mut byte=[0;1];
+                            while !head.ends_with(b"\r\n\r\n") {
+                                socket.read_exact(&mut byte).unwrap();head.push(byte[0]);assert!(head.len()<16384);
+                            }
+                            assert!(head.starts_with(b"POST / HTTP/1.1\r\n"));
+                            mutations.fetch_add(1,Ordering::Relaxed);
+                            socket.write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                        }
+                        Err(e) if e.kind()==io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(1)),
+                        Err(e)=>panic!("{e}"),
+                    }
+                }
+            });
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let socket = TcpStream::connect(address).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let conn = rustls::ClientConnection::new(
+                    client,
+                    rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                )
+                .unwrap();
+                let mut socket = rustls::StreamOwned::new(conn, socket);
+                fn frame(kind: u8, flags: u8, id: u32, body: &[u8]) -> Vec<u8> {
+                    let mut wire = Vec::new();
+                    wire.extend_from_slice(&(body.len() as u32).to_be_bytes()[1..]);
+                    wire.extend_from_slice(&[kind, flags]);
+                    wire.extend_from_slice(&id.to_be_bytes());
+                    wire.extend_from_slice(body);
+                    wire
+                }
+                socket
+                    .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+                    .unwrap();
+                socket.write_all(&frame(4, 0, 0, &[])).unwrap();
+                let mut headers = vec![0x83, 0x87, 0x84, 0x01, 11];
+                headers.extend_from_slice(b"app.example");
+                for n in 0..101 {
+                    let id = 2 * n + 1;
+                    socket.write_all(&frame(1, 5, id, &headers)).unwrap();
+                    socket.flush().unwrap();
+                    loop {
+                        let mut head = [0; 9];
+                        socket.read_exact(&mut head).unwrap();
+                        let size = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
+                        assert!(size <= 16384);
+                        let mut body = vec![0; size];
+                        socket.read_exact(&mut body).unwrap();
+                        let stream =
+                            u32::from_be_bytes(head[5..9].try_into().unwrap()) & 0x7fffffff;
+                        if head[3] == 4 && head[4] & 1 == 0 {
+                            socket.write_all(&frame(4, 1, 0, &[])).unwrap();
+                            socket.flush().unwrap();
+                        }
+                        // Deliberately withhold the graceful-GOAWAY ping ACK:
+                        // even a client ignoring retirement cannot dispatch 101.
+                        if stream != id {
+                            continue;
+                        }
+                        if head[3] == 3 {
+                            assert_eq!(n, 100);
+                            assert_eq!(body, 7u32.to_be_bytes());
+                            break;
+                        }
+                        if (head[3] == 0 || head[3] == 1) && head[4] & 1 != 0 {
+                            assert!(n < 100);
+                            break;
+                        }
+                    }
+                }
+                assert_eq!(mutations.load(Ordering::Relaxed), 100);
+                let metrics = server.observe.metrics(1, true, false, true, None);
+                assert!(
+                    metrics.contains("pathward_h2_retired_streams_total 1\n"),
+                    "{metrics}"
+                );
+                assert!(
+                    metrics.contains("pathward_admission_rejected_total 0\n"),
+                    "{metrics}"
+                );
+            }));
+            stop.store(true, Ordering::Release);
+            upstream.join().unwrap();
+            serving.join().unwrap().unwrap();
+            if let Err(e) = result {
+                std::panic::resume_unwind(e);
+            }
+        });
     }
     #[test]
     fn h2_retirement_finishes_in_flight_window_without_refusal_storm() {

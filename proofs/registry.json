@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 380,
+  "theorem_count": 381,
   "axiom_free_count": 15,
   "axiom_counts": {
-    "Classical.choice": 343,
-    "Quot.sound": 343,
-    "propext": 365
+    "Classical.choice": 344,
+    "Quot.sound": 344,
+    "propext": 366
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "b4a87ba5f18e35fd615f0f88c7ad10fad9ec3c69df3a8200e9c160dc1882020b",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
-    "proofs/DeliveryProofs.lean": "c58597d41ac06ca65e09bd2a7a277a644897316b796ec8170bcecdf2cf1f3b49",
+    "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
     "proofs/Generated/Pathward.lean": "2d4ec485ba0c0d6c7aee4cfee4ab6677b3e629e1ad8cc1cfeb9448afbbf4a24a",
     "proofs/PathwardProofs.lean": "5d9d9bcf81471e51c943900d046ae5ac0506c3328df218e3f5155962473a4c57",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
@@ -852,6 +852,18 @@
       "source": "proofs/DeliveryProofs.lean",
       "line": 244,
       "statement": "theorem cancel_slot_total (n t : U64) :\n    ∃ b, delivery.cancel_slot n t = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.multiplex_refusal_is_retirement",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 247,
+      "statement": "theorem multiplex_refusal_is_retirement (a n t : U64) (d : Bool)\n    (ha : a.val < 32) (h : delivery.multiplex_slot a n t d = ok false) :\n    d = true ∨ 100 ≤ n.val ∨ 120000 ≤ t.val",
       "axioms": [
         "Classical.choice",
         "Quot.sound",

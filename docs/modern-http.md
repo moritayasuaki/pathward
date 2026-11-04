@@ -163,7 +163,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **380 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **381 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -322,3 +322,21 @@ the discard and age bounds plus safe counter increment. It does not prove every
 executor transition. A real TLS regression completes 48 requests, fills all 64
 global pending slots, cancels two windows of 32 and then serves a new request.
 The prior counter implementation fails this regression; the corrected one passes.
+
+## Connection retirement telemetry (2026-11-04)
+
+A late stream at the connection's 100-request/120-second/stop boundary receives
+HTTP/2 REFUSED_STREAM before the responder is dispatched. This is distinct from
+global/peer admission exhaustion and can be retried by a conforming client on a
+new connection. It now increments `h2_retired_streams_total` and emits the fixed
+`h2_retired_stream` event, instead of mislabeling it `global_active`. Genuine
+queue expiry and common admission failures retain their existing failure counters.
+No limit or reset behavior is relaxed by this telemetry correction.
+
+The extracted gate proves that, with a free live-stream slot, a refusal means a
+count/age/stop boundary. A native TLS client deliberately ignores retirement and
+sends 101 POSTs: exactly 100 reach the upstream, and request 101 receives
+REFUSED_STREAM without a side effect. Browser acceptance requires no failed
+mutation/transport or inconsistent state, no real capacity refusal/5xx/log loss,
+and separately reports these protocol retirements and peer cancellations. A
+zero-retirement-refusal result is not required; no harness mutation is retried.
