@@ -19,7 +19,7 @@ pub const MAX_CONFIG_BYTES: usize = 1_048_576;
 pub const MAX_ROUTE_RULES: usize = 64;
 pub const MAX_SITES: usize = 16;
 pub const MAX_PUBLICATIONS: usize = 4096;
-pub const MAX_REDIRECTS: usize = 64;
+pub const MAX_REDIRECTS: usize = 512;
 pub const MAX_HEADERS: usize = 32;
 
 #[derive(Clone, Copy)]

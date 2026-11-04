@@ -57,7 +57,7 @@ at a `/` component boundary, preserving the suffix; the longest match wins.
 A destination `/` joins the suffix without a double slash. Prefix source `/`,
 duplicate sources, direct self redirects, and publications overlapped by a
 redirect are rejected. Multi-rule/cross-host redirect cycles are not detected;
-review the complete routing graph. There are at most 64 redirects per site.
+review the complete routing graph. There are at most 512 redirects per site.
 
 GET and HEAD preserve the original validated query bytes. Invalid paths/queries
 cannot produce a Location header; unknown Host or SNI/Host mismatch is refused.

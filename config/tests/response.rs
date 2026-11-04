@@ -50,3 +50,22 @@ fn compile_redirects_headers_and_reject_unsafe_forms() {
         );
     }
 }
+
+#[test]
+fn directory_site_redirect_capacity_is_bounded() {
+    let mut rules = String::new();
+    for i in 0..512 {
+        rules.push_str(&format!(
+            "redirect \"/guide-{i}\" \"example.com\" \"/guide-{i}/\" \"308\"\n"
+        ));
+    }
+    let text = config(&rules);
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    assert_eq!(parsed.compile().unwrap().sites()[0].redirects().len(), 512);
+    rules.push_str("redirect \"/extra\" \"example.com\" \"/extra/\" \"308\"\n");
+    assert!(
+        ParsedConfig::parse(&config(&rules))
+            .and_then(|p| p.compile().map(|_| ()))
+            .is_err()
+    );
+}

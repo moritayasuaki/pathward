@@ -30,9 +30,11 @@ The machine-readable report is [server/audit-result.json](../server/audit-result
 The pinned reviewed inventories and earlier KDL/TLS audits remain applicable.
 
 The pre-parser now accepts lowercase-hyphen directive names and exactly four
-quoted arguments for redirects / three for headers. Its 64 KiB/16-site/one-level
-bounds remain. Site directive cap is 354 (256 publications, 64 redirects, 32
-headers, root and TLS); compilation enforces each individual cap. Header decoded
+quoted arguments for explicit redirects / two for fallback redirects / three for
+headers. The current bounds are 1 MiB, 16 sites and one child level. The iterative
+per-site preflight caps directives at 4,930; compilation independently enforces
+4,096 publications, 512 redirects, 32 headers and the separate 64-rule categories.
+Header decoded
 value/aggregate limits prevent response growth. All destination hosts must be
 configured; duplicates and publication/redirect overlap fail the whole compile.
 KDL output is escaped, deterministically rendered and reparsed through this same
@@ -146,7 +148,7 @@ alerts and realistic storage tests remain required before replacing Caddy.
 
 The restricted KDL preflight accepts `redirect-fallback` with exactly two string
 arguments. Schema validation requires a configured different host, 301/308,
-one fallback, the existing 64-redirect limit and no reverse proxy on that site.
+one fallback, the existing 512-redirect limit and no reverse proxy on that site.
 There is no new parser dependency. Runtime selection uses the existing extracted
 route gate: denial and an exact publication precede redirects. The adapter calls
 the redirect builder only after that route choice, so an unreadable publication

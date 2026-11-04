@@ -131,3 +131,21 @@ Active static responses receive a five-second drain window after they observe
 shutdown, capped by their original total deadline. A write already in progress
 retains its five-second deadline; stopping acceptance does not truncate a small
 active response immediately. Linux signal/drain integration tests cover this.
+
+## Generated directory entrance redirects (2026-11-04)
+
+Large static sites may require hundreds of explicit `/guide` → `/guide/`
+redirects. The separate redirect cap is 512 (the 512/513 boundary is tested);
+publication capacity remains 4,096 and the whole configuration remains at most
+1 MiB. No filesystem discovery or wildcard publication is introduced. Existing
+linear preflight and compiler duplicate/overlap checks still run. At the maximum,
+publication/redirect overlap checking performs at most 4,096 × 512 path checks
+per site, subject also to the global byte cap; configuration is trusted admin input.
+
+An explicit entrance redirect is permitted for the bare variant of an explicit
+slash-ended publication. It still cannot overlap an exact publication. An
+unconfigured slash variant remains local and cannot fall through to a proxy or
+fallback redirect. The fallback permission is passed separately to the redirect
+builder; ordinary explicit redirects retain their existing matching behavior.
+Existing `RoutingProofs` and `ResponseProofs` prove the selection/output gates;
+configuration counts and the adapter remain reviewed and regression tested.

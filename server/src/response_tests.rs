@@ -331,7 +331,7 @@ fn fallback_preserves_local_denials_publications_and_explicit_redirects() {
     }
     let _tree = Tree(root.clone());
     let text = format!(
-        "site \"example.com\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\npublish \"/local\" \"index.html\"\ndeny \"/private\"\nredirect-prefix \"/old\" \"other.example\" \"/new\" \"301\"\nredirect-fallback \"other.example\" \"308\"\n}}\nsite \"other.example\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}}",
+        "site \"example.com\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\npublish \"/local\" \"index.html\"\npublish \"/guide/\" \"index.html\"\nredirect \"/guide\" \"example.com\" \"/guide/\" \"308\"\ndeny \"/private\"\nredirect-prefix \"/old\" \"other.example\" \"/new\" \"301\"\nredirect-fallback \"other.example\" \"308\"\n}}\nsite \"other.example\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}}",
         root.display(),
         root.display()
     );
@@ -341,6 +341,8 @@ fn fallback_preserves_local_denials_publications_and_explicit_redirects() {
         ("/", 200, None),
         ("/local?x=1", 200, None),
         ("/local/", 404, None),
+        ("/guide/", 200, None),
+        ("/guide?x=1", 308, Some("https://example.com/guide/?x=1")),
         ("/private", 404, None),
         ("/private/file", 404, None),
         ("/.key", 404, None),

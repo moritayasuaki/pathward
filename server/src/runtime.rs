@@ -267,6 +267,7 @@ impl Site {
         target: &[u8],
         hosts: &[Site],
         automatic: bool,
+        fallback_allowed: bool,
     ) -> Option<(u16, String)> {
         let path = pathward::serving::request_path(target)?;
         let query = std::str::from_utf8(&target[path.len()..]).ok()?;
@@ -277,8 +278,11 @@ impl Site {
                 .redirects
                 .iter()
                 .filter(|r| {
-                    r.fallback
-                        || pathward::response::route_matches(path, r.from.as_bytes(), r.prefix)
+                    if r.fallback {
+                        fallback_allowed
+                    } else {
+                        pathward::response::route_matches(path, r.from.as_bytes(), r.prefix)
+                    }
                 })
                 .max_by_key(|r| (!r.fallback, r.from.len()))?;
             if rule.fallback {
