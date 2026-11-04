@@ -143,13 +143,19 @@
       "priority": "P0",
       "status": "proved",
       "title": "通常の接続入れ替えは受付済みの処理を打ち切らない",
-      "acceptance": "実際のRust終了ゲートで、通常の入れ替え中は実行中・保留中の要求があれば強制終了しない。サーバー停止は別の5秒上限で終了する。HTTP2回帰試験でGOAWAY後6.5秒かかる応答と送信完了を確認する。時計・非同期実装全体の対応は前提。 アイドル待ちを終了猶予に算入せず、終了開始から5秒未満で通常の強制終了を許可しないこともRust抽出関数で証明。実TLS回帰試験は旧実装の予告前EOFを再現し、修正後のGOAWAY受信を確認。",
+      "acceptance": "実際のRust終了ゲートで、通常の入れ替え中は実行中・保留中の要求があれば強制終了しない。サーバー停止は別の5秒上限で終了する。HTTP2回帰試験でGOAWAY後6.5秒かかる応答と送信完了を確認する。時計・非同期実装全体の対応は前提。 アイドル待ちを終了猶予に算入せず、終了開始から5秒未満で通常の強制終了を許可しないこともRust抽出関数で証明。実TLS回帰試験は旧実装の予告前EOFを再現し、修正後のGOAWAY受信を確認。 HTTP/2では内部の送信待ちとTLSフラッシュ待ちも別に確認し、通常終了で捨てない。最後の処理後30秒を超えて残る送信待ちは成功扱いせずタイムアウトにする。旧コードで6秒の途中切断を再現し、8秒の書込停止とフラッシュ停止を別々に回帰試験する。ライブラリのhas_streamsとI/O観測の正しさは実装上の信頼境界。",
       "theorems": [
         "CancellationProofs.retirement_preserves_active",
         "CancellationProofs.retirement_preserves_held",
         "CancellationProofs.retirement_empty_closes",
         "CancellationProofs.shutdown_deadline_closes",
-        "CancellationProofs.retirement_grace_starts_at_retirement"
+        "CancellationProofs.retirement_grace_starts_at_retirement",
+        "CancellationProofs.h2_pending_blocks_normal_close",
+        "CancellationProofs.h2_shutdown_preserves_deadline",
+        "CancellationProofs.h2_close_requires_retirement",
+        "CancellationProofs.h2_drain_before_deadline",
+        "CancellationProofs.h2_drain_preserves_work",
+        "CancellationProofs.h2_stuck_output_times_out"
       ]
     },
     {

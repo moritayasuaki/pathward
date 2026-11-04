@@ -22,9 +22,9 @@ use std::{
 };
 
 // A last admission before 120s may wait 5s, use a 120s response budget,
-// then carry a stream for at most 3600s. Five seconds remain for final flushing.
+// then carry a stream for at most 3600s. Thirty seconds remain for final flushing.
 // Per-request/stream deadlines still apply; this is only a connection backstop.
-pub(crate) const CONNECTION_CEILING: Duration = Duration::from_secs(3850);
+pub(crate) const CONNECTION_CEILING: Duration = Duration::from_secs(3875);
 #[derive(Default)]
 pub(crate) struct Retirement {
     began: Option<Instant>,
@@ -67,6 +67,7 @@ pub(crate) struct Io<T> {
     inner: T,
     wake: Option<async_io::Timer>,
     read_seen: Option<Arc<AtomicBool>>,
+    flushed: Option<Arc<AtomicBool>>,
     finish: Option<fn(&mut T) -> io::Result<()>>,
 }
 impl<T> Io<T> {
@@ -75,6 +76,7 @@ impl<T> Io<T> {
             inner,
             wake: None,
             read_seen: None,
+            flushed: None,
             finish: None,
         }
     }
@@ -84,6 +86,10 @@ impl<T> Io<T> {
     }
     fn with_read_observer(mut self, seen: Arc<AtomicBool>) -> Self {
         self.read_seen = Some(seen);
+        self
+    }
+    fn with_flush_observer(mut self, flushed: Arc<AtomicBool>) -> Self {
+        self.flushed = Some(flushed);
         self
     }
     fn wait(&mut self, cx: &mut Context<'_>) {
@@ -131,6 +137,11 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
         cx: &mut Context<'_>,
         b: &[u8],
     ) -> Poll<io::Result<usize>> {
+        if !b.is_empty()
+            && let Some(flushed) = &self.flushed
+        {
+            flushed.store(false, Ordering::Relaxed);
+        }
         match self.inner.write(b) {
             Err(e)
                 if matches!(
@@ -146,6 +157,12 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.inner.flush() {
+            Ok(()) => {
+                if let Some(flushed) = &self.flushed {
+                    flushed.store(true, Ordering::Relaxed);
+                }
+                Poll::Ready(Ok(()))
+            }
             Err(e)
                 if matches!(
                     e.kind(),
@@ -164,7 +181,16 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
         };
         // HTTP/2 shutdown must flush TLS close_notify, not only HTTP frames.
         // Retrying after WouldBlock retains the same bounded transport buffer.
+        if let Some(flushed) = &self.flushed {
+            flushed.store(false, Ordering::Relaxed);
+        }
         match finish(&mut self.inner) {
+            Ok(()) => {
+                if let Some(flushed) = &self.flushed {
+                    flushed.store(true, Ordering::Relaxed);
+                }
+                Poll::Ready(Ok(()))
+            }
             Err(e)
                 if matches!(
                     e.kind(),
@@ -794,9 +820,40 @@ pub async fn serve_h2(
 ) -> io::Result<()> {
     let sni = transport.sni.clone();
     let port = transport.local_port()?;
-    let peer = permit.peer();
     transport.deadline(accepted + CONNECTION_CEILING)?;
+    serve_h2_io(
+        server,
+        Io::new(transport).with_finish(TlsTransport::finish),
+        sni,
+        port,
+        accepted,
+        permit,
+        _active,
+        admission,
+        budget,
+        shutdown,
+    )
+    .await
+}
+
+// Keep the protocol loop transport-independent so backpressure can be tested
+// without relying on the operating system's socket-buffer size.
+#[allow(clippy::too_many_arguments)]
+async fn serve_h2_io<T: Read + Write + Unpin>(
+    server: &Server,
+    transport: Io<T>,
+    sni: String,
+    port: u16,
+    accepted: Instant,
+    permit: admission::Permit,
+    _active: observe::Active,
+    admission: &Arc<admission::Admission>,
+    budget: &delivery::Budget,
+    shutdown: &AtomicBool,
+) -> io::Result<()> {
+    let peer = permit.peer();
     let read_seen = Arc::new(AtomicBool::new(false));
+    let flushed = Arc::new(AtomicBool::new(true));
     let connection = bounded(
         Instant::now() + Duration::from_secs(5),
         h2::server::Builder::new()
@@ -814,9 +871,9 @@ pub async fn serve_h2(
             .max_pending_accept_reset_streams(100)
             .max_local_error_reset_streams(Some(8))
             .handshake::<_, Bytes>(
-                Io::new(transport)
-                    .with_finish(TlsTransport::finish)
-                    .with_read_observer(read_seen.clone()),
+                transport
+                    .with_read_observer(read_seen.clone())
+                    .with_flush_observer(flushed.clone()),
             ),
     )
     .await
@@ -863,7 +920,24 @@ pub async fn serve_h2(
             connection.graceful_shutdown();
             retirement.begin();
         }
-        if retirement.close(tasks.len(), held.is_some(), idle) {
+        let wire_pending = connection.has_streams() || !flushed.load(Ordering::Relaxed);
+        if pathward::delivery::h2_drain_expired(
+            wire_pending,
+            retirement.retiring(),
+            idle.elapsed().as_millis().min(u64::MAX as u128) as u64,
+            tasks.len() as u64,
+            held.is_some(),
+        ) {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "HTTP/2 final flush deadline",
+            ));
+        }
+        if pathward::delivery::h2_close_ready(
+            retirement.close(tasks.len(), held.is_some(), idle),
+            stopping,
+            wire_pending,
+        ) {
             return Ok(());
         }
         // One held head is part of the same 32-stream window, not an admitted
@@ -1005,6 +1079,141 @@ pub async fn serve_h2(
 mod tests {
     use super::*;
     use std::net::{TcpListener, TcpStream};
+    #[test]
+    fn h2_retirement_flushes_queued_response_under_backpressure() {
+        h2_retirement_with_backpressure(false, 8);
+    }
+    #[test]
+    fn h2_retirement_waits_for_transport_flush_after_codec_drains() {
+        h2_retirement_with_backpressure(true, 8);
+    }
+    #[test]
+    fn h2_retirement_bounds_stuck_final_output() {
+        h2_retirement_with_backpressure(false, 31);
+    }
+    fn h2_retirement_with_backpressure(flush_only: bool, stall_seconds: u64) {
+        let expires = stall_seconds > 30;
+        // Deterministic socket backpressure after the HTTP/2 handshake. A
+        // completed responder can still own unsent HEADERS/DATA in h2's codec.
+        struct Stalled {
+            socket: TcpStream,
+            began: Option<Instant>,
+            observed: Arc<AtomicBool>,
+            flush_only: bool,
+            delay: Duration,
+        }
+        impl Read for Stalled {
+            fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
+                self.socket.read(b)
+            }
+        }
+        impl Write for Stalled {
+            fn write(&mut self, b: &[u8]) -> io::Result<usize> {
+                if self.began.is_none() && b.len() >= 9 && b[3] == 1 {
+                    self.began = Some(Instant::now());
+                    self.observed.store(true, Ordering::Release);
+                }
+                if !self.flush_only && self.began.is_some_and(|t| t.elapsed() < self.delay) {
+                    return Err(io::ErrorKind::WouldBlock.into());
+                }
+                self.socket.write(b)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                if self.began.is_some_and(|t| t.elapsed() < self.delay) {
+                    return Err(io::ErrorKind::WouldBlock.into());
+                }
+                self.socket.flush()
+            }
+        }
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (socket, _) = listener.accept().unwrap();
+        socket.set_nonblocking(true).unwrap();
+        client.set_nonblocking(true).unwrap();
+        let observed = Arc::new(AtomicBool::new(false));
+        let admission = Arc::new(admission::Admission::new(false));
+        let permit = admission
+            .acquire("127.0.0.1".parse().unwrap(), false)
+            .unwrap();
+        let budget = delivery::Budget::default();
+        let stop = AtomicBool::new(false);
+        futures_lite::future::block_on(async {
+            bounded(Instant::now() + Duration::from_secs(40), async {
+                let (served, ()) = futures_lite::future::zip(
+                    serve_h2_io(
+                        &server,
+                        Io::new(Stalled {
+                            socket,
+                            began: None,
+                            observed: observed.clone(),
+                            flush_only,
+                            delay: Duration::from_secs(stall_seconds),
+                        }),
+                        "app.example".into(),
+                        443,
+                        Instant::now() - Duration::from_secs(114),
+                        permit,
+                        server.observe.connection(),
+                        &admission,
+                        &budget,
+                        &stop,
+                    ),
+                    async {
+                        let (mut sender, connection) =
+                            h2::client::handshake(Io::new(client)).await.unwrap();
+                        let (closed, ()) = futures_lite::future::zip(connection, async {
+                            let (response, _) = sender
+                                .send_request(
+                                    http_types::Request::builder()
+                                        .uri("https://other.example/")
+                                        .body(())
+                                        .unwrap(),
+                                    true,
+                                )
+                                .unwrap();
+                            let response = response.await;
+                            if expires {
+                                assert!(response.is_err(), "stuck output was not timed out");
+                                drop(sender);
+                                return;
+                            }
+                            let response =
+                                response.expect("queued response lost during retirement");
+                            assert_eq!(response.status(), 421);
+                            let mut body = response.into_body();
+                            while let Some(chunk) = body.data().await {
+                                let chunk =
+                                    chunk.expect("queued END_STREAM lost during retirement");
+                                body.flow_control().release_capacity(chunk.len()).unwrap();
+                            }
+                            drop(sender);
+                        })
+                        .await;
+                        if !expires {
+                            closed.unwrap();
+                        }
+                    },
+                )
+                .await;
+                if expires {
+                    assert!(matches!(served, Err(e) if e.kind() == io::ErrorKind::TimedOut));
+                } else {
+                    served.unwrap();
+                }
+            })
+            .await
+            .unwrap();
+        });
+        assert!(
+            observed.load(Ordering::Acquire),
+            "fixture never applied backpressure"
+        );
+    }
     fn identity() -> (Arc<crate::tls::Identity>, Arc<rustls::ClientConfig>) {
         let key = rcgen::KeyPair::generate().unwrap();
         let cert = rcgen::CertificateParams::new(vec!["app.example".into()])

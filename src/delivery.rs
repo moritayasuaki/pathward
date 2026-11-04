@@ -120,6 +120,24 @@ pub fn retirement_close(
         || (retiring && quiet_ms >= 5000 && retired_ms >= 5000 && active == 0 && !held)
 }
 
+/// Responder completion does not imply HTTP/2 codec/TLS output was flushed.
+/// Only an explicit server stop may discard that pending output at its deadline.
+pub fn h2_close_ready(close: bool, stopping: bool, wire_pending: bool) -> bool {
+    close && (stopping || !wire_pending)
+}
+
+/// A stuck peer cannot hold the final output forever after the last responder
+/// finishes. This is a reported transport timeout, never a successful close.
+pub fn h2_drain_expired(
+    wire_pending: bool,
+    retiring: bool,
+    quiet_ms: u64,
+    active: u64,
+    held: bool,
+) -> bool {
+    wire_pending && retiring && quiet_ms >= 30000 && active == 0 && !held
+}
+
 /// Before handshake confirmation, only anonymous, exact static grants are safe.
 pub fn early_allowed(
     confirmed: bool,

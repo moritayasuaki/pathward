@@ -326,8 +326,39 @@ def delivery.retirement_close
       else ok false
     else ok false
 
+/-- [pathward::delivery::h2_close_ready]:
+    Source: 'src/delivery.rs', lines 125:0-127:1
+    Visibility: public -/
+def delivery.h2_close_ready
+  (close : Bool) (stopping : Bool) (wire_pending : Bool) : RustM Bool := do
+  if close
+  then if stopping
+       then ok true
+       else ok (¬ wire_pending)
+  else ok false
+
+/-- [pathward::delivery::h2_drain_expired]:
+    Source: 'src/delivery.rs', lines 131:0-139:1
+    Visibility: public -/
+def delivery.h2_drain_expired
+  (wire_pending : Bool) (retiring : Bool) (quiet_ms : Std.U64)
+  (active : Std.U64) (held : Bool) :
+  RustM Bool
+  := do
+  if wire_pending
+  then
+    if retiring
+    then
+      if quiet_ms >= 30000#u64
+      then if active = 0#u64
+           then ok (¬ held)
+           else ok false
+      else ok false
+    else ok false
+  else ok false
+
 /-- [pathward::delivery::early_allowed]:
-    Source: 'src/delivery.rs', lines 124:0-132:1
+    Source: 'src/delivery.rs', lines 142:0-150:1
     Visibility: public -/
 def delivery.early_allowed
   (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
@@ -347,7 +378,7 @@ def delivery.early_allowed
     else ok false
 
 /-- [pathward::delivery::wire_fits]:
-    Source: 'src/delivery.rs', lines 135:0-137:1
+    Source: 'src/delivery.rs', lines 153:0-155:1
     Visibility: public -/
 def delivery.wire_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do

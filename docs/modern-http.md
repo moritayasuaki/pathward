@@ -31,11 +31,14 @@ seconds. GOAWAY starts after 68 requests or 115 seconds, leaving room for one
 32-stream window already in flight; the actual admission gate still enforces
 100 requests and a 120-second new-admission window, and shutdown never admits new requests.
 Normal retirement preserves accepted responses within their own deadlines.
-The five-second idle flush interval starts again after a task finishes, because
-queuing the final DATA frame is not the same as transmitting it. Explicit server
-shutdown retains a separate, non-renewable five-second drain limit. A 3,850-second
+The five-second idle interval starts again after a task finishes. HTTP/2 also
+checks the library's remaining streams and the transport's successful flush;
+queuing the final DATA frame is not the same as transmitting it. Pending final
+output has a separate 30-second timeout after the last task finishes, reported
+as a transport error. Explicit server shutdown retains a separate,
+non-renewable five-second drain limit. A 3,875-second
 connection backstop covers the last admission at 120s, 5s admission wait, 120s
-response preparation, 3,600s maximum stream duration and 5s final flushing.
+response preparation, 3,600s maximum stream duration and 30s final flushing.
 This does not extend any request or stream deadline.
 The pending remote-reset queue is distinct from the 32 live-stream window:
 reset streams release protocol concurrency before their queued heads are consumed.
@@ -163,7 +166,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **386 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **393 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -384,3 +387,22 @@ passes. Forced shutdown deadlines still apply. TLS correctness and the adapter
 remain trusted implementation boundaries; the Lean retirement gates do not
 prove cryptographic wire closure. Browser reconnect acceptance is checked
 separately, and this fix alone is not evidence that the browser failure is solved.
+
+## Pending HTTP/2 output at retirement (2026-11-04)
+
+A deterministic backpressure regression exposed a separate transport bug: the
+responder had completed, but h2 still held an unsent response. The old adapter
+returned success and dropped the connection after six seconds. The retirement
+gate now combines the library's `has_streams()` with a write/flush observer,
+including TLS shutdown, before treating an empty application queue as drained.
+Eight-second write and flush stalls are tested separately. A pending final
+output with no application work is limited to 30 seconds from the last task
+completion; expiry returns a transport error. Explicit shutdown still has its
+own five-second limit. The absolute connection backstop is now 3,875 seconds.
+
+Seven additional extracted-Rust contracts/helper lemmas verify pending-output
+protection, the explicit stop gate, and the bounded final-drain decision. The
+library queue accounting, correct polling, I/O observation and clocks remain
+trusted boundaries. This change adds no dependency. It addresses a reproduced
+transport defect; success of the full 24-browser migration gate is tracked
+separately and must not be inferred from this regression.

@@ -30,6 +30,13 @@ import UpstreamProofs
 #print axioms CancellationProofs.retirement_empty_closes
 #print axioms CancellationProofs.shutdown_deadline_closes
 #print axioms CancellationProofs.retirement_grace_starts_at_retirement
+#print axioms CancellationProofs.h2_pending_blocks_normal_close
+#print axioms CancellationProofs.h2_shutdown_preserves_deadline
+#print axioms CancellationProofs.h2_close_requires_retirement
+#print axioms CancellationProofs.h2_drain_expired_eq
+#print axioms CancellationProofs.h2_drain_before_deadline
+#print axioms CancellationProofs.h2_drain_preserves_work
+#print axioms CancellationProofs.h2_stuck_output_times_out
 #print axioms ContentProofs.span_eq
 #print axioms ContentProofs.span_bounded
 #print axioms ContentProofs.span_total

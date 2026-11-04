@@ -111,6 +111,8 @@ def main():
                         "--start-from", "pathward::delivery::head_slot",
                         "--start-from", "pathward::delivery::held_action",
                         "--start-from", "pathward::delivery::retirement_close",
+                        "--start-from", "pathward::delivery::h2_close_ready",
+                        "--start-from", "pathward::delivery::h2_drain_expired",
                         "--start-from", "pathward::delivery::cancel_slot",
                         "--start-from", "pathward::delivery::early_allowed",
                         "--start-from", "pathward::delivery::wire_fits",

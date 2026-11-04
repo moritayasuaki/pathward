@@ -109,4 +109,40 @@ theorem retirement_grace_starts_at_retirement (retiring held : Bool)
   simp [retirement_close_eq]
   omega
 
+theorem h2_pending_blocks_normal_close (close : Bool) :
+    delivery.h2_close_ready close false true = ok false := by
+  cases close <;> rfl
+
+theorem h2_shutdown_preserves_deadline (pending : Bool) :
+    delivery.h2_close_ready true true pending = ok true := rfl
+
+theorem h2_close_requires_retirement (close stopping pending : Bool)
+    (h : delivery.h2_close_ready close stopping pending = ok true) : close = true := by
+  cases close <;> simp_all [delivery.h2_close_ready]
+
+theorem h2_drain_expired_eq (pending retiring held : Bool) (quiet active : U64) :
+    delivery.h2_drain_expired pending retiring quiet active held = ok (decide
+      (pending = true ∧ retiring = true ∧ 30000 ≤ quiet.val ∧ active.val = 0 ∧ held = false)) := by
+  cases pending <;> cases retiring <;> cases held <;>
+    simp [delivery.h2_drain_expired, UScalar.eq_equiv]
+  all_goals split_ifs <;> simp_all
+
+theorem h2_drain_before_deadline (pending retiring held : Bool) (quiet active : U64)
+    (h : quiet.val < 30000) :
+    delivery.h2_drain_expired pending retiring quiet active held = ok false := by
+  simp [h2_drain_expired_eq]
+  omega
+
+theorem h2_drain_preserves_work (pending retiring held : Bool) (quiet active : U64)
+    (h : 0 < active.val ∨ held = true) :
+    delivery.h2_drain_expired pending retiring quiet active held = ok false := by
+  simp [h2_drain_expired_eq]
+  rcases h with h | h
+  · omega
+  · simp [h]
+
+theorem h2_stuck_output_times_out (quiet : U64) (h : 30000 ≤ quiet.val) :
+    delivery.h2_drain_expired true true quiet 0#u64 false = ok true := by
+  simp [h2_drain_expired_eq, h]
+
 end CancellationProofs
