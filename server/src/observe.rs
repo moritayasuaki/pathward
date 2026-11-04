@@ -73,6 +73,7 @@ pub(crate) enum TransportStage {
 struct StageError {
     stage: TransportStage,
     error: io::Error,
+    connection: Option<(u64, u64)>,
 }
 impl std::fmt::Display for StageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -81,7 +82,27 @@ impl std::fmt::Display for StageError {
 }
 impl std::error::Error for StageError {}
 pub(crate) fn stage_error(error: io::Error, stage: TransportStage) -> io::Error {
-    io::Error::new(error.kind(), StageError { stage, error })
+    if error.get_ref().is_some_and(|e| e.is::<StageError>()) {
+        return error;
+    }
+    io::Error::new(
+        error.kind(),
+        StageError {
+            stage,
+            error,
+            connection: None,
+        },
+    )
+}
+pub(crate) fn connection_error(error: io::Error, active: u64, seen: u64) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        StageError {
+            stage: TransportStage::Connection,
+            error,
+            connection: Some((active, seen)),
+        },
+    )
 }
 pub(crate) struct DeliveryProgress {
     pub phase: DeliveryPhase,
@@ -192,6 +213,11 @@ impl Observability {
                         TransportStage::Connection => "connection",
                     };
                     detail.push_str(&format!(",\"transport_phase\":\"{label}\""));
+                    if let Some((active, seen)) = stage.connection {
+                        detail.push_str(&format!(
+                            ",\"active_streams\":{active},\"seen_streams\":{seen}"
+                        ));
+                    }
                     &stage.error
                 } else {
                     error
@@ -204,6 +230,9 @@ impl Observability {
                     // credentials or remote GOAWAY debug text are formatted.
                     let reason = h2.reason.map_or_else(|| "null".into(), |n| n.to_string());
                     detail.push_str(&format!(",\"h2_reason\":{reason},\"h2_remote\":{},\"h2_reset\":{},\"h2_goaway\":{},\"h2_library\":{}", h2.remote, h2.reset, h2.goaway, h2.library));
+                    if let Some(limit) = h2.limit {
+                        detail.push_str(&format!(",\"h2_limit\":\"{limit}\""));
+                    }
                 }
                 if let Some(p) = progress {
                     let phase = match p.phase {
@@ -513,6 +542,7 @@ mod tests {
                 reset: false,
                 goaway: true,
                 library: true,
+                limit: Some("pending_resets"),
             },
         );
         obs.request(

@@ -112,6 +112,7 @@ pub(crate) struct H2Failure {
     pub reset: bool,
     pub goaway: bool,
     pub library: bool,
+    pub limit: Option<&'static str>,
 }
 impl std::fmt::Display for H2Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -139,6 +140,23 @@ fn h2_error(e: h2::Error) -> io::Error {
     {
         return io::ErrorKind::ConnectionAborted.into();
     }
+    // Only classify the three fixed upstream library limit identifiers. Never
+    // retain or log the formatted error or any remote GOAWAY debug data.
+    let limit =
+        if e.is_library() && e.is_go_away() && e.reason() == Some(h2::Reason::ENHANCE_YOUR_CALM) {
+            let diagnostic = e.to_string();
+            if diagnostic.contains("too_many_internal_resets") {
+                Some("internal_resets")
+            } else if diagnostic.contains("too_many_resets") {
+                Some("pending_resets")
+            } else if diagnostic.contains("too_many_data_frames") {
+                Some("data_frames")
+            } else {
+                Some("other")
+            }
+        } else {
+            None
+        };
     io::Error::new(
         io::ErrorKind::InvalidData,
         H2Failure {
@@ -147,6 +165,7 @@ fn h2_error(e: h2::Error) -> io::Error {
             reset: e.is_reset(),
             goaway: e.is_go_away(),
             library: e.is_library(),
+            limit,
         },
     )
 }
@@ -728,7 +747,13 @@ pub async fn serve_h2(
             .await
             {
                 Some(Ok(())) => return Ok(()),
-                Some(Err(e)) => return Err(h2_error(e)),
+                Some(Err(e)) => {
+                    return Err(observe::connection_error(
+                        h2_error(e),
+                        tasks.len() as u64,
+                        count,
+                    ));
+                }
                 None => None,
             }
         };
@@ -761,7 +786,13 @@ pub async fn serve_h2(
                     }
                 }
             }
-            Some(Some(Err(e))) => return Err(h2_error(e)),
+            Some(Some(Err(e))) => {
+                return Err(observe::connection_error(
+                    h2_error(e),
+                    tasks.len() as u64,
+                    count,
+                ));
+            }
             Some(None) => return Ok(()),
             None => {}
         }
