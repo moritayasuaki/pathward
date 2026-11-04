@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 381,
+  "theorem_count": 382,
   "axiom_free_count": 15,
   "axiom_counts": {
-    "Classical.choice": 344,
-    "Quot.sound": 344,
-    "propext": 366
+    "Classical.choice": 345,
+    "Quot.sound": 345,
+    "propext": 367
   },
   "source_sha256": {
-    "proofs/CancellationProofs.lean": "b4a87ba5f18e35fd615f0f88c7ad10fad9ec3c69df3a8200e9c160dc1882020b",
+    "proofs/CancellationProofs.lean": "4d971ac1a8a004092dfa6629ce3650185cb500e3c6855c7676e11c91cc884127",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "2d4ec485ba0c0d6c7aee4cfee4ab6677b3e629e1ad8cc1cfeb9448afbbf4a24a",
+    "proofs/Generated/Pathward.lean": "d77b2e1dfb1ca7eabbe44d8393723fd67dfca855be05d5c0f84c7eb18c265fb6",
     "proofs/PathwardProofs.lean": "5d9d9bcf81471e51c943900d046ae5ac0506c3328df218e3f5155962473a4c57",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -27,7 +27,7 @@
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
     "scripts/extract.py": "2fff5da657c9434b8a2fb1863657e87bef59eed399ba92eac7c59307d123bdf3",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
-    "src/delivery.rs": "d880cbac821781183a29987505a9c09d2f3e575b5e1a1a127ad2aef7fe98448c",
+    "src/delivery.rs": "74d8bb723d627a2a291cbc7962e7e11189eb39d708bf8fc3eea53c7dcc1f94c7",
     "src/lib.rs": "3f2e9632bfaa960c0ed7cdc723f2011455833d77fb1219f63f7367090d4a2d6c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
@@ -149,7 +149,7 @@
       "name": "CancellationProofs.retirement_close_eq",
       "source": "proofs/CancellationProofs.lean",
       "line": 78,
-      "statement": "theorem retirement_close_eq (retiring held stopping : Bool) (retired active stopped : U64) :\n    delivery.retirement_close retiring retired active held stopping stopped = ok (decide\n      ((stopping = true ∧ 5000 ≤ stopped.val) ∨\n       (retiring = true ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false)))",
+      "statement": "theorem retirement_close_eq (retiring held stopping : Bool) (quiet retired active stopped : U64) :\n    delivery.retirement_close retiring quiet retired active held stopping stopped = ok (decide\n      ((stopping = true ∧ 5000 ≤ stopped.val) ∨\n       (retiring = true ∧ 5000 ≤ quiet.val ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false)))",
       "axioms": [
         "Classical.choice",
         "Quot.sound",
@@ -161,7 +161,7 @@
       "name": "CancellationProofs.retirement_preserves_active",
       "source": "proofs/CancellationProofs.lean",
       "line": 86,
-      "statement": "theorem retirement_preserves_active (retiring held : Bool) (retired active stopped : U64)\n    (h : 0 < active.val) :\n    delivery.retirement_close retiring retired active held false stopped = ok false",
+      "statement": "theorem retirement_preserves_active (retiring held : Bool) (quiet retired active stopped : U64)\n    (h : 0 < active.val) :\n    delivery.retirement_close retiring quiet retired active held false stopped = ok false",
       "axioms": [
         "Classical.choice",
         "Quot.sound",
@@ -173,7 +173,7 @@
       "name": "CancellationProofs.retirement_preserves_held",
       "source": "proofs/CancellationProofs.lean",
       "line": 92,
-      "statement": "theorem retirement_preserves_held (retiring : Bool) (retired active stopped : U64) :\n    delivery.retirement_close retiring retired active true false stopped = ok false",
+      "statement": "theorem retirement_preserves_held (retiring : Bool) (quiet retired active stopped : U64) :\n    delivery.retirement_close retiring quiet retired active true false stopped = ok false",
       "axioms": [
         "Classical.choice",
         "Quot.sound",
@@ -185,7 +185,7 @@
       "name": "CancellationProofs.retirement_empty_closes",
       "source": "proofs/CancellationProofs.lean",
       "line": 96,
-      "statement": "theorem retirement_empty_closes (retired stopped : U64) (h : 5000 ≤ retired.val) :\n    delivery.retirement_close true retired 0#u64 false false stopped = ok true",
+      "statement": "theorem retirement_empty_closes (quiet retired stopped : U64)\n    (hq : 5000 ≤ quiet.val) (hr : 5000 ≤ retired.val) :\n    delivery.retirement_close true quiet retired 0#u64 false false stopped = ok true",
       "axioms": [
         "Classical.choice",
         "Quot.sound",
@@ -196,8 +196,20 @@
     {
       "name": "CancellationProofs.shutdown_deadline_closes",
       "source": "proofs/CancellationProofs.lean",
-      "line": 100,
-      "statement": "theorem shutdown_deadline_closes (retiring held : Bool) (retired active stopped : U64)\n    (h : 5000 ≤ stopped.val) :\n    delivery.retirement_close retiring retired active held true stopped = ok true",
+      "line": 101,
+      "statement": "theorem shutdown_deadline_closes (retiring held : Bool) (quiet retired active stopped : U64)\n    (h : 5000 ≤ stopped.val) :\n    delivery.retirement_close retiring quiet retired active held true stopped = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_grace_starts_at_retirement",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 106,
+      "statement": "theorem retirement_grace_starts_at_retirement (retiring held : Bool)\n    (quiet retired active stopped : U64) (h : retired.val < 5000) :\n    delivery.retirement_close retiring quiet retired active held false stopped = ok false",
       "axioms": [
         "Classical.choice",
         "Quot.sound",

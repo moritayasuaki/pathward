@@ -163,7 +163,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **381 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **382 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -340,3 +340,23 @@ REFUSED_STREAM without a side effect. Browser acceptance requires no failed
 mutation/transport or inconsistent state, no real capacity refusal/5xx/log loss,
 and separately reports these protocol retirements and peer cancellations. A
 zero-retirement-refusal result is not required; no harness mutation is retried.
+
+## Idle retirement grace (2026-11-04)
+
+A real TLS regression exposed an idle-close ordering error: after five quiet
+seconds the adapter began graceful retirement and immediately applied those
+same five seconds to the close gate. It could drop the socket before polling h2
+to transmit GOAWAY. The regression fails on the prior implementation with EOF
+before any GOAWAY, and passes after the correction.
+
+The extracted close gate now takes both quiet time and time since retirement
+began. Normal forced closure requires both to be at least five seconds and no
+active task or held head. Explicit server shutdown keeps its independent five
+second deadline; per-request budgets and the connection backstop are unchanged.
+`CancellationProofs.retirement_grace_starts_at_retirement` proves that earlier
+idle time cannot satisfy that grace period. This predicate proof does not prove
+socket scheduling, delivery of GOAWAY, or arbitrary client retry behavior.
+
+TLS failure diagnostics now retain only fixed phase/reason labels, received-byte
+counts and elapsed time. Peer-supplied errors, URLs, SNI, headers and keys are
+never formatted. The browser acceptance trial is still required after this fix.

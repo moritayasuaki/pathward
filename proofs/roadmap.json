@@ -130,12 +130,13 @@
       "priority": "P0",
       "status": "proved",
       "title": "通常の接続入れ替えは受付済みの処理を打ち切らない",
-      "acceptance": "実際のRust終了ゲートで、通常の入れ替え中は実行中・保留中の要求があれば強制終了しない。サーバー停止は別の5秒上限で終了する。HTTP2回帰試験でGOAWAY後6.5秒かかる応答と送信完了を確認する。時計・非同期実装全体の対応は前提。",
+      "acceptance": "実際のRust終了ゲートで、通常の入れ替え中は実行中・保留中の要求があれば強制終了しない。サーバー停止は別の5秒上限で終了する。HTTP2回帰試験でGOAWAY後6.5秒かかる応答と送信完了を確認する。時計・非同期実装全体の対応は前提。 アイドル待ちを終了猶予に算入せず、終了開始から5秒未満で通常の強制終了を許可しないこともRust抽出関数で証明。実TLS回帰試験は旧実装の予告前EOFを再現し、修正後のGOAWAY受信を確認。",
       "theorems": [
         "CancellationProofs.retirement_preserves_active",
         "CancellationProofs.retirement_preserves_held",
         "CancellationProofs.retirement_empty_closes",
-        "CancellationProofs.shutdown_deadline_closes"
+        "CancellationProofs.shutdown_deadline_closes",
+        "CancellationProofs.retirement_grace_starts_at_retirement"
       ]
     },
     {

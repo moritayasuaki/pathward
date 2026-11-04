@@ -29,6 +29,7 @@ import UpstreamProofs
 #print axioms CancellationProofs.retirement_preserves_held
 #print axioms CancellationProofs.retirement_empty_closes
 #print axioms CancellationProofs.shutdown_deadline_closes
+#print axioms CancellationProofs.retirement_grace_starts_at_retirement
 #print axioms ContentProofs.span_eq
 #print axioms ContentProofs.span_bounded
 #print axioms ContentProofs.span_total

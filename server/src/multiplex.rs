@@ -52,6 +52,7 @@ impl Retirement {
         pathward::delivery::retirement_close(
             self.retiring(),
             elapsed(Some(idle_since)),
+            elapsed(self.began),
             active as u64,
             held,
             self.stopped.is_some(),
@@ -1389,6 +1390,66 @@ mod tests {
     fn h2_unconsumed_reset_abuse_is_still_bounded() {
         h2_cancel_window(101);
     }
+    #[test]
+    fn h2_idle_retirement_announces_goaway_before_close() {
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\n tls \"auto\"\n reverse-proxy \"127.0.0.1:1\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let socket = TcpStream::connect(address).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(8)))
+                    .unwrap();
+                let connection = rustls::ClientConnection::new(
+                    client,
+                    rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                )
+                .unwrap();
+                let mut socket = rustls::StreamOwned::new(connection, socket);
+                socket
+                    .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+                    .unwrap();
+                socket.write_all(&[0, 0, 0, 4, 0, 0, 0, 0, 0]).unwrap();
+                socket.flush().unwrap();
+                let began = Instant::now();
+                loop {
+                    let mut head = [0; 9];
+                    socket
+                        .read_exact(&mut head)
+                        .expect("idle connection closed before GOAWAY was sent");
+                    let size = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
+                    assert!(size <= 16384);
+                    let mut body = vec![0; size];
+                    socket.read_exact(&mut body).unwrap();
+                    if head[3] == 7 {
+                        assert!(body.len() >= 8);
+                        assert_eq!(&body[4..8], &0u32.to_be_bytes());
+                        assert!(began.elapsed() >= Duration::from_secs(4));
+                        break;
+                    }
+                    if head[3] == 4 && head[4] & 1 == 0 {
+                        socket.write_all(&[0, 0, 0, 4, 1, 0, 0, 0, 0]).unwrap();
+                        socket.flush().unwrap();
+                    }
+                }
+            }));
+            stop.store(true, Ordering::Release);
+            serving.join().unwrap().unwrap();
+            if let Err(error) = result {
+                std::panic::resume_unwind(error);
+            }
+        });
+    }
+
     #[test]
     fn h2_retirement_refusal_never_dispatches_a_mutation() {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();

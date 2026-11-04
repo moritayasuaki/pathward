@@ -75,31 +75,38 @@ theorem every_interleaving_bounded (first last : Window) (run : Run first last)
 theorem cancellation_releases_held_slot (active : Nat) :
     occupied ⟨active, false⟩ + 1 = occupied ⟨active, true⟩ := rfl
 
-theorem retirement_close_eq (retiring held stopping : Bool) (retired active stopped : U64) :
-    delivery.retirement_close retiring retired active held stopping stopped = ok (decide
+theorem retirement_close_eq (retiring held stopping : Bool) (quiet retired active stopped : U64) :
+    delivery.retirement_close retiring quiet retired active held stopping stopped = ok (decide
       ((stopping = true ∧ 5000 ≤ stopped.val) ∨
-       (retiring = true ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false))) := by
+       (retiring = true ∧ 5000 ≤ quiet.val ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false))) := by
   cases retiring <;> cases held <;> cases stopping <;>
     simp [delivery.retirement_close, UScalar.eq_equiv]
   all_goals split_ifs <;> simp_all
 
-theorem retirement_preserves_active (retiring held : Bool) (retired active stopped : U64)
+theorem retirement_preserves_active (retiring held : Bool) (quiet retired active stopped : U64)
     (h : 0 < active.val) :
-    delivery.retirement_close retiring retired active held false stopped = ok false := by
+    delivery.retirement_close retiring quiet retired active held false stopped = ok false := by
   simp [retirement_close_eq]
   omega
 
-theorem retirement_preserves_held (retiring : Bool) (retired active stopped : U64) :
-    delivery.retirement_close retiring retired active true false stopped = ok false := by
+theorem retirement_preserves_held (retiring : Bool) (quiet retired active stopped : U64) :
+    delivery.retirement_close retiring quiet retired active true false stopped = ok false := by
   simp [retirement_close_eq]
 
-theorem retirement_empty_closes (retired stopped : U64) (h : 5000 ≤ retired.val) :
-    delivery.retirement_close true retired 0#u64 false false stopped = ok true := by
+theorem retirement_empty_closes (quiet retired stopped : U64)
+    (hq : 5000 ≤ quiet.val) (hr : 5000 ≤ retired.val) :
+    delivery.retirement_close true quiet retired 0#u64 false false stopped = ok true := by
+  simp [retirement_close_eq, hq, hr]
+
+theorem shutdown_deadline_closes (retiring held : Bool) (quiet retired active stopped : U64)
+    (h : 5000 ≤ stopped.val) :
+    delivery.retirement_close retiring quiet retired active held true stopped = ok true := by
   simp [retirement_close_eq, h]
 
-theorem shutdown_deadline_closes (retiring held : Bool) (retired active stopped : U64)
-    (h : 5000 ≤ stopped.val) :
-    delivery.retirement_close retiring retired active held true stopped = ok true := by
-  simp [retirement_close_eq, h]
+theorem retirement_grace_starts_at_retirement (retiring held : Bool)
+    (quiet retired active stopped : U64) (h : retired.val < 5000) :
+    delivery.retirement_close retiring quiet retired active held false stopped = ok false := by
+  simp [retirement_close_eq]
+  omega
 
 end CancellationProofs
