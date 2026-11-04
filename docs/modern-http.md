@@ -23,6 +23,12 @@ no active permit. Input credit is acquired before allocating a body. Shutdown
 and the existing request deadlines still terminate waits; no upstream replay
 occurs. Remote HTTP/2 CANCEL/NO_ERROR resets are recorded as peer cancellation,
 while unexplained closure and other protocol errors remain failures.
+When this queue is full, HTTP/2 keeps further streams within its existing
+advertised 32-stream/window bounds and drives existing I/O instead of producing
+an immediate REFUSED_STREAM retry storm. This wait is also capped at five
+seconds. GOAWAY starts after 68 requests or 115 seconds, leaving room for one
+32-stream window already in flight; the actual admission gate still enforces
+100 requests and 120 seconds, and shutdown never admits new requests.
 
 Example additions to an existing, explicitly scoped site:
 

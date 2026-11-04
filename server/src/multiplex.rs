@@ -631,16 +631,16 @@ pub async fn serve_h2(
     let mut count = 0;
     let mut idle = Instant::now();
     let mut drain = None;
+    let mut queue_wait = None;
     loop {
         if drain.is_none()
             && (shutdown.load(Ordering::Acquire)
                 || server.is_draining()
-                || !pathward::delivery::reuse_allowed(
-                    count.max(1),
-                    accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                    true,
-                    false,
-                )
+                // Leave one advertised window for requests already in flight
+                // while the two-stage HTTP/2 GOAWAY completes. The actual
+                // admission gate below still enforces 100 / 120 seconds.
+                || count >= 68
+                || accepted.elapsed() >= Duration::from_secs(115)
                 || (tasks.is_empty() && idle.elapsed() >= Duration::from_secs(5)))
         {
             connection.graceful_shutdown();
@@ -649,7 +649,33 @@ pub async fn serve_h2(
         if drain.is_some_and(|d| Instant::now() >= d) {
             return Ok(());
         }
-        match futures_lite::future::poll_once(connection.accept()).await {
+        // Leave excess streams in h2's advertised, bounded stream window.
+        // Continue driving I/O so existing responses can release admission and
+        // byte credit. Pulling another stream and immediately resetting it
+        // turns a bounded browser reload burst into a retry/reset storm.
+        let waiting = pending(server);
+        let incoming = if waiting.is_some() {
+            queue_wait = None;
+            futures_lite::future::poll_once(connection.accept()).await
+        } else {
+            let since = queue_wait.get_or_insert_with(Instant::now);
+            if since.elapsed() >= delivery::QUEUE_BUDGET {
+                server
+                    .observe
+                    .admission_rejected(admission::Rejection::GlobalActive);
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            match futures_lite::future::poll_once(futures_lite::future::poll_fn(|cx| {
+                connection.poll_closed(cx)
+            }))
+            .await
+            {
+                Some(Ok(())) => return Ok(()),
+                Some(Err(e)) => return Err(h2_error(e)),
+                None => None,
+            }
+        };
+        match incoming {
             Some(Some(Ok((req, mut response)))) => {
                 count += 1;
                 idle = Instant::now();
@@ -657,9 +683,9 @@ pub async fn serve_h2(
                     tasks.len() as u64,
                     count - 1,
                     accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                    drain.is_some(),
+                    shutdown.load(Ordering::Acquire) || server.is_draining(),
                 ) {
-                    pending(server)
+                    waiting
                 } else {
                     None
                 };
@@ -794,6 +820,147 @@ mod tests {
                 .is_err()
             );
             assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
+        });
+    }
+    #[test]
+    fn h2_retirement_finishes_in_flight_window_without_refusal_storm() {
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9\"\n} ",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let socket = TcpStream::connect(address).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let connection = rustls::ClientConnection::new(
+                    client,
+                    rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                )
+                .unwrap();
+                let mut socket = rustls::StreamOwned::new(connection, socket);
+                while socket.conn.is_handshaking() {
+                    socket.conn.complete_io(&mut socket.sock).unwrap();
+                }
+                socket.sock.set_nonblocking(true).unwrap();
+                futures_lite::future::block_on(async {
+                    bounded(Instant::now() + Duration::from_secs(15), async {
+                        let (client, connection) =
+                            h2::client::handshake(Io::new(socket)).await.unwrap();
+                        let (_, completed) = futures_lite::future::zip(
+                            async {
+                                connection.await.unwrap();
+                            },
+                            async {
+                                let mut held = Vec::new();
+                                while held.len() < 64 {
+                                    if let Some(slot) = pending(&server) {
+                                        held.push(slot);
+                                    } else {
+                                        async_http::pause().await;
+                                    }
+                                }
+                                let mut client = client.ready().await.unwrap();
+                                let (request, _) = client
+                                    .send_request(
+                                        http_types::Request::builder()
+                                            .uri("https://other.example/")
+                                            .body(())
+                                            .unwrap(),
+                                        true,
+                                    )
+                                    .unwrap();
+                                let began = Instant::now();
+                                let ((), response) = futures_lite::future::zip(
+                                    async {
+                                        async_io::Timer::after(Duration::from_millis(150)).await;
+                                        drop(held);
+                                    },
+                                    request,
+                                )
+                                .await;
+                                let response = response.expect("bounded queue burst was reset");
+                                assert!(began.elapsed() >= Duration::from_millis(150));
+                                assert_eq!(response.status(), 421);
+                                let mut body = response.into_body();
+                                while let Some(data) = body.data().await {
+                                    let data = data.unwrap();
+                                    body.flow_control().release_capacity(data.len()).unwrap();
+                                }
+                                let mut client = Some(client);
+                                let mut completed = 1;
+                                for _ in 0..8 {
+                                    let mut requests = Vec::new();
+                                    for _ in 0..24 {
+                                        let Some(c) = client.take() else {
+                                            break;
+                                        };
+                                        let Ok(mut c) = c.ready().await else {
+                                            break;
+                                        };
+                                        match c.send_request(
+                                            http_types::Request::builder()
+                                                .uri("https://other.example/")
+                                                .body(())
+                                                .unwrap(),
+                                            true,
+                                        ) {
+                                            Ok((response, _)) => requests.push(response),
+                                            Err(_) => break,
+                                        }
+                                        client = Some(c);
+                                    }
+                                    for request in requests {
+                                        let response = request
+                                            .await
+                                            .expect("accepted in-flight response was reset");
+                                        assert_eq!(response.status(), 421);
+                                        let mut body = response.into_body();
+                                        while let Some(data) = body.data().await {
+                                            let data = data.unwrap();
+                                            body.flow_control()
+                                                .release_capacity(data.len())
+                                                .unwrap();
+                                        }
+                                        completed += 1;
+                                    }
+                                    if client.is_none() {
+                                        break;
+                                    }
+                                }
+                                drop(client);
+                                completed
+                            },
+                        )
+                        .await;
+                        assert!((68..=100).contains(&completed), "{completed}");
+                    })
+                    .await
+                    .unwrap();
+                });
+                let metrics = server.observe.metrics(1, true, false, true, None);
+                assert!(
+                    metrics.contains("pathward_admission_rejected_total 0\n"),
+                    "{metrics}"
+                );
+                assert!(
+                    metrics.contains("pathward_request_io_errors_total 0\n"),
+                    "{metrics}"
+                );
+            }));
+            stop.store(true, Ordering::Release);
+            serving.join().unwrap().unwrap();
+            if let Err(p) = result {
+                std::panic::resume_unwind(p);
+            }
         });
     }
     #[test]
