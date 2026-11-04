@@ -67,6 +67,7 @@ pub(crate) struct Io<T> {
     inner: T,
     wake: Option<async_io::Timer>,
     read_seen: Option<Arc<AtomicBool>>,
+    finish: Option<fn(&mut T) -> io::Result<()>>,
 }
 impl<T> Io<T> {
     pub fn new(inner: T) -> Self {
@@ -74,7 +75,12 @@ impl<T> Io<T> {
             inner,
             wake: None,
             read_seen: None,
+            finish: None,
         }
+    }
+    fn with_finish(mut self, finish: fn(&mut T) -> io::Result<()>) -> Self {
+        self.finish = Some(finish);
+        self
     }
     fn with_read_observer(mut self, seen: Arc<AtomicBool>) -> Self {
         self.read_seen = Some(seen);
@@ -152,8 +158,24 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
             r => Poll::Ready(r),
         }
     }
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.poll_flush(cx)
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let Some(finish) = self.finish else {
+            return self.poll_flush(cx);
+        };
+        // HTTP/2 shutdown must flush TLS close_notify, not only HTTP frames.
+        // Retrying after WouldBlock retains the same bounded transport buffer.
+        match finish(&mut self.inner) {
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) =>
+            {
+                self.wait(cx);
+                Poll::Pending
+            }
+            result => Poll::Ready(result),
+        }
     }
 }
 fn failure() -> io::Error {
@@ -791,7 +813,11 @@ pub async fn serve_h2(
             // Bound this distinct queue by the 100-request admission ceiling.
             .max_pending_accept_reset_streams(100)
             .max_local_error_reset_streams(Some(8))
-            .handshake::<_, Bytes>(Io::new(transport).with_read_observer(read_seen.clone())),
+            .handshake::<_, Bytes>(
+                Io::new(transport)
+                    .with_finish(TlsTransport::finish)
+                    .with_read_observer(read_seen.clone()),
+            ),
     )
     .await
     .and_then(|result| result.map_err(h2_error));
@@ -1421,11 +1447,22 @@ mod tests {
                 socket.write_all(&[0, 0, 0, 4, 0, 0, 0, 0, 0]).unwrap();
                 socket.flush().unwrap();
                 let began = Instant::now();
+                let mut announced = false;
                 loop {
+                    // A clean rustls EOF requires TLS close_notify. Raw TCP EOF
+                    // before it is UnexpectedEof, even if HTTP/2 GOAWAY arrived.
+                    let mut first = [0; 1];
+                    match socket.read(&mut first) {
+                        Ok(0) => {
+                            assert!(announced);
+                            break;
+                        }
+                        Ok(1) => {}
+                        other => panic!("unclean TLS close after idle retirement: {other:?}"),
+                    }
                     let mut head = [0; 9];
-                    socket
-                        .read_exact(&mut head)
-                        .expect("idle connection closed before GOAWAY was sent");
+                    head[0] = first[0];
+                    socket.read_exact(&mut head[1..]).unwrap();
                     let size = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
                     assert!(size <= 16384);
                     let mut body = vec![0; size];
@@ -1434,10 +1471,17 @@ mod tests {
                         assert!(body.len() >= 8);
                         assert_eq!(&body[4..8], &0u32.to_be_bytes());
                         assert!(began.elapsed() >= Duration::from_secs(4));
-                        break;
+                        announced = true;
                     }
                     if head[3] == 4 && head[4] & 1 == 0 {
                         socket.write_all(&[0, 0, 0, 4, 1, 0, 0, 0, 0]).unwrap();
+                        socket.flush().unwrap();
+                    }
+                    if head[3] == 6 && head[4] & 1 == 0 {
+                        assert_eq!(body.len(), 8);
+                        head[4] |= 1;
+                        socket.write_all(&head).unwrap();
+                        socket.write_all(&body).unwrap();
                         socket.flush().unwrap();
                     }
                 }

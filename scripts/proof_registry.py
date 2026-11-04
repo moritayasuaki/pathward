@@ -16,7 +16,7 @@ def declarations():
         namespaces = set(re.findall(r"^namespace (\w+)$", source, re.M))
         if namespaces != {path.stem}:
             raise SystemExit(f"Review namespace discovery for {path.name}")
-        for match in re.finditer(r"^(?:theorem|lemma) (\w+)\b", source, re.M):
+        for match in re.finditer(r"^(?:@\[[^\]]*\]\s*)*(?:theorem|lemma) (\w+)\b", source, re.M):
             end = source.find(":=", match.end())
             if end < 0:
                 raise SystemExit(f"Missing theorem body in {path.name}")

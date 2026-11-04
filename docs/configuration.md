@@ -71,10 +71,11 @@ default host, wildcard, lowercasing, or port stripping in this API. The HTTP ada
 adapter also requires SNI consistency.
 
 Static publication/redirect paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
-starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
+starting with `/`; components start/end with alphanumeric, `_`, `-`, or `+`, with
 interior dots allowed. Relative file paths use the same component grammar and
 are 1–4095 bytes. Absolute targets, `.`/`..`, hidden components, empty components,
 percent escapes, backslashes, trailing dots, and controls are rejected. URL paths may have one terminal slash; filesystem targets may not.
+A literal `+` remains a plus byte; it is never decoded as a space, and `%2B` remains rejected.
 Roots use the absolute URL grammar as a conservative Unix lexical grammar.
 The Linux opener uses descriptor-relative lookup and handles filesystem-specific
 component/permission errors by denying the request. The separate server `check`

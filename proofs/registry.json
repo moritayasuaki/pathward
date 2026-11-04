@@ -1,23 +1,23 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 382,
+  "theorem_count": 386,
   "axiom_free_count": 15,
   "axiom_counts": {
-    "Classical.choice": 345,
-    "Quot.sound": 345,
-    "propext": 367
+    "Classical.choice": 349,
+    "Quot.sound": 349,
+    "propext": 371
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "4d971ac1a8a004092dfa6629ce3650185cb500e3c6855c7676e11c91cc884127",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "d77b2e1dfb1ca7eabbe44d8393723fd67dfca855be05d5c0f84c7eb18c265fb6",
-    "proofs/PathwardProofs.lean": "5d9d9bcf81471e51c943900d046ae5ac0506c3328df218e3f5155962473a4c57",
+    "proofs/Generated/Pathward.lean": "67aa96b4cc0719fce5dda432f9fc9e37687ff6496c9e4095bc2c87cea3e63fbd",
+    "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
     "proofs/ResponseProofs.lean": "061343c2b849bea0fd68ed6b5992de66cd3c23b7ee1368693db5197c28b1dc53",
-    "proofs/RoutingProofs.lean": "38a145b5d31bba021e58340204a3ff434d304af382fd58336d69f54637b84cd6",
+    "proofs/RoutingProofs.lean": "72240b68db96e7840996eac9f3fb2c20e68b91a6e13bef7a87ca16df2fc3e7b7",
     "proofs/RulesProofs.lean": "7d1cf96a83901846448a8dc4a271fb8509a6fb09d41c5ccf3431cab02ff99611",
     "proofs/RuntimeProofs.lean": "59c26e771cd0c24d173ed60c8b355284c81e36f19a5d65e5a1bbc5271e2630cb",
     "proofs/SafetyProofs.lean": "e9d16ab6900e76f64b3e52040a37e92f6126ec01bf44f81a639905f9c9792c97",
@@ -28,7 +28,7 @@
     "scripts/extract.py": "2fff5da657c9434b8a2fb1863657e87bef59eed399ba92eac7c59307d123bdf3",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/delivery.rs": "74d8bb723d627a2a291cbc7962e7e11189eb39d708bf8fc3eea53c7dcc1f94c7",
-    "src/lib.rs": "3f2e9632bfaa960c0ed7cdc723f2011455833d77fb1219f63f7367090d4a2d6c",
+    "src/lib.rs": "4db18d5f16824c9a07ebf6d9a0641bd8aa6214f0e980fa776ad4682969eb3314",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
@@ -1068,10 +1068,46 @@
       "scope": "rust_contract_or_lemma"
     },
     {
+      "name": "PathwardProofs.run_nil",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 154,
+      "statement": "@[simp] theorem run_nil (s : State) : run s [] = s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_cons",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 155,
+      "statement": "@[simp] theorem run_cons (s : State) (b : U8) (xs : List U8) :\n    run s (b :: xs) = run (next s b) xs",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
       "name": "PathwardProofs.run_append",
       "source": "proofs/PathwardProofs.lean",
       "line": 158,
       "statement": "theorem run_append (s : State) (xs ys : List U8) :\n    run s (xs ++ ys) = run (run s xs) ys",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_reject",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 162,
+      "statement": "@[simp] theorem run_reject (xs : List U8) : run .Reject xs = .Reject",
       "axioms": [
         "Classical.choice",
         "Quot.sound",
@@ -2960,9 +2996,21 @@
       "scope": "rust_contract_or_lemma"
     },
     {
+      "name": "RoutingProofs.stem_preserves_bytes",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 120,
+      "statement": "theorem stem_preserves_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    p = s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
       "name": "RoutingProofs.stem_shape",
       "source": "proofs/RoutingProofs.lean",
-      "line": 119,
+      "line": 128,
       "statement": "theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    p.val = s.val ∨ p.val = s.val ++ [47#u8]",
       "axioms": [
         "Classical.choice",
@@ -2974,7 +3022,7 @@
     {
       "name": "RoutingProofs.stem_input_bytes",
       "source": "proofs/RoutingProofs.lean",
-      "line": 129,
+      "line": 132,
       "statement": "theorem stem_input_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    ∀ b ∈ p.val, allowedByte b = true",
       "axioms": [
         "Classical.choice",
@@ -2986,7 +3034,7 @@
     {
       "name": "RoutingProofs.route_total",
       "source": "proofs/RoutingProofs.lean",
-      "line": 143,
+      "line": 146,
       "statement": "theorem route_total (v d s r x : Bool) (p f : Slice U8) :\n    (∃ result, routing.select v d s r x = ok result) ∧\n    (∃ result, routing.stem p = ok result) ∧\n    (∃ result, routing.subtree p f = ok result)",
       "axioms": [
         "Classical.choice",
@@ -2998,7 +3046,7 @@
     {
       "name": "RoutingProofs.limits_total",
       "source": "proofs/RoutingProofs.lean",
-      "line": 149,
+      "line": 152,
       "statement": "theorem limits_total (n l b c h t a : U64) (r d : Bool) (opt : Option U64) :\n    (∃ result, routing.body_limit l r = ok result) ∧\n    (∃ result, routing.body_fits n l r = ok result) ∧\n    (∃ result, routing.chunk_fits a n l = ok result) ∧\n    (∃ result, routing.time_limits b c h t = ok result) ∧\n    (∃ result, routing.service_admit a c l = ok result) ∧\n    (∃ result, routing.request_framing n l r d = ok result) ∧\n    (∃ result, routing.response_framing opt l r d = ok result)",
       "axioms": [
         "Classical.choice",

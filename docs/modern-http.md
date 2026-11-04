@@ -163,7 +163,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **382 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **386 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -360,3 +360,27 @@ socket scheduling, delivery of GOAWAY, or arbitrary client retry behavior.
 TLS failure diagnostics now retain only fixed phase/reason labels, received-byte
 counts and elapsed time. Peer-supplied errors, URLs, SNI, headers and keys are
 never formatted. The browser acceptance trial is still required after this fix.
+
+### Literal plus in mixed-route paths
+
+A proxy site that also published local robots/sitemap files rejected license URLs
+containing a literal `+`. The shared path grammar now accepts that byte without
+decoding or normalization (RFC 3986 section 3.3 allows it in a path segment).
+Percent escapes, spaces, backslashes, hidden components and traversal remain
+rejected in mixed-route paths. The extracted Rust stem is now proved to return
+the identical input slice (`RoutingProofs.stem_preserves_bytes`); all existing
+no-traversal, byte safety, exact authorization and deny-precedence proofs rebuild.
+Regression coverage includes distinct space/percent/separator spellings and
+no upstream contact for a denied subtree containing a plus. No dependency changes.
+
+### Clean TLS closure after HTTP/2 shutdown
+
+The Tokio I/O adapter previously implemented shutdown as a plain flush. It now
+calls the Rustls transport's `finish` method and waits on WouldBlock, so ordinary
+HTTP/2 graceful shutdown flushes `close_notify` before releasing the socket. The
+real TLS idle-retirement test acknowledges the GOAWAY probe and requires clean
+EOF: the previous adapter fails with Rustls `UnexpectedEof`; the new adapter
+passes. Forced shutdown deadlines still apply. TLS correctness and the adapter
+remain trusted implementation boundaries; the Lean retirement gates do not
+prove cryptographic wire closure. Browser reconnect acceptance is checked
+separately, and this fix alone is not evidence that the browser failure is solved.

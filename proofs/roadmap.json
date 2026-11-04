@@ -49,6 +49,19 @@
   ],
   "goals": [
     {
+      "id": "ROUTE-BYTES",
+      "priority": "P0",
+      "status": "proved",
+      "title": "ルーティングはURLのバイト列を変換しない",
+      "acceptance": "実際のRustから抽出したstemが受理した場合、出力は入力と完全に同一。リテラルの+を空白に変換せず、percent escape・隠し成分・親参照は従来の拒否定理を維持する。転送先アプリによるURL解釈は前提として別管理。",
+      "theorems": [
+        "RoutingProofs.stem_preserves_bytes",
+        "PathwardProofs.published_bytes_safe",
+        "PathwardProofs.published_no_traversal",
+        "PathwardProofs.deny_unlisted"
+      ]
+    },
+    {
       "id": "H2-RETIRE-CLASS",
       "priority": "P0",
       "status": "proved",

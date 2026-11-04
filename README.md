@@ -150,7 +150,7 @@ be used for dispatch, without decoding or normalizing it before or after checkin
 - Length: 1–4096 bytes, starting with `/`.
 - `/` is a valid path, but must still be explicitly published.
 - Other paths have nonempty `/`-separated components.
-- Components start and end with ASCII letters, digits, `_`, or `-`.
+- Components start and end with ASCII letters, digits, `_`, `-`, or `+`.
 - Dots are allowed only inside components, e.g. `main.min.js` or `file..txt`.
 - Percent escapes, backslashes, non-ASCII bytes, controls, spaces, queries,
   fragments, empty interior components, and dot-prefixed components
@@ -264,7 +264,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers all 382 named statements and helper lemmas. Linux resolution,
+pinned/reopened inode). The axiom audit covers all 386 named statements and helper lemmas. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

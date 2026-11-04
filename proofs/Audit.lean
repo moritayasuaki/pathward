@@ -102,7 +102,10 @@ import UpstreamProofs
 #print axioms PathwardProofs.authorization_total
 #print axioms PathwardProofs.deny_unlisted
 #print axioms PathwardProofs.deny_invalid
+#print axioms PathwardProofs.run_nil
+#print axioms PathwardProofs.run_cons
 #print axioms PathwardProofs.run_append
+#print axioms PathwardProofs.run_reject
 #print axioms PathwardProofs.disallowed_rejects
 #print axioms PathwardProofs.run_all_allowed
 #print axioms PathwardProofs.canonical_all_allowed
@@ -263,6 +266,7 @@ import UpstreamProofs
 #print axioms RoutingProofs.subtree_boundary
 #print axioms RoutingProofs.stem_eq
 #print axioms RoutingProofs.stem_canonical
+#print axioms RoutingProofs.stem_preserves_bytes
 #print axioms RoutingProofs.stem_shape
 #print axioms RoutingProofs.stem_input_bytes
 #print axioms RoutingProofs.route_total

@@ -381,7 +381,7 @@ def State.Insts.CoreCmpPartialEqState.eq
   ok (self1 = other1)
 
 /-- [pathward::name_byte]:
-    Source: 'src/lib.rs', lines 23:0-29:1
+    Source: 'src/lib.rs', lines 23:0-30:1
     Visibility: public -/
 def name_byte (byte : Std.U8) : RustM Bool := do
   if byte >= 97#u8
@@ -398,23 +398,35 @@ def name_byte (byte : Std.U8) : RustM Bool := do
           then
             if byte <= 57#u8
             then ok true
-            else if byte = 95#u8
+            else
+              if byte = 95#u8
+              then ok true
+              else if byte = 45#u8
+                   then ok true
+                   else ok (byte = 43#u8)
+          else
+            if byte = 95#u8
+            then ok true
+            else if byte = 45#u8
                  then ok true
-                 else ok (byte = 45#u8)
-          else if byte = 95#u8
-               then ok true
-               else ok (byte = 45#u8)
+                 else ok (byte = 43#u8)
       else
         if byte >= 48#u8
         then
           if byte <= 57#u8
           then ok true
-          else if byte = 95#u8
+          else
+            if byte = 95#u8
+            then ok true
+            else if byte = 45#u8
+                 then ok true
+                 else ok (byte = 43#u8)
+        else
+          if byte = 95#u8
+          then ok true
+          else if byte = 45#u8
                then ok true
-               else ok (byte = 45#u8)
-        else if byte = 95#u8
-             then ok true
-             else ok (byte = 45#u8)
+               else ok (byte = 43#u8)
   else
     if byte >= 65#u8
     then
@@ -425,26 +437,38 @@ def name_byte (byte : Std.U8) : RustM Bool := do
         then
           if byte <= 57#u8
           then ok true
-          else if byte = 95#u8
+          else
+            if byte = 95#u8
+            then ok true
+            else if byte = 45#u8
+                 then ok true
+                 else ok (byte = 43#u8)
+        else
+          if byte = 95#u8
+          then ok true
+          else if byte = 45#u8
                then ok true
-               else ok (byte = 45#u8)
-        else if byte = 95#u8
-             then ok true
-             else ok (byte = 45#u8)
+               else ok (byte = 43#u8)
     else
       if byte >= 48#u8
       then
         if byte <= 57#u8
         then ok true
-        else if byte = 95#u8
+        else
+          if byte = 95#u8
+          then ok true
+          else if byte = 45#u8
+               then ok true
+               else ok (byte = 43#u8)
+      else
+        if byte = 95#u8
+        then ok true
+        else if byte = 45#u8
              then ok true
-             else ok (byte = 45#u8)
-      else if byte = 95#u8
-           then ok true
-           else ok (byte = 45#u8)
+             else ok (byte = 43#u8)
 
 /-- [pathward::step]:
-    Source: 'src/lib.rs', lines 32:0-61:1
+    Source: 'src/lib.rs', lines 33:0-62:1
     Visibility: public -/
 def step (state : State) (byte : Std.U8) : RustM State := do
   match state with
@@ -496,7 +520,7 @@ def step (state : State) (byte : Std.U8) : RustM State := do
   | State.Reject => ok State.Reject
 
 /-- [pathward::accepting]:
-    Source: 'src/lib.rs', lines 64:0-66:1
+    Source: 'src/lib.rs', lines 65:0-67:1
     Visibility: public -/
 def accepting (state : State) : RustM Bool := do
   match state with
@@ -508,7 +532,7 @@ def accepting (state : State) : RustM Bool := do
   | State.Reject => ok false
 
 /-- [pathward::valid_path]: loop 0:
-    Source: 'src/lib.rs', lines 76:4-79:5
+    Source: 'src/lib.rs', lines 77:4-80:5
     Visibility: public -/
 @[rust_loop]
 def valid_path_loop
@@ -524,7 +548,7 @@ def valid_path_loop
 partial_fixpoint
 
 /-- [pathward::valid_path]:
-    Source: 'src/lib.rs', lines 70:0-81:1
+    Source: 'src/lib.rs', lines 71:0-82:1
     Visibility: public -/
 def valid_path (path : Slice Std.U8) : RustM Bool := do
   let i := Slice.len path
@@ -534,7 +558,7 @@ def valid_path (path : Slice Std.U8) : RustM Bool := do
        accepting state
 
 /-- [pathward::same_path]: loop 0:
-    Source: 'src/lib.rs', lines 89:4-96:1
+    Source: 'src/lib.rs', lines 90:4-97:1
     Visibility: public -/
 @[rust_loop]
 def same_path_loop
@@ -554,7 +578,7 @@ def same_path_loop
 partial_fixpoint
 
 /-- [pathward::same_path]:
-    Source: 'src/lib.rs', lines 84:0-96:1
+    Source: 'src/lib.rs', lines 85:0-97:1
     Visibility: public -/
 def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   let i := Slice.len left
@@ -564,7 +588,7 @@ def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   else same_path_loop left right 0#usize
 
 /-- [pathward::listed]:
-    Source: 'src/lib.rs', lines 108:0-118:1 -/
+    Source: 'src/lib.rs', lines 109:0-119:1 -/
 def listed
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) (index : Std.Usize)
   :
@@ -583,7 +607,7 @@ def listed
 partial_fixpoint
 
 /-- [pathward::is_public]:
-    Source: 'src/lib.rs', lines 99:0-104:1
+    Source: 'src/lib.rs', lines 100:0-105:1
     Visibility: public -/
 def is_public
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) : RustM Bool := do

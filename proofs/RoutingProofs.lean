@@ -116,15 +116,18 @@ theorem stem_canonical (p s : Slice U8) (h : routing.stem p = ok (some s)) : can
     simpa [←he] using hc
   · simp at h
 
-theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :
-    p.val = s.val ∨ p.val = s.val ++ [47#u8] := by
+/-- Routing never decodes or rewrites bytes, including a literal plus sign. -/
+theorem stem_preserves_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :
+    p = s := by
   rw [stem_eq] at h
   unfold stemPolicy at h
   split_ifs at h
-  · have he : p = s := by simpa using h
-    subst s
-    exact Or.inl rfl
+  · simpa using h
   · simp at h
+
+theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :
+    p.val = s.val ∨ p.val = s.val ++ [47#u8] := by
+  exact Or.inl (congrArg (fun (p : Slice U8) => p.val) (stem_preserves_bytes p s h))
 
 theorem stem_input_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :
     ∀ b ∈ p.val, allowedByte b = true := by
