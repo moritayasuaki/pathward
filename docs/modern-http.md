@@ -105,12 +105,12 @@ fixed-cardinality counters. A path-change counter is not an audit trail of IPs.
 
 `encode "gzip"`, `"zstd"`, or `"gzip,zstd"` is opt-in per site. Negotiation checks
 bounded Accept-Encoding/q values, exclusions and identity refusal. Only successful
-GET/HEAD text/JS/JSON/XML/SVG/Wasm representations of 1 KiB–1 MiB are considered.
+GET/HEAD text/JS/JSON/XML/SVG/Wasm representations of 1 KiB–4 MiB are considered.
 Cookie/Authorization/query, Set-Cookie/private responses, Range, existing encoding,
 and request/response no-transform exclude compression. SSE, mutations and large
 files stay uncompressed. Request/upstream decompression is not implemented.
 
-Compression has an 8 MiB logical workspace reservation, fixed low effort, and an
+Compression has a 16 MiB logical workspace reservation, fixed low effort, and an
 output cap no larger than the original. It is used only when saving over 32 bytes.
 Content-Length and Vary are updated; transformed strong ETags become weak;
 representation digests and Accept-Ranges are removed. HEAD uses the matching

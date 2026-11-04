@@ -133,14 +133,14 @@ theorem tasks_bounded (n : U64) (h : delivery.task_slot n = ok true) : n.val + 1
 
 theorem encode_eq (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool) :
     delivery.encode_allowed e n s m p r c t x = ok (decide
-      (e = true ∧ 1024 ≤ n.val ∧ n.val ≤ 1048576 ∧ s.val = 200 ∧ m = true ∧
+      (e = true ∧ 1024 ≤ n.val ∧ n.val ≤ 4194304 ∧ s.val = 200 ∧ m = true ∧
        p = false ∧ r = false ∧ c = false ∧ t = false ∧ x = true)) := by
   simp [delivery.encode_allowed, UScalar.eq_equiv]
   split_ifs <;> simp_all
 
 theorem encode_safe (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool)
     (h : delivery.encode_allowed e n s m p r c t x = ok true) :
-    n.val ≤ 1048576 ∧ p = false ∧ r = false ∧ c = false ∧ t = false := by
+    n.val ≤ 4194304 ∧ p = false ∧ r = false ∧ c = false ∧ t = false := by
   simp [encode_eq] at h
   tauto
 

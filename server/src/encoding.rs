@@ -4,7 +4,7 @@ use std::{
     io::{self, Write},
     net::IpAddr,
 };
-pub const WORKSPACE: u64 = 8 * 1024 * 1024;
+pub const WORKSPACE: u64 = 16 * 1024 * 1024;
 fn bad() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "encoding negotiation")
 }
@@ -332,11 +332,16 @@ mod tests {
     }
     #[test]
     fn roundtrips_and_changes_validator_framing_and_vary() {
-        for (name, mode) in [("gzip", 1), ("zstd", 2)] {
+        for (name, mode, size) in [
+            ("gzip", 1, 8192),
+            ("zstd", 2, 8192),
+            ("gzip", 1, 2458646),
+            ("zstd", 2, 4194304),
+        ] {
             let wire = request(&format!("Accept-Encoding: {name}\r\n"));
             let req = crate::http::parse(&wire, 80).unwrap();
             let mut h = head();
-            let mut b = vec![b'x'; 8192];
+            let mut b = vec![b'x'; size];
             transform(mode, &req, &mut h, &mut b).unwrap();
             let mut decoded = Vec::new();
             if mode == 1 {
@@ -346,7 +351,7 @@ mod tests {
             } else {
                 decoded = zstd::stream::decode_all(&b[..]).unwrap();
             }
-            assert_eq!(decoded, vec![b'x'; 8192]);
+            assert_eq!(decoded, vec![b'x'; size]);
             assert!(h.contains(&format!("Content-Encoding: {name}\r\n")));
             assert!(h.contains(&format!("Content-Length: {}\r\n", b.len())));
             assert!(h.contains("ETag: W/\"v1\"\r\n"));
@@ -415,7 +420,7 @@ mod tests {
             let h = head().replace("\r\n\r\n", &format!("\r\n{field}\r\n\r\n"));
             assert_eq!(candidate(3, &req, &h, 8192).unwrap(), 0);
         }
-        for size in [0, 1023, 1048577, u64::MAX] {
+        for size in [0, 1023, 4194305, u64::MAX] {
             assert_eq!(candidate(3, &req, &head(), size).unwrap(), 0);
         }
         let wire = request("Accept-Encoding: gzip\r\n");

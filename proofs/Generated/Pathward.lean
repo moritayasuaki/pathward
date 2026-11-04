@@ -198,7 +198,7 @@ def delivery.encode_allowed
   then
     if size >= 1024#u64
     then
-      if size <= 1048576#u64
+      if size <= 4194304#u64
       then
         if status = 200#u16
         then
