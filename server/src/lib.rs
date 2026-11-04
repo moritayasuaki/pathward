@@ -1137,7 +1137,7 @@ impl Server {
                                                     }
                                                 }
                                                 Ok(None) => {}
-                                                Err(_) => self.observe.tls_failed(),
+                                                Err(e) => self.observe.tls_handshake_failed(accepted.elapsed(), &e),
                                             }
                                         }
                                         delivery::Work::Http { input, queued } => {

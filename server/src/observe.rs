@@ -269,6 +269,15 @@ impl Observability {
     pub(crate) fn tls_failed(&self) {
         self.tls_errors.fetch_add(1, Ordering::Relaxed);
     }
+    pub(crate) fn tls_handshake_failed(&self, elapsed: Duration, error: &io::Error) {
+        self.tls_failed();
+        let detail = error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<crate::tls::HandshakeFailure>());
+        let phase = detail.map_or("socket", |d| d.phase.label());
+        let bytes = detail.map_or(0, |d| d.read_bytes);
+        self.emit(format!("\"event\":\"tls_handshake_failed\",\"phase\":\"{phase}\",\"reason\":\"{}\",\"read_bytes\":{bytes},\"duration_us\":{}", IO_REASONS[io_reason(error)], elapsed.as_micros()));
+    }
     pub(crate) fn admission_rejected(&self, reason: crate::admission::Rejection) {
         self.admission_rejected.fetch_add(1, Ordering::Relaxed);
         self.admission_reasons[reason as usize].fetch_add(1, Ordering::Relaxed);
@@ -603,6 +612,31 @@ mod tests {
                 reason.label()
             )));
         }
+    }
+    #[test]
+    fn handshake_diagnostics_never_format_peer_errors() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(2);
+        *obs.log.lock().unwrap() = Some(tx);
+        let untrusted = io::Error::other("private host /path?token=secret");
+        obs.tls_handshake_failed(Duration::from_millis(5), &untrusted);
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"phase\":\"socket\",\"reason\":\"other\",\"read_bytes\":0"));
+        assert!(!line.contains("secret") && !line.contains("private"));
+        let bounded = io::Error::new(
+            io::ErrorKind::TimedOut,
+            crate::tls::HandshakeFailure {
+                phase: crate::tls::HandshakePhase::Negotiation,
+                read_bytes: 1234,
+            },
+        );
+        obs.tls_handshake_failed(Duration::from_secs(5), &bounded);
+        assert!(
+            rx.recv()
+                .unwrap()
+                .contains("\"phase\":\"negotiation\",\"reason\":\"timed_out\",\"read_bytes\":1234")
+        );
+        assert_eq!(obs.tls_errors.load(Ordering::Relaxed), 2);
     }
     #[test]
     fn full_log_queue_drops_without_blocking_and_has_only_fixed_fields() {

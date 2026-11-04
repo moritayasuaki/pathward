@@ -15,6 +15,43 @@ use std::{
 };
 
 pub const HANDSHAKE_BUDGET: Duration = Duration::from_secs(5);
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum HandshakePhase {
+    Hello,
+    Policy,
+    Negotiation,
+    Flush,
+}
+impl HandshakePhase {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Hello => "hello",
+            Self::Policy => "policy",
+            Self::Negotiation => "negotiation",
+            Self::Flush => "flush",
+        }
+    }
+}
+#[derive(Debug)]
+pub(crate) struct HandshakeFailure {
+    pub phase: HandshakePhase,
+    pub read_bytes: usize,
+}
+impl fmt::Display for HandshakeFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("TLS handshake failure")
+    }
+}
+impl std::error::Error for HandshakeFailure {}
+fn handshake_failure(error: io::Error, phase: HandshakePhase, socket: &DeadlineTcp) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        HandshakeFailure {
+            phase,
+            read_bytes: 131_072 - socket.read_left.unwrap_or(131_072),
+        },
+    )
+}
 pub fn unix_now() -> io::Result<u64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -291,39 +328,53 @@ impl TlsServer {
         let mut acceptor = Acceptor::default();
         let accepted = loop {
             if crate::async_http::operation(socket.deadline, || acceptor.read_tls(&mut socket))
-                .await?
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Hello, &socket))?
                 == 0
             {
-                return Err(io::ErrorKind::UnexpectedEof.into());
+                return Err(handshake_failure(
+                    io::ErrorKind::UnexpectedEof.into(),
+                    HandshakePhase::Hello,
+                    &socket,
+                ));
             }
             match acceptor.accept() {
                 Ok(Some(a)) => break a,
                 Ok(None) => {}
-                Err(_) => return Err(denied()),
+                Err(_) => return Err(handshake_failure(denied(), HandshakePhase::Hello, &socket)),
             }
         };
         let hello = accepted.client_hello();
-        let name = hello.server_name().ok_or_else(denied)?.to_owned();
+        let name = hello
+            .server_name()
+            .ok_or_else(|| handshake_failure(denied(), HandshakePhase::Policy, &socket))?
+            .to_owned();
         if !self.identity.known(&name) {
-            return Err(denied());
+            return Err(handshake_failure(denied(), HandshakePhase::Policy, &socket));
         }
         let protocols: Vec<_> = hello.alpn().into_iter().flatten().collect();
         let challenge = protocols == [b"acme-tls/1".as_slice()];
         if !challenge && protocols.iter().any(|p| *p == b"acme-tls/1") {
-            return Err(denied());
+            return Err(handshake_failure(denied(), HandshakePhase::Policy, &socket));
         }
         let config = if challenge {
             self.challenge.clone()
         } else {
             self.normal.clone()
         };
-        let mut conn = accepted.into_connection(config).map_err(|_| denied())?;
+        let mut conn = accepted
+            .into_connection(config)
+            .map_err(|_| handshake_failure(denied(), HandshakePhase::Negotiation, &socket))?;
         conn.set_buffer_limit(Some(32_768));
         while conn.is_handshaking() {
-            crate::async_http::operation(socket.deadline, || conn.complete_io(&mut socket)).await?;
+            crate::async_http::operation(socket.deadline, || conn.complete_io(&mut socket))
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Negotiation, &socket))?;
         }
         while conn.wants_write() {
-            crate::async_http::operation(socket.deadline, || conn.write_tls(&mut socket)).await?;
+            crate::async_http::operation(socket.deadline, || conn.write_tls(&mut socket))
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Flush, &socket))?;
         }
         if challenge {
             return Ok(None);
