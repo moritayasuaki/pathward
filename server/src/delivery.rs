@@ -109,6 +109,24 @@ pub struct Prepared {
     _lease: Option<Lease>,
 }
 impl Prepared {
+    fn progress(&self) -> observe::DeliveryProgress {
+        let phase = if self.head_at < self.head.len() {
+            observe::DeliveryPhase::Head
+        } else if match &self.body {
+            Body::Bytes { data, at } => *at < data.len(),
+            Body::File { left, .. } => *left > 0,
+        } {
+            observe::DeliveryPhase::Body
+        } else {
+            observe::DeliveryPhase::Finish
+        };
+        observe::DeliveryProgress {
+            phase,
+            status: self.status,
+            head_bytes: self.head_at,
+            body_bytes: self.bytes,
+        }
+    }
     pub fn buffered(
         head: String,
         body: Vec<u8>,
@@ -412,10 +430,11 @@ impl Reactor {
                     Ok(false) => self.outputs.push_back(output),
                     Err(e) if blocked(&e) => self.outputs.push_back(output),
                     other => {
-                        observe.request(
+                        observe.delivery_request(
                             output.generation,
                             output.started.elapsed(),
                             &other.map(|_| (output.prepared.status, output.prepared.bytes)),
+                            output.prepared.progress(),
                         );
                     }
                 }

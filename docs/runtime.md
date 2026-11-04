@@ -86,11 +86,18 @@ background workers.
 
 Runtime logs are newline-delimited JSON on stderr: `listening`, `request`,
 `reload_committed`, `reload_rejected`, `draining`, `stopped`, certificate states
-and ACME attempt/success/failure events. Fields contain only fixed event names and
+and ACME attempt/success/failure events. Fields contain only fixed event/category names and
 numeric/boolean values: timestamp, generation, status, completed body bytes,
 duration, port, and event-specific value (ACME retry seconds on failures).
-Requests that fail I/O use status 0 and completed body bytes 0; partial response
-bytes are not counted. Startup argument/configuration failures can emit a plain
+Requests that fail I/O use status 0 and completed body bytes 0. `io_error` and
+`pathward_request_io_failures_total{reason=...}` distinguish seven fixed error
+categories; the original total remains unchanged. Delivery errors additionally
+record `delivery_phase` (`head`, `body`, `finish`), intended `delivery_status`,
+and bytes accepted by the transport as `head_bytes_written`/`body_bytes_written`.
+These partial counts do not assert receipt by the client and do not contribute
+to completed byte totals. A peer reset or broken pipe alone does not prove a
+benign cancellation; correlate it with client observations. Error messages are
+never formatted into request logs. Startup argument/configuration failures can emit a plain
 error diagnostic before logging starts.
 
 No URL, query, Host/SNI, client address, headers, filesystem path, configuration
