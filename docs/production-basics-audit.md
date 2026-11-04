@@ -141,3 +141,21 @@ including malformed framing/queries and arbitrary bytes, with no panic and no
 extra publication grants. These are bounded regression tests, not coverage-guided
 fuzzing or a long-duration soak. Deployment-specific load, supervision, external
 alerts and realistic storage tests remain required before replacing Caddy.
+
+## Unmatched-route redirects (2026-11-04)
+
+The restricted KDL preflight accepts `redirect-fallback` with exactly two string
+arguments. Schema validation requires a configured different host, 301/308,
+one fallback, the existing 64-redirect limit and no reverse proxy on that site.
+There is no new parser dependency. Runtime selection uses the existing extracted
+route gate: denial and an exact publication precede redirects. The adapter calls
+the redirect builder only after that route choice, so an unreadable publication
+cannot fall through to a remote site. Explicit redirects win over the fallback;
+the fallback preserves the already validated raw path/query and passes the
+existing redirect output gate. Generation preserves the declaration.
+
+Configuration negative tests cover schemes, self/unknown hosts, status, duplicate
+fallbacks and proxy coexistence. Linux response tests cover local files, denial,
+missing files, slash variants, explicit redirects, queries and generation.
+`RoutingProofs` and `ResponseProofs` cover the extracted precedence/output gates;
+the KDL adapter and string builder are reviewed/tested, not fully extracted.

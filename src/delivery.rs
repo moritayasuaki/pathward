@@ -62,7 +62,7 @@ pub fn encode_allowed(
         && text
 }
 
-/// HTTP/2 and HTTP/3 share per-connection stream, request and lifetime caps.
+/// HTTP/2 and HTTP/3 share per-connection stream, request and new-admission age caps.
 pub fn multiplex_slot(active: u64, seen: u64, age_ms: u64, draining: bool) -> bool {
     !draining && active < 32 && seen < 100 && age_ms < 120000
 }
@@ -90,6 +90,20 @@ pub fn held_action(cancelled: bool, elapsed_ms: u64) -> HeldAction {
         HeldAction::TryAdmission
     }
 }
+/// Normal retirement must not discard accepted work. An explicit server stop
+/// has its own non-renewable five-second drain limit. Normal idle time restarts
+/// after each finished task, giving the transport time to flush queued frames.
+pub fn retirement_close(
+    retiring: bool,
+    quiet_ms: u64,
+    active: u64,
+    held: bool,
+    stopping: bool,
+    stopped_ms: u64,
+) -> bool {
+    (stopping && stopped_ms >= 5000) || (retiring && quiet_ms >= 5000 && active == 0 && !held)
+}
+
 /// Before handshake confirmation, only anonymous, exact static grants are safe.
 pub fn early_allowed(
     confirmed: bool,

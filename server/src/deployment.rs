@@ -212,6 +212,14 @@ pub fn generate(
             out.push_str(&format!("    publish {} {}\n", quoted(&url), quoted(&file)));
         }
         for r in site.redirects() {
+            if r.fallback {
+                out.push_str(&format!(
+                    "    redirect-fallback {} \"{}\"\n",
+                    quoted(r.host),
+                    r.status
+                ));
+                continue;
+            }
             out.push_str(&format!(
                 "    {} {} {} {} \"{}\"\n",
                 if r.prefix {

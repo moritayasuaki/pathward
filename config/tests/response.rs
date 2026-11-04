@@ -4,6 +4,30 @@ fn config(extra: &str) -> String {
         "site \"example.com\" {{\nroot \"/srv/www\"\npublish \"/\" \"index.html\"\ntls \"auto\"\n{extra}\n}}"
     )
 }
+
+#[test]
+fn fallback_requires_one_fixed_configured_other_host_and_no_proxy() {
+    let destination = "\nsite \"other.example\" {\nroot \"/srv/other\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}";
+    let good = config("redirect-fallback \"other.example\" \"308\"") + destination;
+    let parsed = ParsedConfig::parse(&good).unwrap();
+    assert!(parsed.compile().unwrap().sites()[0].redirects()[0].fallback);
+    for rule in [
+        "redirect-fallback \"example.com\" \"308\"",
+        "redirect-fallback \"unknown.example\" \"308\"",
+        "redirect-fallback \"https://other.example\" \"308\"",
+        "redirect-fallback \"other.example\" \"302\"",
+        "redirect-fallback \"other.example\" \"308\"\nredirect-fallback \"other.example\" \"301\"",
+        "redirect-fallback \"other.example\" \"308\"\nreverse-proxy \"127.0.0.1:9000\"",
+    ] {
+        let text = config(rule) + destination;
+        assert!(
+            ParsedConfig::parse(&text)
+                .and_then(|p| p.compile().map(|_| ()))
+                .is_err(),
+            "{rule}"
+        );
+    }
+}
 #[test]
 fn compile_redirects_headers_and_reject_unsafe_forms() {
     let parsed=ParsedConfig::parse(&config("redirect-prefix \"/old\" \"example.com\" \"/new\" \"308\"\nheader \"*\" \"content-security-policy\" \"default-src 'none'\"")).unwrap();

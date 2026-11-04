@@ -584,8 +584,9 @@ impl Server {
         if req.method != b"GET" && req.method != b"HEAD" {
             return Self::reject(stream, 405).await;
         }
-        if let Some((status, location)) =
-            site.redirect(req.target, &snapshot.sites, automatic_redirect)
+        if (automatic_redirect || route == pathward::routing::Route::Redirect)
+            && let Some((status, location)) =
+                site.redirect(req.target, &snapshot.sites, automatic_redirect)
         {
             let mut head = site.head(status, 0, "text/plain", req.target, sni.is_some());
             head.truncate(head.len() - 2);

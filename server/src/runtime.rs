@@ -28,6 +28,7 @@ struct Redirect {
     to: String,
     status: u16,
     prefix: bool,
+    fallback: bool,
 }
 struct Header {
     kind: pathward_config::HeaderScope,
@@ -123,10 +124,9 @@ impl Site {
             .rules
             .iter()
             .any(|(p, _)| p[..trim(p)] == path[..trim(path)]);
-        let redirect = self
-            .redirects
-            .iter()
-            .any(|r| pathward::response::route_matches(path, r.from.as_bytes(), r.prefix));
+        let redirect = self.redirects.iter().any(|r| {
+            r.fallback || pathward::response::route_matches(path, r.from.as_bytes(), r.prefix)
+        });
         let proxy = self.upstream.is_some()
             && (self.proxy_paths.is_empty()
                 || self
@@ -276,8 +276,19 @@ impl Site {
             let rule = self
                 .redirects
                 .iter()
-                .filter(|r| pathward::response::route_matches(path, r.from.as_bytes(), r.prefix))
-                .max_by_key(|r| r.from.len())?;
+                .filter(|r| {
+                    r.fallback
+                        || pathward::response::route_matches(path, r.from.as_bytes(), r.prefix)
+                })
+                .max_by_key(|r| (!r.fallback, r.from.len()))?;
+            if rule.fallback {
+                return Self::checked_redirect(
+                    &rule.host,
+                    std::str::from_utf8(target).ok()?,
+                    rule.status,
+                    hosts,
+                );
+            }
             let suffix = std::str::from_utf8(&path[rule.from.len()..]).ok()?;
             let destination = if rule.to == "/" && !suffix.is_empty() {
                 suffix.to_owned()
@@ -286,8 +297,17 @@ impl Site {
             };
             (&rule.host, destination, rule.status)
         };
-        let configured = hosts.iter().find(|s| s.host == *host)?;
         let target = format!("{destination}{query}");
+        Self::checked_redirect(host, &target, status, hosts)
+    }
+
+    fn checked_redirect(
+        host: &str,
+        target: &str,
+        status: u16,
+        hosts: &[Site],
+    ) -> Option<(u16, String)> {
+        let configured = hosts.iter().find(|s| s.host == host)?;
         if !pathward::response::redirect_allowed(
             host.as_bytes(),
             configured.host.as_bytes(),
@@ -411,6 +431,7 @@ impl Snapshot {
                             to: r.to.into(),
                             status: r.status,
                             prefix: r.prefix,
+                            fallback: r.fallback,
                         })
                         .collect(),
                     cache: site

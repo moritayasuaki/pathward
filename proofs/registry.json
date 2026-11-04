@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 365,
+  "theorem_count": 370,
   "axiom_free_count": 15,
   "axiom_counts": {
-    "Classical.choice": 328,
-    "Quot.sound": 328,
-    "propext": 350
+    "Classical.choice": 333,
+    "Quot.sound": 333,
+    "propext": 355
   },
   "source_sha256": {
-    "proofs/CancellationProofs.lean": "2ae051019065888d4c142696d877db66b8efb81d000457688999476819e36355",
+    "proofs/CancellationProofs.lean": "b4a87ba5f18e35fd615f0f88c7ad10fad9ec3c69df3a8200e9c160dc1882020b",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/DeliveryProofs.lean": "ace4152ca19c7bb2eb62838eacc02d9b290015fa2c2436ebece1ccd70a045082",
-    "proofs/Generated/Pathward.lean": "4c9889fe74bba422c7f2aba12e27eb1184d9ca9a3b0efc05465ccbc8f01c8cd7",
+    "proofs/Generated/Pathward.lean": "715ac18a2d6d5049d1a57cd9e4f2559b72b82fc9835fd03ae067dc1748ddfeb3",
     "proofs/PathwardProofs.lean": "5d9d9bcf81471e51c943900d046ae5ac0506c3328df218e3f5155962473a4c57",
     "proofs/ProxyProofs.lean": "cb443552d6edc8a4c0cdcfdceac2866d4f4b1fc45218c1c70019ec25b60b6017",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -25,9 +25,9 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "e20ad79ffe7371e29367eeed4af8d4957bb42aca85ea24f0448c6df5a2fc9e19",
+    "scripts/extract.py": "746ae219046d9b35cfdd206049cdbc8dc76aa9664af3f4c2e8b1ea9a980884d9",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
-    "src/delivery.rs": "a3ac87de7fc6538007a673218b9d12917b964fc1a2f0e6a5f49c5ed557eff412",
+    "src/delivery.rs": "8134cc3cdeb27f594d4069c4e8b5440733abe07dbc50f279196a431c0d4dd7ed",
     "src/lib.rs": "3f2e9632bfaa960c0ed7cdc723f2011455833d77fb1219f63f7367090d4a2d6c",
     "src/proxy.rs": "4c96746f355d18acd900b4de7a10ebafd42d6d0328c2bd65b1e19a441c6f6012",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
@@ -144,6 +144,66 @@
       "statement": "theorem cancellation_releases_held_slot (active : Nat) :\n    occupied ⟨active, false⟩ + 1 = occupied ⟨active, true⟩",
       "axioms": [],
       "scope": "transition_model"
+    },
+    {
+      "name": "CancellationProofs.retirement_close_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 78,
+      "statement": "theorem retirement_close_eq (retiring held stopping : Bool) (retired active stopped : U64) :\n    delivery.retirement_close retiring retired active held stopping stopped = ok (decide\n      ((stopping = true ∧ 5000 ≤ stopped.val) ∨\n       (retiring = true ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_preserves_active",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 86,
+      "statement": "theorem retirement_preserves_active (retiring held : Bool) (retired active stopped : U64)\n    (h : 0 < active.val) :\n    delivery.retirement_close retiring retired active held false stopped = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_preserves_held",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 92,
+      "statement": "theorem retirement_preserves_held (retiring : Bool) (retired active stopped : U64) :\n    delivery.retirement_close retiring retired active true false stopped = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_empty_closes",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 96,
+      "statement": "theorem retirement_empty_closes (retired stopped : U64) (h : 5000 ≤ retired.val) :\n    delivery.retirement_close true retired 0#u64 false false stopped = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.shutdown_deadline_closes",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 100,
+      "statement": "theorem shutdown_deadline_closes (retiring held : Bool) (retired active stopped : U64)\n    (h : 5000 ≤ stopped.val) :\n    delivery.retirement_close retiring retired active held true stopped = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
     },
     {
       "name": "ContentProofs.span_eq",

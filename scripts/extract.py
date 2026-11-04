@@ -108,6 +108,7 @@ def main():
                         "--start-from", "pathward::delivery::multiplex_slot",
                         "--start-from", "pathward::delivery::head_slot",
                         "--start-from", "pathward::delivery::held_action",
+                        "--start-from", "pathward::delivery::retirement_close",
                         "--start-from", "pathward::delivery::early_allowed",
                         "--start-from", "pathward::delivery::wire_fits",
                         "--dest-file", str(llbc)],

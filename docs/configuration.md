@@ -81,7 +81,7 @@ component/permission errors by denying the request. The separate server `check`
 command preflights files through this opener. Configuration-only checking
 does not perform that filesystem lookup.
 
-Bounded `redirect`, `redirect-prefix` and `header` declarations are described in
+Bounded `redirect`, `redirect-prefix`, `redirect-fallback` and `header` declarations are described in
 [production basics](production-basics.md); prefix matching applies only to redirects,
 never file grants. There are no includes, environment substitutions, globs,
 rewrites or implicit file grants. Proxy delegation is explicit, optionally scoped by `proxy-path`. Directive order does not change lookup.
@@ -94,7 +94,7 @@ The entire UTF-8 document is limited to **1,048,576 bytes**. A bounded reader st
 after one byte beyond that limit; callers of the string API already own their
 input allocation. A linear, nonrecursive preflight admits only:
 
-- Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`,
+- Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`, `redirect-fallback`,
   `header`, `reverse-proxy`, `deny`, `proxy-path`, `proxy-limit` and
   `proxy-timeout`, with the validated schemas.
 - Ordinary, single-line double-quoted strings. Literal characters inside values

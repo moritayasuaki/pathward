@@ -29,6 +29,8 @@ pub struct Observability {
     io_reasons: [AtomicU64; 7],
     bytes: AtomicU64,
     tls_errors: AtomicU64,
+    h2_idle_timeout: AtomicU64,
+    h2_idle_eof: AtomicU64,
     reloads: AtomicU64,
     reload_errors: AtomicU64,
     acme_attempts: AtomicU64,
@@ -295,6 +297,14 @@ impl Observability {
         self.active.fetch_add(1, Ordering::Relaxed);
         Active(self.clone())
     }
+    pub(crate) fn h2_idle_closed(&self, timed_out: bool) {
+        if timed_out {
+            &self.h2_idle_timeout
+        } else {
+            &self.h2_idle_eof
+        }
+        .fetch_add(1, Ordering::Relaxed);
+    }
     pub(crate) fn metrics(
         &self,
         generation: u64,
@@ -305,6 +315,16 @@ impl Observability {
     ) -> String {
         let mut out = String::new();
         for (name, kind, value) in [
+            (
+                "h2_idle_preface_timeout_total",
+                "counter",
+                self.h2_idle_timeout.load(Ordering::Relaxed),
+            ),
+            (
+                "h2_idle_preface_eof_total",
+                "counter",
+                self.h2_idle_eof.load(Ordering::Relaxed),
+            ),
             (
                 "quic_path_changes_total",
                 "counter",

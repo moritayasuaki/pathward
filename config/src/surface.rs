@@ -54,7 +54,7 @@ pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
                 | "websocket-origin"
                 | "websocket-compression" => 1,
                 "publish" | "proxy-limit" | "proxy-timeout" | "cache" | "cache-prefix"
-                | "proxy-route" => 2,
+                | "proxy-route" | "redirect-fallback" => 2,
                 "redirect" | "redirect-prefix" => 4,
                 "header" | "header-prefix" | "header-query" | "proxy-resource" => 3,
                 _ => {

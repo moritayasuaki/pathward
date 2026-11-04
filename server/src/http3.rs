@@ -208,7 +208,7 @@ async fn connection(
     .map_err(error)?;
     let mut tasks: Vec<Pin<Box<dyn Future<Output = ()> + '_>>> = Vec::new();
     let mut seen = 0;
-    let mut drain = None;
+    let mut retirement = multiplex::Retirement::default();
     let mut idle = Instant::now();
     loop {
         if !confirmed.get() {
@@ -238,19 +238,26 @@ async fn connection(
         if quic.close_reason().is_some() {
             return Ok(());
         }
-        if drain.is_none()
-            && (shutdown.load(Ordering::Acquire)
-                || server.is_draining()
-                || !tls.current_identity(&sni)
+        if accepted.elapsed() >= multiplex::CONNECTION_CEILING {
+            quic.close(0u32.into(), b"lifetime");
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        let stopping =
+            shutdown.load(Ordering::Acquire) || server.is_draining() || !tls.current_identity(&sni);
+        if stopping {
+            retirement.stopping();
+        }
+        if !retirement.retiring()
+            && (stopping
                 || seen >= 100
                 || accepted.elapsed() >= Duration::from_secs(120)
                 || (tasks.is_empty() && idle.elapsed() >= Duration::from_secs(5)))
         {
             let _ =
                 multiplex::bounded(Instant::now() + Duration::from_secs(1), h3.shutdown(0)).await;
-            drain = Some(Instant::now() + Duration::from_secs(5));
+            retirement.begin();
         }
-        if drain.is_some_and(|d| Instant::now() >= d) {
+        if retirement.close(tasks.len(), false, idle) {
             quic.close(0u32.into(), b"draining");
             return Ok(());
         }
@@ -260,7 +267,7 @@ async fn connection(
                     tasks.len() as u64,
                     seen,
                     accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                    drain.is_some(),
+                    retirement.retiring(),
                 );
                 seen += 1;
                 idle = Instant::now();

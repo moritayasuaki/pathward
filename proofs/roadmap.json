@@ -48,85 +48,146 @@
   ],
   "goals": [
     {
-      "id": "CANCEL-POLICY", "priority": "P0", "status": "proved",
+      "id": "CANCEL-POLICY",
+      "priority": "P0",
+      "status": "proved",
       "title": "観測済みキャンセルは受付や期限より優先する",
       "acceptance": "実際のRustから抽出した保留判断で、キャンセル時は必ずDiscardとなり、期限切れから受付を開始しない。",
-      "theorems": ["CancellationProofs.cancellation_wins", "CancellationProofs.discard_iff_cancelled", "CancellationProofs.try_admission_iff", "CancellationProofs.expired_cannot_start"]
+      "theorems": [
+        "CancellationProofs.cancellation_wins",
+        "CancellationProofs.discard_iff_cancelled",
+        "CancellationProofs.try_admission_iff",
+        "CancellationProofs.expired_cannot_start"
+      ]
     },
     {
-      "id": "CANCEL-WINDOW", "priority": "P0", "status": "proved",
+      "id": "CANCEL-WINDOW",
+      "priority": "P0",
+      "status": "proved",
       "title": "処理中と保留中の合計は32以下",
       "acceptance": "抽出した受付ゲートに従う状態遷移モデルで、任意の有限遷移列が上限を保存する。async実装全体の対応証明は別項目。",
-      "theorems": ["CancellationProofs.held_head_bounded", "CancellationProofs.every_interleaving_bounded", "CancellationProofs.cancellation_releases_held_slot"]
+      "theorems": [
+        "CancellationProofs.held_head_bounded",
+        "CancellationProofs.every_interleaving_bounded",
+        "CancellationProofs.cancellation_releases_held_slot"
+      ]
     },
     {
-      "id": "CANCEL-RELEASE", "priority": "P0", "status": "planned",
+      "id": "RETIRE-POLICY",
+      "priority": "P0",
+      "status": "proved",
+      "title": "通常の接続入れ替えは受付済みの処理を打ち切らない",
+      "acceptance": "実際のRust終了ゲートで、通常の入れ替え中は実行中・保留中の要求があれば強制終了しない。サーバー停止は別の5秒上限で終了する。HTTP2回帰試験でGOAWAY後6.5秒かかる応答と送信完了を確認する。時計・非同期実装全体の対応は前提。",
+      "theorems": [
+        "CancellationProofs.retirement_preserves_active",
+        "CancellationProofs.retirement_preserves_held",
+        "CancellationProofs.retirement_empty_closes",
+        "CancellationProofs.shutdown_deadline_closes"
+      ]
+    },
+    {
+      "id": "CANCEL-RELEASE",
+      "priority": "P0",
+      "status": "planned",
       "title": "キャンセルで全リースを一度だけ解放し、未転送要求を送らない",
       "acceptance": "実装との対応を含む要求状態モデルを作り、観測後の未送信要求・Pending・容量・サービス枠の保存則を証明する。公平なpollを前提にする進行性と、実時間上限は区別する。送信済みの更新の取り消しは主張しない。",
       "theorems": []
     },
     {
-      "id": "PUB-RESTRICTION", "priority": "P0", "status": "proved",
+      "id": "PUB-RESTRICTION",
+      "priority": "P0",
+      "status": "proved",
       "title": "公開宣言の削減と失効が別の許可を生まない",
       "acceptance": "両方の表がコンパイル検証に成功し、新表が旧表の部分集合なら同じ公開先・GET/HEADモードを保存する。削除したパスはクエリで復活しない。",
-      "theorems": ["SafetyProofs.authorization_subset", "SafetyProofs.revoked_authorization"]
+      "theorems": [
+        "SafetyProofs.authorization_subset",
+        "SafetyProofs.revoked_authorization"
+      ]
     },
     {
-      "id": "DEPLOY-CRASH", "priority": "P0", "status": "planned",
+      "id": "DEPLOY-CRASH",
+      "priority": "P0",
+      "status": "planned",
       "title": "設定の永続化・有効化・切り戻しの障害時整合性",
       "acceptance": "ディスク操作の前提を明示したクラッシュ状態モデルで、各障害点から検証済み旧設定または新設定へ回復し、混合設定を公開しないことを証明する。OS永続化そのものは前提として残す。",
-      "theorems": ["SafetyProofs.stale_after_success"]
+      "theorems": [
+        "SafetyProofs.stale_after_success"
+      ]
     },
     {
-      "id": "MIGRATION-PARITY", "priority": "P0", "status": "in_progress",
+      "id": "MIGRATION-PARITY",
+      "priority": "P0",
+      "status": "in_progress",
       "title": "移行時の公開範囲・ルート・更新契約の対応",
       "acceptance": "旧構成の宣言済み公開範囲、既存URL、プロキシ探索順序、公開更新を対応表と統合試験で確認する。形式化できる純粋な生成・選択規則を抽出し、宣言外の公開を増やさないことを証明する。",
       "theorems": []
     },
     {
-      "id": "LEASE-CONSERVATION", "priority": "P1", "status": "planned",
+      "id": "LEASE-CONSERVATION",
+      "priority": "P1",
+      "status": "planned",
       "title": "全要求を通した枠とバイト数の保存則",
       "acceptance": "取得・移動・解放・キャンセルの任意の遷移で、使用中の総和がカウンターに一致し、二重解放・過大計上・アンダーフローを起こさない。実装の所有権との対応を別途示す。",
-      "theorems": ["DeliveryProofs.reserve_bounded", "SafetyProofs.wire_run_bounded"]
+      "theorems": [
+        "DeliveryProofs.reserve_bounded",
+        "SafetyProofs.wire_run_bounded"
+      ]
     },
     {
-      "id": "ADAPTER-REFINEMENT", "priority": "P1", "status": "planned",
+      "id": "ADAPTER-REFINEMENT",
+      "priority": "P1",
+      "status": "planned",
       "title": "HTTP/2・HTTP/3から共通認可判断への変換の対応",
       "acceptance": "生のパス・authority・メソッド・ボディ長が変換で別の意味に解釈されず、拒否したフレーミングが上流へ到達しないことを証明する。外部パーサーの仮定を列挙する。",
       "theorems": []
     },
     {
-      "id": "QUIC-ACCOUNTING", "priority": "P1", "status": "planned",
+      "id": "QUIC-ACCOUNTING",
+      "priority": "P1",
+      "status": "planned",
       "title": "QUICのアドレス移動で容量・レート枠を回避できない",
       "acceptance": "接続開始時の会計IDを経路変更後も保存する状態モデルと実装の対応を示す。Quinnの経路検証・暗号の正当性とは分離する。",
       "theorems": []
     },
     {
-      "id": "EARLY-DATA-END-TO-END", "priority": "P1", "status": "planned",
+      "id": "EARLY-DATA-END-TO-END",
+      "priority": "P1",
+      "status": "planned",
       "title": "再送された0-RTTから更新やプロキシ処理へ進まない",
       "acceptance": "既存の純粋ゲートから実際の上流接続までを結び、未確認ハンドシェイクの間は匿名静的読取だけに限定する。TLS全体の暗号証明や一般的exactly-onceは主張しない。",
-      "theorems": ["DeliveryProofs.early_only_published_reads", "SafetyProofs.early_restriction"]
+      "theorems": [
+        "DeliveryProofs.early_only_published_reads",
+        "SafetyProofs.early_restriction"
+      ]
     },
     {
-      "id": "AX-CHOICE", "priority": "P1", "status": "planned",
+      "id": "AX-CHOICE",
+      "priority": "P1",
+      "status": "planned",
       "title": "不要なClassical.choice依存を減らす",
       "acceptance": "台帳から依存定理を特定し、有限・決定可能な判断の補題から構成的証明へ置き換える。定理の前提を強めず、カーネル監査で実際に依存が消えたことを確認する。",
       "theorems": []
     },
     {
-      "id": "AX-PROPEXT", "priority": "P2", "status": "deferred",
+      "id": "AX-PROPEXT",
+      "priority": "P2",
+      "status": "deferred",
       "title": "propextの不要な使用経路を調べる",
       "acceptance": "命題の等式を同値関係へ置き換えて除去できる局所補題を調査する。標準ライブラリ全体の再構築を先に要求しない。",
       "theorems": []
     },
     {
-      "id": "AX-QUOT", "priority": "P2", "status": "deferred",
+      "id": "AX-QUOT",
+      "priority": "P2",
+      "status": "deferred",
       "title": "Quot.soundと関数外延性の依存経路を調べる",
       "acceptance": "直接の商型利用と、関数外延性・ライブラリ経由の利用を分け、除去可能な境界と必要コストを記録する。証明済み定理の意味は弱めない。",
       "theorems": []
     },
     {
-      "id": "EXTRACTION-TRUST", "priority": "P1", "status": "planned",
+      "id": "EXTRACTION-TRUST",
+      "priority": "P1",
+      "status": "planned",
       "title": "抽出ツールと実行バイナリの信頼境界を縮める",
       "acceptance": "抽出の再現・ツール固定・RustとLeanの差分検査を維持し、翻訳保証または独立した検査方法を評価する。抽出一致だけをコンパイラー全体の正当性証明とは扱わない。",
       "theorems": []

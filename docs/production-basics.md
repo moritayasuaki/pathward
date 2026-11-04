@@ -44,6 +44,14 @@ ports and arbitrary schemes are refused. Cross-host redirects therefore need a
 second configured site (and that site's ACME identity). Redirect-only sites may
 omit publications but still require `root` and `tls`.
 
+`redirect-fallback "archive.example" "308"` redirects a valid, otherwise
+unmatched request to one different host declared in the same configuration,
+preserving the path and query. Denied/invalid paths and exact publications take
+priority; a missing published file remains 404, including its unconfigured slash
+variant. Explicit redirects take priority over the fallback. Only one fallback
+is allowed; it cannot coexist with a reverse proxy, so a catch-all cannot silently
+replace upstream routing. The destination cannot be supplied by the request.
+
 `redirect` matches exactly. `redirect-prefix` matches its source or descendants
 at a `/` component boundary, preserving the suffix; the longest match wins.
 A destination `/` joins the suffix without a double slash. Prefix source `/`,

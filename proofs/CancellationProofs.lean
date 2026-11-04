@@ -75,4 +75,31 @@ theorem every_interleaving_bounded (first last : Window) (run : Run first last)
 theorem cancellation_releases_held_slot (active : Nat) :
     occupied ⟨active, false⟩ + 1 = occupied ⟨active, true⟩ := rfl
 
+theorem retirement_close_eq (retiring held stopping : Bool) (retired active stopped : U64) :
+    delivery.retirement_close retiring retired active held stopping stopped = ok (decide
+      ((stopping = true ∧ 5000 ≤ stopped.val) ∨
+       (retiring = true ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false))) := by
+  cases retiring <;> cases held <;> cases stopping <;>
+    simp [delivery.retirement_close, UScalar.eq_equiv]
+  all_goals split_ifs <;> simp_all
+
+theorem retirement_preserves_active (retiring held : Bool) (retired active stopped : U64)
+    (h : 0 < active.val) :
+    delivery.retirement_close retiring retired active held false stopped = ok false := by
+  simp [retirement_close_eq]
+  omega
+
+theorem retirement_preserves_held (retiring : Bool) (retired active stopped : U64) :
+    delivery.retirement_close retiring retired active true false stopped = ok false := by
+  simp [retirement_close_eq]
+
+theorem retirement_empty_closes (retired stopped : U64) (h : 5000 ≤ retired.val) :
+    delivery.retirement_close true retired 0#u64 false false stopped = ok true := by
+  simp [retirement_close_eq, h]
+
+theorem shutdown_deadline_closes (retiring held : Bool) (retired active stopped : U64)
+    (h : 5000 ≤ stopped.val) :
+    delivery.retirement_close retiring retired active held true stopped = ok true := by
+  simp [retirement_close_eq, h]
+
 end CancellationProofs

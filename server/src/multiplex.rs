@@ -21,15 +21,63 @@ use std::{
     time::{Duration, Instant},
 };
 
+// A last admission before 120s may wait 5s, use a 120s response budget,
+// then carry a stream for at most 3600s. Five seconds remain for final flushing.
+// Per-request/stream deadlines still apply; this is only a connection backstop.
+pub(crate) const CONNECTION_CEILING: Duration = Duration::from_secs(3850);
+#[derive(Default)]
+pub(crate) struct Retirement {
+    began: Option<Instant>,
+    stopped: Option<Instant>,
+}
+impl Retirement {
+    pub fn begin(&mut self) -> bool {
+        if self.began.is_some() {
+            false
+        } else {
+            self.began = Some(Instant::now());
+            true
+        }
+    }
+    pub fn stopping(&mut self) {
+        self.stopped.get_or_insert_with(Instant::now);
+    }
+    pub fn retiring(&self) -> bool {
+        self.began.is_some()
+    }
+    pub fn close(&self, active: usize, held: bool, idle_since: Instant) -> bool {
+        let elapsed = |at: Option<Instant>| {
+            at.map_or(0, |t| t.elapsed().as_millis().min(u64::MAX as u128) as u64)
+        };
+        pathward::delivery::retirement_close(
+            self.retiring(),
+            elapsed(Some(idle_since)),
+            active as u64,
+            held,
+            self.stopped.is_some(),
+            elapsed(self.stopped),
+        )
+    }
+}
+
 /// Tokio traits only: h2 does not require a second executor. A readiness timer
 /// wakes the existing bounded cooperative executor when the socket would block.
 pub(crate) struct Io<T> {
     inner: T,
     wake: Option<async_io::Timer>,
+    read_seen: Option<Arc<AtomicBool>>,
 }
 impl<T> Io<T> {
     pub fn new(inner: T) -> Self {
-        Self { inner, wake: None }
+        Self {
+            inner,
+            wake: None,
+            read_seen: None,
+        }
+    }
+    fn with_read_observer(mut self, seen: Arc<AtomicBool>) -> Self {
+        self.read_seen = Some(seen);
+        self
     }
     fn wait(&mut self, cx: &mut Context<'_>) {
         let timer = self
@@ -49,6 +97,11 @@ impl<T: Read + Unpin> tokio::io::AsyncRead for Io<T> {
     ) -> Poll<io::Result<()>> {
         match self.inner.read(out.initialize_unfilled()) {
             Ok(n) => {
+                if n > 0
+                    && let Some(seen) = &self.read_seen
+                {
+                    seen.store(true, Ordering::Relaxed);
+                }
                 out.advance(n);
                 Poll::Ready(Ok(()))
             }
@@ -714,8 +767,9 @@ pub async fn serve_h2(
     let sni = transport.sni.clone();
     let port = transport.local_port()?;
     let peer = permit.peer();
-    transport.deadline(accepted + Duration::from_secs(125))?;
-    let mut connection = bounded(
+    transport.deadline(accepted + CONNECTION_CEILING)?;
+    let read_seen = Arc::new(AtomicBool::new(false));
+    let connection = bounded(
         Instant::now() + Duration::from_secs(5),
         h2::server::Builder::new()
             .max_concurrent_streams(32)
@@ -730,19 +784,40 @@ pub async fn serve_h2(
             // mistake one legitimate 32-stream cancellation for rapid reset.
             .max_pending_accept_reset_streams(32)
             .max_local_error_reset_streams(Some(8))
-            .handshake::<_, Bytes>(Io::new(transport)),
+            .handshake::<_, Bytes>(Io::new(transport).with_read_observer(read_seen.clone())),
     )
-    .await?
-    .map_err(h2_error)?;
+    .await
+    .and_then(|result| result.map_err(h2_error));
+    let mut connection = match connection {
+        Ok(connection) => connection,
+        Err(e)
+            if !read_seen.load(Ordering::Relaxed)
+                && matches!(
+                    e.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::UnexpectedEof
+                ) =>
+        {
+            // TLS preconnections with no HTTP/2 bytes never created a request.
+            // Partial prefaces and all other errors remain transport failures.
+            server
+                .observe
+                .h2_idle_closed(e.kind() == io::ErrorKind::TimedOut);
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
     let mut tasks: Vec<Pin<Box<dyn Future<Output = ()> + '_>>> = Vec::new();
     let mut count = 0;
     let mut idle = Instant::now();
-    let mut drain = None;
+    let mut retirement = Retirement::default();
     let mut held = None;
     loop {
-        if drain.is_none()
-            && (shutdown.load(Ordering::Acquire)
-                || server.is_draining()
+        let stopping = shutdown.load(Ordering::Acquire) || server.is_draining();
+        if stopping {
+            retirement.stopping();
+        }
+        if !retirement.retiring()
+            && (stopping
                 // Leave one advertised window for requests already in flight
                 // while the two-stage HTTP/2 GOAWAY completes. The actual
                 // admission gate below still enforces 100 / 120 seconds.
@@ -751,9 +826,9 @@ pub async fn serve_h2(
                 || (tasks.is_empty() && held.is_none() && idle.elapsed() >= Duration::from_secs(5)))
         {
             connection.graceful_shutdown();
-            drain = Some(Instant::now() + Duration::from_secs(5));
+            retirement.begin();
         }
-        if drain.is_some_and(|d| Instant::now() >= d) {
+        if retirement.close(tasks.len(), held.is_some(), idle) {
             return Ok(());
         }
         // One held head is part of the same 32-stream window, not an admitted
@@ -795,7 +870,7 @@ pub async fn serve_h2(
                         .admission_rejected(admission::Rejection::GlobalActive);
                     response.send_reset(h2::Reason::REFUSED_STREAM);
                     connection.graceful_shutdown();
-                    drain = Some(Instant::now() + Duration::from_secs(5));
+                    retirement.begin();
                 }
             }
             Some(Some(Err(e))) => {
@@ -829,7 +904,7 @@ pub async fn serve_h2(
                         .admission_rejected(admission::Rejection::GlobalActive);
                     response.send_reset(h2::Reason::REFUSED_STREAM);
                     connection.graceful_shutdown();
-                    drain = Some(Instant::now() + Duration::from_secs(5));
+                    retirement.begin();
                 }
                 pathward::delivery::HeldAction::TryAdmission => {
                     if let Some(waiting) = pending(server) {
@@ -887,6 +962,77 @@ mod tests {
         .with_no_client_auth();
         client.alpn_protocols = vec![b"h2".to_vec()];
         (identity, Arc::new(client))
+    }
+    #[test]
+    fn h2_idle_prefaces_are_counted_but_partial_prefaces_remain_errors() {
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                for (partial, notify) in [(false, true), (false, false), (true, true)] {
+                    let socket = TcpStream::connect(address).unwrap();
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(8)))
+                        .unwrap();
+                    let connection = rustls::ClientConnection::new(
+                        client.clone(),
+                        rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                    )
+                    .unwrap();
+                    let mut socket = rustls::StreamOwned::new(connection, socket);
+                    while socket.conn.is_handshaking() {
+                        socket.conn.complete_io(&mut socket.sock).unwrap();
+                    }
+                    if partial {
+                        socket.write_all(b"P").unwrap();
+                    }
+                    if notify {
+                        socket.conn.send_close_notify();
+                        socket.flush().unwrap();
+                    }
+                    let mut bytes = [0; 256];
+                    let until = Instant::now() + Duration::from_secs(8);
+                    loop {
+                        assert!(Instant::now() < until);
+                        match socket.read(&mut bytes) {
+                            Ok(0) | Err(_) => break,
+                            Ok(_) => {}
+                        }
+                    }
+                }
+                let until = Instant::now() + Duration::from_secs(1);
+                loop {
+                    let metrics = server.observe.metrics(1, true, false, true, None);
+                    if metrics.contains("pathward_request_io_errors_total 1\n") {
+                        assert!(
+                            metrics.contains("pathward_h2_idle_preface_timeout_total 1\n"),
+                            "{metrics}"
+                        );
+                        assert!(
+                            metrics.contains("pathward_h2_idle_preface_eof_total 1\n"),
+                            "{metrics}"
+                        );
+                        break;
+                    }
+                    assert!(Instant::now() < until, "{metrics}");
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            }));
+            stop.store(true, Ordering::Release);
+            serving.join().unwrap().unwrap();
+            if let Err(p) = result {
+                std::panic::resume_unwind(p);
+            }
+        });
     }
     #[test]
     fn admission_and_input_waits_release_capacity_without_reserving_the_queue() {
@@ -1173,9 +1319,11 @@ mod tests {
     }
     #[test]
     fn h2_retirement_finishes_in_flight_window_without_refusal_storm() {
-        let config = pathward_config::ParsedConfig::parse(
-            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9\"\n} ",
-        )
+        let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+        let (retired, retiring) = std::sync::mpsc::channel();
+        let config = pathward_config::ParsedConfig::parse(&format!(
+            "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-timeout \"response-head\" \"30s\"\nproxy-timeout \"total\" \"45s\"\n}}", backend.local_addr().unwrap()
+        ))
         .unwrap();
         let server = Server::new(&config.compile().unwrap()).unwrap();
         let (identity, client) = identity();
@@ -1185,6 +1333,38 @@ mod tests {
         let stop = AtomicBool::new(false);
         std::thread::scope(|scope| {
             let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let origin = scope.spawn(move || {
+                backend.set_nonblocking(true).unwrap();
+                let until = Instant::now() + Duration::from_secs(12);
+                let mut socket = loop {
+                    match backend.accept() {
+                        Ok((socket, _)) => break socket,
+                        Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                            assert!(Instant::now() < until, "missing slow origin request");
+                            std::thread::sleep(Duration::from_millis(2));
+                        }
+                        Err(e) => panic!("{e}"),
+                    }
+                };
+                socket.set_nonblocking(false).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    socket.read_exact(&mut byte).unwrap();
+                    head.push(byte[0]);
+                    assert!(head.len() < 16384);
+                }
+                retiring.recv_timeout(Duration::from_secs(12)).unwrap();
+                std::thread::sleep(Duration::from_millis(6500));
+                socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nslow",
+                    )
+                    .unwrap();
+            });
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let socket = TcpStream::connect(address).unwrap();
                 socket
@@ -1201,7 +1381,7 @@ mod tests {
                 }
                 socket.sock.set_nonblocking(true).unwrap();
                 futures_lite::future::block_on(async {
-                    bounded(Instant::now() + Duration::from_secs(15), async {
+                    bounded(Instant::now() + Duration::from_secs(25), async {
                         let (client, connection) =
                             h2::client::handshake(Io::new(socket)).await.unwrap();
                         let (_, completed) = futures_lite::future::zip(
@@ -1244,6 +1424,17 @@ mod tests {
                                     let data = data.unwrap();
                                     body.flow_control().release_capacity(data.len()).unwrap();
                                 }
+                                let mut client = client.ready().await.unwrap();
+                                let (slow, _) = client
+                                    .send_request(
+                                        http_types::Request::builder()
+                                            .uri("https://app.example/slow")
+                                            .body(())
+                                            .unwrap(),
+                                        true,
+                                    )
+                                    .unwrap();
+                                let slow_started = Instant::now();
                                 let mut client = Some(client);
                                 let mut completed = 1;
                                 for _ in 0..8 {
@@ -1286,7 +1477,21 @@ mod tests {
                                     }
                                 }
                                 drop(client);
-                                completed
+                                retired.send(()).unwrap();
+                                let response = slow
+                                    .await
+                                    .expect("normal GOAWAY truncated an accepted slow response");
+                                assert_eq!(response.status(), 200);
+                                let mut body = response.into_body();
+                                let mut received = Vec::new();
+                                while let Some(data) = body.data().await {
+                                    let data = data.unwrap();
+                                    received.extend_from_slice(&data);
+                                    body.flow_control().release_capacity(data.len()).unwrap();
+                                }
+                                assert_eq!(received, b"slow");
+                                assert!(slow_started.elapsed() >= Duration::from_secs(6));
+                                completed + 1
                             },
                         )
                         .await;
@@ -1307,6 +1512,7 @@ mod tests {
             }));
             stop.store(true, Ordering::Release);
             serving.join().unwrap().unwrap();
+            origin.join().unwrap();
             if let Err(p) = result {
                 std::panic::resume_unwind(p);
             }

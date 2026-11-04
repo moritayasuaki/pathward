@@ -24,6 +24,11 @@ import UpstreamProofs
 #print axioms CancellationProofs.step_preserves_bound
 #print axioms CancellationProofs.every_interleaving_bounded
 #print axioms CancellationProofs.cancellation_releases_held_slot
+#print axioms CancellationProofs.retirement_close_eq
+#print axioms CancellationProofs.retirement_preserves_active
+#print axioms CancellationProofs.retirement_preserves_held
+#print axioms CancellationProofs.retirement_empty_closes
+#print axioms CancellationProofs.shutdown_deadline_closes
 #print axioms ContentProofs.span_eq
 #print axioms ContentProofs.span_bounded
 #print axioms ContentProofs.span_total

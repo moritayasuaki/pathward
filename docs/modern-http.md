@@ -28,7 +28,14 @@ advertised 32-stream/window bounds and drives existing I/O instead of producing
 an immediate REFUSED_STREAM retry storm. This wait is also capped at five
 seconds. GOAWAY starts after 68 requests or 115 seconds, leaving room for one
 32-stream window already in flight; the actual admission gate still enforces
-100 requests and 120 seconds, and shutdown never admits new requests.
+100 requests and a 120-second new-admission window, and shutdown never admits new requests.
+Normal retirement preserves accepted responses within their own deadlines.
+The five-second idle flush interval starts again after a task finishes, because
+queuing the final DATA frame is not the same as transmitting it. Explicit server
+shutdown retains a separate, non-renewable five-second drain limit. A 3,850-second
+connection backstop covers the last admission at 120s, 5s admission wait, 120s
+response preparation, 3,600s maximum stream duration and 5s final flushing.
+This does not extend any request or stream deadline.
 The pending remote-reset allowance matches the advertised 32-stream window:
 a page reload may cancel that whole window before application admission. The
 33rd unconsumed reset still closes the connection. Locally retained resets stay
@@ -67,8 +74,8 @@ valid on a static site and survives managed configuration generation/reload.
 - Normal TLS advertises `h2` and `http/1.1`. HTTP/2 uses at most 32 streams per
   connection, a 16 KiB header-list/stream window, 4 KiB HPACK table, 65,535-byte
   connection window, bounded resets and 16 KiB send buffers. Each stream charges
-  the common admission/byte/service gates. GOAWAY/closure bounds request count,
-  lifetime and draining. Large files and SSE stream in bounded chunks.
+  the common admission/byte/service gates. GOAWAY bounds request count and new-admission age; separate closure rules
+  bound idle flushing and shutdown. Large files and SSE stream in bounded chunks.
 - `serve-tls ... --experimental-http3` also binds UDP at exactly the TCP TLS
   address/port. It uses the same dynamic certificate and policy snapshots, and
   emits same-origin `Alt-Svc: h3=":PORT"; ma=60` on finite TLS responses. TCP
@@ -146,7 +153,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **365 named Lean statements and helper lemmas, with no new axioms or proof holes. The
+now audits **370 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -231,3 +238,21 @@ invariant over a finite transition model. It does not prove the async adapter,
 Atomic accounting or Drop execution. The complete theorem/axiom inventory and
 remaining proof goals are tracked in `proofs/registry.json` and
 `proofs/roadmap.json`, with freshness checked by `make proof-check`.
+
+## Retirement and empty preconnections (2026-11-04)
+
+The native HTTP/2 regression starts a valid slow upstream request, retires the
+connection using more than 68 requests, then delays the upstream reply a further
+6.5 seconds. The old adapter truncated it. The new adapter completes its status
+and exact body, and preserves the existing overload/cancellation bounds. This
+also covers the final queued DATA frame, not merely the task's return value.
+The shared HTTP/2/3 close decision is extracted and proved in CancellationProofs.
+Protocol libraries, fair polling and the physical delivery remain trusted.
+
+A TLS connection that sends no HTTP/2 plaintext before EOF or the five-second
+preface deadline is counted in `h2_idle_preface_eof_total` or
+`h2_idle_preface_timeout_total`. No HTTP request existed to count as failed.
+The adapter records only a boolean indicating whether a plaintext byte arrived.
+A partial preface still fails; other I/O/protocol errors are unchanged. Actual
+TLS tests cover empty EOF, empty timeout and one-byte truncated preface.
+No request URL, header or body is added to logging; no dependency is added.
