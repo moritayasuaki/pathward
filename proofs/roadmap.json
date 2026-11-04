@@ -44,9 +44,41 @@
     "KDL・HTTP・TLS・QUICの外部ライブラリと、抽出対象外のアダプター",
     "Atomic・Arc・ロック・FutureのpollとDropの実行・実行器の公平性",
     "OSのファイルオープン・ディスク永続化・時計・ソケット・systemd",
-    "公開マニフェストの内容が機密ではないという運用判断とバックエンドの認証"
+    "公開マニフェストの内容が機密ではないという運用判断とバックエンドの認証",
+    "ホスティング側のPythonスナップショット生成・受領票・systemd連携。Leanで証明済みのRust設定検証とCASを通すが、Python/OS実装全体は未証明。"
   ],
   "goals": [
+    {
+      "id": "HEAD-PREFIX",
+      "priority": "P0",
+      "status": "proved",
+      "title": "HEADに上流の余分な本文を転送しない",
+      "acceptance": "実Rustから抽出した本文モードがHEADでは常に破棄となる。専用上流接続は再利用せず、偽の次応答を含む回帰試験で本文を転送しないことを確認。ソケット処理全体の対応証明は前提。",
+      "theorems": [
+        "ProxyProofs.head_discards_prefix",
+        "ProxyProofs.bodyless_prefix_rejected",
+        "ProxyProofs.response_body_mode_total"
+      ]
+    },
+    {
+      "id": "RESPONSE-STORAGE",
+      "priority": "P0",
+      "status": "proved",
+      "title": "応答本文の二重保持とメタデータを予約容量内に収める",
+      "acceptance": "検証済み長さに対するRustの予約ゲートで、本文2個分と256KiBが予約以内、本文は64MiB以下、加算は64ビット上限未満と証明。未知長は設定上限を用いる。アロケータ・実行器・実メモリ総量の証明は別。",
+      "theorems": [
+        "DeliveryProofs.response_storage_covers_copies",
+        "DeliveryProofs.response_storage_cannot_exceed_cap"
+      ]
+    },
+    {
+      "id": "PUBLISH-RECEIPT",
+      "priority": "P0",
+      "status": "planned",
+      "title": "公開更新の受領票と実際に有効な設定の一致",
+      "acceptance": "不変スナップショット・CAS・受領票の状態モデルで、古い受領票は新しい公開更新を承認できず、公開範囲外のファイルを追加しないと証明する。Linux実装のリンク・fsync・権限の前提を明示する。現在はLinux統合試験で検証。",
+      "theorems": []
+    },
     {
       "id": "CANCEL-POLICY",
       "priority": "P0",

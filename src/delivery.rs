@@ -12,6 +12,13 @@ pub fn shrink_allowed(before: u64, after: u64) -> bool {
     after <= before
 }
 
+/// A buffered response reserves room for two body copies and bounded metadata.
+/// The adapter checks this before allocating the body, after validating framing.
+#[allow(clippy::manual_range_contains)]
+pub fn response_storage(body: u64, credit: u64) -> bool {
+    credit >= 262144 && credit <= 134479872 && body <= (credit - 262144) / 2
+}
+
 /// Phase deadlines never restart when another byte arrives.
 pub fn phase_live(elapsed_ms: u64, budget_ms: u64, draining: bool) -> bool {
     !draining && budget_ms > 0 && budget_ms <= 120000 && elapsed_ms < budget_ms

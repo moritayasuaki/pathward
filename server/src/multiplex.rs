@@ -1554,7 +1554,7 @@ mod tests {
     #[test]
     fn real_tls_h2_multiplexes_24_waits_compression_and_streams_sse() {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
-        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"3MiB\"\nproxy-limit \"response-body\" \"256KiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
+        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"3MiB\"\nproxy-limit \"response-body\" \"32MiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
         let server = Server::new(&config.compile().unwrap()).unwrap();
         let (identity, client) = identity();
         let tls = crate::tls::TlsServer::new(identity).unwrap();

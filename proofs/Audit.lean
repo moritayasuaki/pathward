@@ -48,6 +48,9 @@ import UpstreamProofs
 #print axioms DeliveryProofs.reserve_total
 #print axioms DeliveryProofs.shrink_eq
 #print axioms DeliveryProofs.shrink_cannot_add_credit
+#print axioms DeliveryProofs.response_storage_eq
+#print axioms DeliveryProofs.response_storage_covers_copies
+#print axioms DeliveryProofs.response_storage_cannot_exceed_cap
 #print axioms DeliveryProofs.phase_eq
 #print axioms DeliveryProofs.phase_bounded
 #print axioms DeliveryProofs.phase_expired
@@ -123,6 +126,10 @@ import UpstreamProofs
 #print axioms ProxyProofs.request_no_transfer_encoding
 #print axioms ProxyProofs.response_no_ambiguous_length
 #print axioms ProxyProofs.response_no_duplicate_length
+#print axioms ProxyProofs.head_discards_prefix
+#print axioms ProxyProofs.bodyless_prefix_rejected
+#print axioms ProxyProofs.ordinary_response_reads_body
+#print axioms ProxyProofs.response_body_mode_total
 #print axioms ProxyProofs.target_loop_eq
 #print axioms ProxyProofs.target_bytes_eq
 #print axioms ProxyProofs.target_eq

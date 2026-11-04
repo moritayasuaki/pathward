@@ -60,6 +60,39 @@ theorem shrink_cannot_add_credit (b a : U64)
     (h : delivery.shrink_allowed b a = ok true) : a.val ≤ b.val := by
   simpa [shrink_eq] using h
 
+theorem response_storage_eq (body credit : U64) :
+    delivery.response_storage body credit = ok (decide
+      (2 * body.val + 262144 ≤ credit.val ∧ credit.val ≤ 134479872)) := by
+  unfold delivery.response_storage
+  by_cases low : 262144 ≤ credit.val
+  · by_cases high : credit.val ≤ 134479872
+    · obtain ⟨rest, hr, hrv, _⟩ := WP.spec_imp_exists
+        (U64.sub_bv_spec (x := credit) (y := 262144#u64) (by simpa using low))
+      obtain ⟨half, hh, hhv, _⟩ := WP.spec_imp_exists
+        (U64.div_bv_spec rest (y := 2#u64) (by decide))
+      have hc : (262144#u64).val = 262144 := rfl
+      have ht : (2#u64).val = 2 := rfl
+      rw [hc] at hrv
+      rw [ht] at hhv
+      have equivalent : body.val ≤ (credit.val - 262144) / 2 ↔
+          2 * body.val + 262144 ≤ credit.val := by omega
+      simp [low, high, hr, hh, hrv, hhv, equivalent]
+    · simp [low, high]
+  · simp [low]
+    omega
+
+theorem response_storage_covers_copies (body credit : U64)
+    (h : delivery.response_storage body credit = ok true) :
+    2 * body.val + 262144 ≤ credit.val ∧ body.val ≤ 67108864 := by
+  simp [response_storage_eq] at h
+  exact ⟨h.1, by omega⟩
+
+theorem response_storage_cannot_exceed_cap (body credit : U64)
+    (h : delivery.response_storage body credit = ok true) :
+    credit.val ≤ 134479872 ∧ credit.val < 2^64 := by
+  simp [response_storage_eq] at h
+  exact ⟨h.2, by omega⟩
+
 theorem phase_eq (e b : U64) (d : Bool) :
     delivery.phase_live e b d = ok (decide (d = false ∧ 0 < b.val ∧ b.val ≤ 120000 ∧ e.val < b.val)) := by
   simp [delivery.phase_live]

@@ -17,6 +17,13 @@ pub(crate) struct Response {
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
     pub live: Option<Live>,
+    pub delivery_lease: Option<crate::delivery::Lease>,
+}
+
+pub(crate) struct ResponseBudget<'a> {
+    pub budget: &'a crate::delivery::Budget,
+    pub peer: std::net::IpAddr,
+    pub stopping: &'a dyn Fn() -> bool,
 }
 
 fn forwarded_authority(req: &Request<'_>, external_port: u16, encrypted: bool) -> String {
@@ -65,6 +72,7 @@ pub(crate) async fn forward_async(
     limits: ProxyLimits,
     origins: &[String],
     routes: &[UpstreamRoute],
+    response_budget: Option<ResponseBudget<'_>>,
 ) -> Result<Response, Rejection> {
     if !limits.valid() {
         return Err(Rejection(502));
@@ -141,6 +149,7 @@ pub(crate) async fn forward_async(
     if local_options {
         return Ok(Response {
             status: 204,
+            delivery_lease: None,
             live: None,
             length: None,
             body: Vec::new(),
@@ -242,6 +251,7 @@ pub(crate) async fn forward_async(
         deadline.min(Instant::now() + Duration::from_millis(limits.head_ms)),
         limits,
         upgrade.as_ref(),
+        response_budget,
     )
     .await
     .map_err(failure)
@@ -264,6 +274,7 @@ fn receive(
         head_deadline,
         limits,
         upgrade,
+        None,
     ))
 }
 
@@ -332,6 +343,7 @@ async fn receive_async(
     head_deadline: Instant,
     limits: ProxyLimits,
     upgrade: Option<&streaming::Upgrade>,
+    response_budget: Option<ResponseBudget<'_>>,
 ) -> io::Result<Response> {
     let limit = limits.response_bytes;
     let raw = crate::async_http::read_head(&mut socket, head_deadline).await?;
@@ -477,6 +489,7 @@ async fn receive_async(
     if let Some(mode) = mode {
         return Ok(Response {
             status,
+            delivery_lease: None,
             length: None,
             headers: outgoing,
             body: Vec::new(),
@@ -489,18 +502,43 @@ async fn receive_async(
         offset: 0,
         deadline,
     };
-    let bodyless = head_only || status == 204 || status == 304;
+    let mode = pathward::proxy::upstream_body_mode(head_only, status, wire.unused());
+    if mode == 2 {
+        return Err(invalid());
+    }
+    let bodyless = mode == 1;
+    let body_capacity = if bodyless { 0 } else { length.unwrap_or(limit) };
+    // Request/header storage was reserved before connecting. Response storage
+    // is charged here, once validated Content-Length identifies its actual cap.
+    // Unknown-length responses still reserve the full configured body limit.
+    let credit = body_capacity
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(crate::delivery::HEAD_BYTES as u64))
+        .ok_or_else(invalid)?;
+    if !pathward::delivery::response_storage(body_capacity, credit) {
+        return Err(invalid());
+    }
+    let delivery_lease = if let Some(out) = response_budget {
+        let until = deadline.min(Instant::now() + crate::delivery::QUEUE_BUDGET);
+        Some(loop {
+            if (out.stopping)() || Instant::now() >= until {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            if let Some(lease) = out.budget.reserve(out.peer, credit, false) {
+                break lease;
+            }
+            crate::async_http::pause().await;
+        })
+    } else {
+        None
+    };
     // Reserve once, within the already-validated framing limit. This avoids
     // transient geometric growth while ordinary response bodies are validated.
-    let mut body = Vec::with_capacity(if bodyless {
-        0
-    } else {
-        length.unwrap_or(limit) as usize
-    });
+    let mut body = Vec::with_capacity(body_capacity as usize);
     let declared = if bodyless {
-        if wire.unused() {
-            return Err(invalid());
-        }
+        // This socket carries only this request and is never reused. HEAD
+        // discards any noncompliant prefetched bytes by dropping it; they
+        // cannot become a downstream body or the next response.
         length
     } else if chunked {
         loop {
@@ -559,6 +597,7 @@ async fn receive_async(
     http::remaining(deadline)?;
     Ok(Response {
         status,
+        delivery_lease,
         live: None,
         length: declared,
         headers: outgoing,

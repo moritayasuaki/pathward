@@ -199,6 +199,8 @@ fn bad_upstream_framing_never_commits_a_partial_success() {
         b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-A: a\0b\r\n\r\n",
         b"HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
         b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n",
+        b"HTTP/1.1 204 No Content\r\n\r\nunexpected",
+        b"HTTP/1.1 304 Not Modified\r\nContent-Length: 1234\r\n\r\nunexpected",
         b"HTTP/1.1 205 Reset Content\r\nContent-Length: 1\r\n\r\nx",
     ];
     for reply in cases {
@@ -214,6 +216,11 @@ fn head_and_conditional_responses_never_copy_a_body() {
             b"HTTP/1.1 200 OK\r\nContent-Length: 1234\r\n\r\n".as_slice(),
             b"HEAD / HTTP/1.1\r\nHost: app.example\r\n\r\n".as_slice(),
             200,
+        ),
+        (
+            b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 1234\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nsecret",
+            b"HEAD / HTTP/1.1\r\nHost: app.example\r\n\r\n",
+            405,
         ),
         (
             b"HTTP/1.1 304 Not Modified\r\nContent-Length: 1234\r\nETag: \"v1\"\r\n\r\n",

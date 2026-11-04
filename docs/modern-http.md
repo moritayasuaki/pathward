@@ -153,7 +153,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **370 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **377 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -269,3 +269,27 @@ request whose END_STREAM flag already proves the input is empty. Missing
 Content-Length or GET alone does not establish emptiness. The 24-way real TLS
 regression uses a 3 MiB cap and waits for every upstream request before replying.
 Nonempty and unknown-length inputs retain their existing byte-credit checks.
+
+## Framed response storage and HEAD compatibility (2026-11-04)
+
+A high configured response limit must not reserve that maximum for every tiny
+asset. Before connecting, the adapter reserves the actual framed request length
+and bounded metadata. After validating the response headers, it reserves twice
+the declared body length plus 256 KiB, before body allocation. Unknown-length
+responses still reserve twice the configured limit. A fixed five-second wait
+cannot exceed the existing total response deadline. Cancellation drops the wait
+and its request/service leases. No upstream request is retried: exhaustion or
+failure after an upstream mutation may still fail its response, as with an I/O
+failure; it does not roll back the mutation. Maximum body size and global/peer
+credit caps are unchanged. The extracted storage gate proves both-copy coverage,
+a 64 MiB body bound and safe 64-bit accounting. Allocator/runtime refinement is
+still a trusted boundary. The real TLS regression admits 24 upstream requests
+before any replies, with a 3 MiB input and 32 MiB output limit.
+
+HEAD always chooses an empty downstream body. Some upstreams send a body even
+for HEAD errors. The one-exchange upstream socket is dropped, including any
+prefetched bytes; it is never reused or interpreted as a second response. The
+native regression includes a fake second response in that prefix and verifies
+that none reaches the client. Non-HEAD 204/304 responses with prefetched bytes
+remain errors; ambiguous lengths and other framing checks are unchanged.
+ProxyProofs checks the actual extracted body-mode selector.

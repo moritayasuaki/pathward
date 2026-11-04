@@ -458,9 +458,7 @@ impl Server {
                     if let Some(out) = &handoff {
                         if let Some(lease) = out.budget.reserve(
                             out.peer,
-                            site.limits.request_bytes
-                                + 2 * site.limits.response_bytes
-                                + delivery::HEAD_BYTES as u64,
+                            req.content_length + delivery::HEAD_BYTES as u64,
                             stopping(),
                         ) {
                             break (permit, Some(lease));
@@ -497,12 +495,21 @@ impl Server {
                 site.limits,
                 &site.websocket_origins,
                 &site.proxy_routes,
+                handoff.as_ref().map(|out| proxy::ResponseBudget {
+                    budget: out.budget,
+                    peer: out.peer,
+                    stopping,
+                }),
             )
             .await
             {
                 Ok(response) => response,
                 Err(http::Rejection(status)) => return reject(stream, status).await,
             };
+            // Release the request charge after forwarding. Ordinary responses
+            // now carry their own framing-sized storage reservation. Local
+            // bodyless OPTIONS retains the original small metadata charge.
+            let delivery_lease = response.delivery_lease.take().or(delivery_lease);
             if response.live.is_some() && leases.is_none() {
                 leases = match quota
                     .acquire_for(stream.peer_ip(), stopping())

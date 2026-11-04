@@ -63,6 +63,8 @@ def main():
                         "--start-from", "pathward::proxy::status_allowed",
                         "--start-from", "pathward::proxy::request_framing",
                         "--start-from", "pathward::proxy::response_framing",
+                        "--start-from", "pathward::proxy::upstream_body_mode",
+                        "--start-from", "pathward::delivery::response_storage",
                         "--start-from", "pathward::proxy::target_allowed",
                         "--start-from", "pathward::proxy::request_header",
                         "--start-from", "pathward::proxy::response_header",
