@@ -167,8 +167,9 @@ site "example.com" {{
             s.close()
         held, downloads = [], []
 
-        # A reservation is made before a mutation is sent upstream, and a
-        # configuration switch cannot reset outstanding response-byte charges.
+        # A high configured maximum is not an allocation. A tiny mutation must
+        # progress while another request waits for its framed response, without
+        # retrying either request. Existing request/service leases survive reload.
         replace("reserved", "64MiB")
         process.send_signal(signal.SIGHUP)
         end = time.monotonic() + 3
@@ -179,11 +180,8 @@ site "example.com" {{
         held.append(waiting)
         waiting.sendall(b"GET /hold HTTP/1.1\r\nHost: example.com\r\n\r\n")
         assert hold_entered.wait(3)
-        with connect() as s:
-            s.sendall(b"POST /create HTTP/1.1\r\nHost: example.com\r\nContent-Length: 3\r\n\r\none")
-            assert head(s).startswith(b"HTTP/1.1 503 ")
-            finish(s)
-        assert created == 3, "rejected mutation reached upstream"
+        post("reserved")
+        assert created == 4, "small mutation was repeated or blocked by a configured maximum"
         replace("last")
         process.send_signal(signal.SIGHUP)
         end = time.monotonic() + 3
@@ -194,7 +192,7 @@ site "example.com" {{
         hold_release.set()
         assert b"x-robots-tag: reserved\r\n" in head(waiting)
         assert finish(waiting) == b"HELD"
-        assert created == 4
+        assert created == 5
         waiting.close()
         held = []
 
@@ -240,7 +238,7 @@ site "example.com" {{
         assert failure["status"] == 0 and failure["body_bytes"] == 0
         assert failure["delivery_status"] == 200 and 0 < failure["body_bytes_written"] < len(PAYLOAD)
         post("last")
-        assert created == 5, "mutation after cancellation was repeated"
+        assert created == 6, "mutation after cancellation was repeated"
 
         # Incomplete input is discarded on shutdown, while delivery is bounded.
         stalled = connect()
@@ -250,7 +248,7 @@ site "example.com" {{
         process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=7) == 0
         assert time.monotonic() - before < 7
-        print("Delivery passed: partial headers, 24 slow same-IP bodies, API progress, reload consistency, pre-mutation byte reservation, diagnosed peer cancellation, no retry, bounded shutdown.")
+        print("Delivery passed: partial headers, 24 slow same-IP bodies, API progress, reload consistency, framed response reservation, diagnosed peer cancellation, no retry, bounded shutdown.")
     finally:
         hold_release.set()
         for s in downloads + held:

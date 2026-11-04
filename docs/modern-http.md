@@ -13,9 +13,10 @@ apply. `capacity "shared-nat"` is necessary for a 24-client workload; the standa
 now accepts 1–64 (default 2). Before an upstream side effect, a request can wait
 cooperatively for at most one second for service and byte reservations, within
 its existing total deadline. No upstream request is retried. Raising concurrency
-also requires appropriate request/response caps: reservations include the request
-cap, twice the response cap and 256 KiB; HTTP/2/3 additionally reserve bounded
-input translation buffers. Large configured maxima can legitimately cause 503.
+also requires appropriate request/response caps. Request storage is charged
+before upstream contact; response storage uses validated framing before allocation
+(see below). HTTP/2/3 additionally reserve bounded input translation buffers.
+Unknown-length responses retain their configured maximum and may exhaust credit.
 Multiplexed streams may wait up to five seconds for common admission/input
 credit, with at most 64 admission waiters process-wide and 32 streams per
 connection. Waiting for admission reserves no body/response buffer and consumes
@@ -36,10 +37,19 @@ shutdown retains a separate, non-renewable five-second drain limit. A 3,850-seco
 connection backstop covers the last admission at 120s, 5s admission wait, 120s
 response preparation, 3,600s maximum stream duration and 5s final flushing.
 This does not extend any request or stream deadline.
-The pending remote-reset allowance matches the advertised 32-stream window:
-a page reload may cancel that whole window before application admission. The
-33rd unconsumed reset still closes the connection. Locally retained resets stay
-capped at 32 and internal error resets at eight. Explicit CANCEL/NO_ERROR is
+The pending remote-reset queue is distinct from the 32 live-stream window:
+reset streams release protocol concurrency before their queued heads are consumed.
+The library drives input before returning queued heads, so TCP/TLS coalescing can
+combine several legitimate cancellation windows. This queue is capped at 100,
+matching the connection's request-admission ceiling; the 101st unconsumed reset
+closes it. Locally retained resets stay capped at 32 and internal error resets
+at eight. This increases bounded header retention: 100 × 16 KiB is about 1.56 MiB
+per connection before library/allocator overhead, versus 0.5 MiB for 32. Across
+256 admitted connections this portion can reach 400 MiB; it is not covered by
+the separate response-byte credit pool or a proof of process RSS. Keep a process
+memory limit and resource monitoring; no claim of unchanged worst-case memory is
+made. The active-stream, admission, body, rate, request-age and lifetime limits
+are unchanged. Explicit CANCEL/NO_ERROR is
 checked before admission, after waiting, before the common responder and before
 response headers. Cancellation observed before starting the responder prevents
 upstream contact; cancellation after upstream work begins cannot undo that work.
@@ -230,14 +240,15 @@ connection. Waits now poll cancellation first and drop their leases when it wins
 A connection can hold one unadmitted head within its existing 32-stream window,
 so cancelled heads can drain without global queue credit. It allocates no request
 body or response/service lease at this stage. The original head-accept time is
-retained across the wait. A single TLS record containing 33 unconsumed reset
-pairs still triggers the finite abuse limit; the limit was not disabled.
+retained across the wait. A single TLS record with 64 cancelled requests is now
+a regression case; 101 unconsumed reset pairs still trigger the finite limit.
 The two-wave regression now separates cancellation windows by only 5 ms.
 The old one-head-per-2-ms loop reproducibly exceeded that reset queue; the
 adapter now consumes at most 32 ready steps before yielding, and checks
 cancellation before the connection retirement/refusal gate. It polls existing
-tasks between heads. Stream, pending-reset, queue, age and request caps are
-unchanged. No request data is logged; fixed events distinguish the connection
+tasks between heads. The later real-browser test still reached the 32-reset
+queue under coalesced windows, so the separately bounded queue is now 100 as
+reviewed above. No request data is logged; fixed events distinguish the connection
 window gate from a held-head deadline.
 
 `CancellationProofs` checks the extracted held-head decision and the 32-slot

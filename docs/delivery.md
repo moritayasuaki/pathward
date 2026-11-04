@@ -1,6 +1,10 @@
 # Bounded input and downstream delivery
 
 Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The historical pre-mutation maximum-response reservation described below was
+replaced by framed response reservations in the 2026-11-04 modern-HTTP update.
+Only request/header storage is reserved before contact; response-credit failure
+after a mutation may fail its response and never retries or rolls it back.
 The dated results and earlier limits below describe their recorded revisions.
 
 The cold-browser rehearsal exposed ordinary workers waiting on incomplete heads

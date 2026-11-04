@@ -158,13 +158,14 @@ It preserves denials, proxy scopes, upstream and every budget, then recompiles t
 complete result. It cannot turn a rootless proxy into a file publication site.
 Managed file preflight and expected generation/digest checks remain unchanged.
 
-Retained ordinary responses and in-flight response reservations share a 256 MiB
-global / 192 MiB peer byte budget across configuration generations. A proxy request
-reserves twice its response cap plus 256 KiB before contacting the upstream,
-covering response validation and the transition to retained output. The reservation
-shrinks only after releasing unused buffer capacity. Request payloads (up to four
-16 MiB buffers), TLS, metadata, allocator and kernel socket overhead are additional.
-These are logical payload bounds, not a proof of resident memory usage.
+Retained ordinary responses and in-flight reservations share a 256 MiB global /
+192 MiB peer byte budget across generations. Request/header storage is charged
+before contact. After response framing is validated, twice the declared response
+length plus 256 KiB is charged before body allocation; unknown-length responses
+use the configured cap. Failure after a mutation may fail its response, never
+retry or undo it. See [framed storage](modern-http.md#framed-response-storage-and-head-compatibility-2026-11-04).
+TLS, library/allocator metadata and kernel buffers are additional. These are
+logical payload bounds, not a proof of resident memory usage.
 
 Long upstream requests still lengthen graceful drain. With the full 120-second
 total, allow at least 130 seconds in the supervisor on trusted local storage and

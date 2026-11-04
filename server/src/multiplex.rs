@@ -784,10 +784,11 @@ pub async fn serve_h2(
             .header_table_size(4096)
             .max_send_buffer_size(16384)
             .max_concurrent_reset_streams(32)
-            // A page reload can cancel the entire advertised stream window
-            // while admission is backpressured. Keep this finite, but do not
-            // mistake one legitimate 32-stream cancellation for rapid reset.
-            .max_pending_accept_reset_streams(32)
+            // Reset streams no longer count against the advertised live window.
+            // h2 polls the wire before returning queued heads, so coalesced
+            // reload windows can exceed 32 even when no live window does.
+            // Bound this distinct queue by the 100-request admission ceiling.
+            .max_pending_accept_reset_streams(100)
             .max_local_error_reset_streams(Some(8))
             .handshake::<_, Bytes>(Io::new(transport).with_read_observer(read_seen.clone())),
     )
@@ -952,7 +953,7 @@ pub async fn serve_h2(
         }
         // Drain a bounded batch of already-ready heads/resets before sleeping.
         // One head per 2ms lets separate legitimate cancellation windows pile
-        // up in h2's pending-reset queue. The same 32-reset abuse cap remains.
+        // up in h2's pending-reset queue. Its separate finite cap remains.
         if progressed && burst < 31 {
             burst += 1;
         } else {
@@ -1185,7 +1186,8 @@ mod tests {
             }).await.unwrap();
         });
     }
-    fn h2_cancel_window(excess: bool) {
+    fn h2_cancel_window(raw_resets: u32) {
+        let excess = raw_resets > 100;
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
         backend.set_nonblocking(true).unwrap();
         let config = pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}", backend.local_addr().unwrap())).unwrap();
@@ -1211,10 +1213,11 @@ mod tests {
                 while socket.conn.is_handshaking() {
                     socket.conn.complete_io(&mut socket.sock).unwrap();
                 }
-                if excess {
+                if raw_resets != 0 {
                     let _held: Vec<_> = (0..64).map(|_| pending(&server).unwrap()).collect();
-                    // One TLS record contains 33 unconsumed HEADERS/RST pairs.
-                    // This is a rapid-reset burst, unlike separated page reloads.
+                    // Coalescing separate cancellation windows in one TLS record
+                    // must not change their validity. The 101st pending reset
+                    // still trips the finite library queue ceiling.
                     let mut wire = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".to_vec();
                     fn frame(wire: &mut Vec<u8>, kind: u8, flags: u8, id: u32, body: &[u8]) {
                         wire.extend_from_slice(&(body.len() as u32).to_be_bytes()[1..]);
@@ -1226,21 +1229,27 @@ mod tests {
                     // HPACK indexed GET, https, /; literal indexed :authority.
                     let mut headers = vec![0x82, 0x87, 0x84, 0x01, 11];
                     headers.extend_from_slice(b"app.example");
-                    for n in 0..33 {
+                    for n in 0..raw_resets {
                         let id = 2 * n + 1;
                         frame(&mut wire, 1, 5, id, &headers);
                         frame(&mut wire, 3, 0, id, &8u32.to_be_bytes());
                     }
+                    frame(&mut wire, 6, 0, 0, b"reload64");
                     socket.write_all(&wire).unwrap();
                     socket.flush().unwrap();
-                    for _ in 0..40 {
+                    for _ in 0..120 {
                         let mut head = [0u8; 9];
                         socket.read_exact(&mut head).unwrap();
                         let length = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
                         assert!(length <= 16384);
                         let mut body = vec![0u8; length];
                         socket.read_exact(&mut body).unwrap();
+                        if head[3] == 6 && head[4] == 1 && body == b"reload64" {
+                            assert!(!excess, "excess reset queue was accepted");
+                            return;
+                        }
                         if head[3] == 7 {
+                            assert!(excess, "coalesced reload windows were rejected");
                             assert_eq!(&body[4..8], &11u32.to_be_bytes());
                             assert_eq!(&body[8..], b"too_many_resets");
                             return;
@@ -1344,11 +1353,15 @@ mod tests {
     }
     #[test]
     fn h2_reload_drains_repeated_cancel_windows_while_queue_is_full() {
-        h2_cancel_window(false);
+        h2_cancel_window(0);
+    }
+    #[test]
+    fn h2_coalesced_cancel_windows_survive_one_tls_record() {
+        h2_cancel_window(64);
     }
     #[test]
     fn h2_unconsumed_reset_abuse_is_still_bounded() {
-        h2_cancel_window(true);
+        h2_cancel_window(101);
     }
     #[test]
     fn h2_retirement_finishes_in_flight_window_without_refusal_storm() {
