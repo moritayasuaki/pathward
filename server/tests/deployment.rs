@@ -175,7 +175,8 @@ fn managed_proxy_activation_failure_and_rollback_preserve_the_shared_service_bud
     use std::time::{Duration, Instant};
     fn fetch(addr: SocketAddr) -> Vec<u8> {
         let mut s = TcpStream::connect(addr).unwrap();
-        s.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        // The held request spans three separately bounded one-second capacity waits.
+        s.set_read_timeout(Some(Duration::from_secs(6))).unwrap();
         s.write_all(b"GET / HTTP/1.1\r\nHost: app.example\r\n\r\n")
             .unwrap();
         let mut out = Vec::new();
@@ -245,7 +246,9 @@ fn managed_proxy_activation_failure_and_rollback_preserve_the_shared_service_bud
                     &stop,
                 )
                 .unwrap();
+            let waiting = Instant::now();
             assert!(fetch(addr).starts_with(b"HTTP/1.1 503 "));
+            assert!(waiting.elapsed() < Duration::from_millis(1500));
             assert!(b.accept().is_err());
             let failed = Store {
                 current: Mutex::new(new.as_bytes().to_vec()),
@@ -269,7 +272,9 @@ fn managed_proxy_activation_failure_and_rollback_preserve_the_shared_service_bud
             );
             assert_eq!(server.generation(), 2);
             assert_eq!(failed.current().unwrap().unwrap(), new.as_bytes());
+            let waiting = Instant::now();
             assert!(fetch(addr).starts_with(b"HTTP/1.1 503 "));
+            assert!(waiting.elapsed() < Duration::from_millis(1500));
             assert!(b.accept().is_err());
             let previous = store.previous().unwrap().unwrap();
             server
@@ -277,7 +282,9 @@ fn managed_proxy_activation_failure_and_rollback_preserve_the_shared_service_bud
                 .unwrap();
             assert_eq!(server.generation(), 3);
             assert_eq!(store.current().unwrap().unwrap(), old.as_bytes());
+            let waiting = Instant::now();
             assert!(fetch(addr).starts_with(b"HTTP/1.1 503 "));
+            assert!(waiting.elapsed() < Duration::from_millis(1500));
             assert!(a.accept().is_err());
             socket
                 .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")

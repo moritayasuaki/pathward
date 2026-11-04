@@ -111,7 +111,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let monitoring = scope.spawn(|| {
             control::monitor(monitor, &server, Some(&identity), &signals.shutdown, &done)
         });
-        let result = server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, &tls);
+        let result = if std::env::var("PATHWARD_TEST_HTTP3").as_deref() == Ok("1") {
+            let udp = std::net::UdpSocket::bind(listener.local_addr()?)?;
+            server.serve_tls_http3(listener, Some(redirect), udp, &signals.shutdown, &tls)
+        } else {
+            server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, &tls)
+        };
         signals.shutdown.store(true, Ordering::Release);
         done.store(true, Ordering::Release);
         acme.join()
