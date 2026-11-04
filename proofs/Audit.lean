@@ -37,6 +37,10 @@ import UpstreamProofs
 #print axioms CancellationProofs.h2_drain_before_deadline
 #print axioms CancellationProofs.h2_drain_preserves_work
 #print axioms CancellationProofs.h2_stuck_output_times_out
+#print axioms CancellationProofs.h2_peer_drain_eq
+#print axioms CancellationProofs.h2_peer_drain_bounded
+#print axioms CancellationProofs.h2_peer_drain_time_limit
+#print axioms CancellationProofs.h2_peer_drain_byte_limit
 #print axioms ContentProofs.span_eq
 #print axioms ContentProofs.span_bounded
 #print axioms ContentProofs.span_total

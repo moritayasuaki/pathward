@@ -357,8 +357,17 @@ def delivery.h2_drain_expired
     else ok false
   else ok false
 
+/-- [pathward::delivery::h2_peer_drain_allowed]:
+    Source: 'src/delivery.rs', lines 144:0-146:1
+    Visibility: public -/
+def delivery.h2_peer_drain_allowed
+  (elapsed_ms : Std.U64) (received : Std.U64) : RustM Bool := do
+  if elapsed_ms < 30000#u64
+  then ok (received < 1048576#u64)
+  else ok false
+
 /-- [pathward::delivery::early_allowed]:
-    Source: 'src/delivery.rs', lines 142:0-150:1
+    Source: 'src/delivery.rs', lines 149:0-157:1
     Visibility: public -/
 def delivery.early_allowed
   (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
@@ -378,7 +387,7 @@ def delivery.early_allowed
     else ok false
 
 /-- [pathward::delivery::wire_fits]:
-    Source: 'src/delivery.rs', lines 153:0-155:1
+    Source: 'src/delivery.rs', lines 160:0-162:1
     Visibility: public -/
 def delivery.wire_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do

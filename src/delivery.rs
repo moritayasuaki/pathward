@@ -138,6 +138,13 @@ pub fn h2_drain_expired(
     wire_pending && retiring && quiet_ms >= 30000 && active == 0 && !held
 }
 
+/// After sending TLS close_notify and closing the TCP write half, discard only
+/// a bounded amount of late peer traffic while waiting for the peer's EOF.
+/// No discarded bytes may reach the HTTP responder.
+pub fn h2_peer_drain_allowed(elapsed_ms: u64, received: u64) -> bool {
+    elapsed_ms < 30000 && received < 1_048_576
+}
+
 /// Before handshake confirmation, only anonymous, exact static grants are safe.
 pub fn early_allowed(
     confirmed: bool,

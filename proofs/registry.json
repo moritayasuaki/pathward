@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 393,
+  "theorem_count": 397,
   "axiom_free_count": 17,
   "axiom_counts": {
-    "Classical.choice": 353,
-    "Quot.sound": 353,
-    "propext": 376
+    "Classical.choice": 357,
+    "Quot.sound": 357,
+    "propext": 380
   },
   "source_sha256": {
-    "proofs/CancellationProofs.lean": "bac3a44f3864c7ba3b2f722c76269cda409f3c14de020b92b6908562bd1eb15c",
+    "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "d46e40ae7ff266e6cb0f47604bd8a58208c1c8f8bc4ead087e8ad8be60a68358",
+    "proofs/Generated/Pathward.lean": "867f956487cfc25420b3778d8786c560de100530427dbf984c595d03bed1271e",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -25,9 +25,9 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "bf40c2029acd87771b038355f4a10b90038f01d4f7694e882a006d60e6f60ba3",
+    "scripts/extract.py": "064c688bdc9fcfb35a6eafc7e3cf3072b60a86ab256fea0db1f15a1328c16024",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
-    "src/delivery.rs": "50bc76e8b7d71c168bb36c974ddb8f4a928c5aeaa06e255f9bdc74d29a21c4d0",
+    "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
     "src/lib.rs": "4db18d5f16824c9a07ebf6d9a0641bd8aa6214f0e980fa776ad4682969eb3314",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
@@ -284,6 +284,54 @@
       "source": "proofs/CancellationProofs.lean",
       "line": 144,
       "statement": "theorem h2_stuck_output_times_out (quiet : U64) (h : 30000 ≤ quiet.val) :\n    delivery.h2_drain_expired true true quiet 0#u64 false = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 148,
+      "statement": "theorem h2_peer_drain_eq (elapsed received : U64) :\n    delivery.h2_peer_drain_allowed elapsed received = ok (decide\n      (elapsed.val < 30000 ∧ received.val < 1048576))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_bounded",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 154,
+      "statement": "theorem h2_peer_drain_bounded (elapsed received : U64)\n    (h : delivery.h2_peer_drain_allowed elapsed received = ok true) :\n    elapsed.val < 30000 ∧ received.val < 1048576",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_time_limit",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 159,
+      "statement": "theorem h2_peer_drain_time_limit (elapsed received : U64) (h : 30000 ≤ elapsed.val) :\n    delivery.h2_peer_drain_allowed elapsed received = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_byte_limit",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 164,
+      "statement": "theorem h2_peer_drain_byte_limit (elapsed received : U64) (h : 1048576 ≤ received.val) :\n    delivery.h2_peer_drain_allowed elapsed received = ok false",
       "axioms": [
         "Classical.choice",
         "Quot.sound",

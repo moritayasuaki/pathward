@@ -823,7 +823,7 @@ pub async fn serve_h2(
     transport.deadline(accepted + CONNECTION_CEILING)?;
     serve_h2_io(
         server,
-        Io::new(transport).with_finish(TlsTransport::finish),
+        Io::new(transport).with_finish(TlsTransport::finish_h2),
         sni,
         port,
         accepted,
@@ -1079,6 +1079,155 @@ async fn serve_h2_io<T: Read + Write + Unpin>(
 mod tests {
     use super::*;
     use std::net::{TcpListener, TcpStream};
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn h2_slow_reader_keeps_tail_after_late_ping() {
+        fn frame(kind: u8, flags: u8, id: u32, body: &[u8]) -> Vec<u8> {
+            let mut out = (body.len() as u32).to_be_bytes()[1..].to_vec();
+            out.extend_from_slice(&[kind, flags]);
+            out.extend_from_slice(&id.to_be_bytes());
+            out.extend_from_slice(body);
+            out
+        }
+        fn read<T: Read + Write>(socket: &mut T) -> (u8, u8, u32, Vec<u8>) {
+            let mut head = [0; 9];
+            socket
+                .read_exact(&mut head)
+                .expect("response tail lost before END_STREAM");
+            let len = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
+            assert!(len <= 16384);
+            let mut body = vec![0; len];
+            socket.read_exact(&mut body).unwrap();
+            if head[3] == 4 && head[4] & 1 == 0 {
+                socket.write_all(&frame(4, 1, 0, &[])).unwrap();
+            }
+            if head[3] == 6 && head[4] & 1 == 0 {
+                socket.write_all(&frame(6, 1, 0, &body)).unwrap();
+            }
+            socket.flush().unwrap();
+            (
+                head[3],
+                head[4],
+                u32::from_be_bytes(head[5..9].try_into().unwrap()) & 0x7fffffff,
+                body,
+            )
+        }
+        let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+        let config = pathward_config::ParsedConfig::parse(&format!(
+            "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}",
+            backend.local_addr().unwrap()
+        ))
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let origin = scope.spawn(move || {
+                backend.set_nonblocking(true).unwrap();
+                let end = Instant::now() + Duration::from_secs(15);
+                let mut socket = loop {
+                    match backend.accept() {
+                        Ok((s, _)) => break s,
+                        Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                            assert!(Instant::now() < end);
+                            std::thread::sleep(Duration::from_millis(2));
+                        }
+                        Err(e) => panic!("{e}"),
+                    }
+                };
+                socket.set_nonblocking(false).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    let mut b = [0];
+                    socket.read_exact(&mut b).unwrap();
+                    head.push(b[0]);
+                    assert!(head.len() < 16384);
+                }
+                socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 524288\r\nConnection: close\r\n\r\n",
+                    )
+                    .unwrap();
+                socket.write_all(&vec![b'x'; 524288]).unwrap();
+            });
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let socket = TcpStream::connect(address).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let conn = rustls::ClientConnection::new(
+                    client,
+                    rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                )
+                .unwrap();
+                let mut socket = rustls::StreamOwned::new(conn, socket);
+                while socket.conn.is_handshaking() {
+                    socket.conn.complete_io(&mut socket.sock).unwrap();
+                }
+                socket
+                    .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+                    .unwrap();
+                let mut settings = vec![0, 4];
+                settings.extend_from_slice(&(8u32 << 20).to_be_bytes());
+                socket.write_all(&frame(4, 0, 0, &settings)).unwrap();
+                socket
+                    .write_all(&frame(8, 0, 0, &((8u32 << 20) - 65535).to_be_bytes()))
+                    .unwrap();
+                for sid in (1..=135).step_by(2) {
+                    let host = if sid == 135 {
+                        "app.example"
+                    } else {
+                        "other.example"
+                    };
+                    let mut headers = vec![0x82, 0x87, 0x84, 0x01, host.len() as u8];
+                    headers.extend_from_slice(host.as_bytes());
+                    socket.write_all(&frame(1, 5, sid, &headers)).unwrap();
+                    socket.flush().unwrap();
+                    loop {
+                        let (kind, flags, id, _) = read(&mut socket);
+                        assert_ne!(kind, 3, "unexpected reset");
+                        if id == sid
+                            && ((sid == 135 && kind == 1)
+                                || (sid < 135 && matches!(kind, 0 | 1) && flags & 1 != 0))
+                        {
+                            break;
+                        }
+                    }
+                }
+                // The responder has queued its body. A later PING must not
+                // reset TCP and truncate bytes still in the kernel's send queue.
+                std::thread::sleep(Duration::from_millis(100));
+                socket.write_all(&frame(6, 0, 0, b"lateping")).unwrap();
+                socket.flush().unwrap();
+                std::thread::sleep(Duration::from_secs(6));
+                let mut body = Vec::new();
+                loop {
+                    let (kind, flags, id, data) = read(&mut socket);
+                    if id == 135 && kind == 0 {
+                        body.extend_from_slice(&data);
+                    }
+                    if id == 135 && matches!(kind, 0 | 1) && flags & 1 != 0 {
+                        break;
+                    }
+                    assert_ne!(kind, 3);
+                }
+                assert_eq!(body, vec![b'x'; 524288]);
+            }));
+            stop.store(true, Ordering::Release);
+            serving.join().unwrap().unwrap();
+            origin.join().unwrap();
+            if let Err(e) = result {
+                std::panic::resume_unwind(e);
+            }
+        });
+    }
     #[test]
     fn h2_retirement_flushes_queued_response_under_backpressure() {
         h2_retirement_with_backpressure(false, 8);

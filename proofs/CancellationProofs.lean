@@ -145,4 +145,25 @@ theorem h2_stuck_output_times_out (quiet : U64) (h : 30000 ≤ quiet.val) :
     delivery.h2_drain_expired true true quiet 0#u64 false = ok true := by
   simp [h2_drain_expired_eq, h]
 
+theorem h2_peer_drain_eq (elapsed received : U64) :
+    delivery.h2_peer_drain_allowed elapsed received = ok (decide
+      (elapsed.val < 30000 ∧ received.val < 1048576)) := by
+  simp [delivery.h2_peer_drain_allowed]
+  split_ifs <;> simp_all
+
+theorem h2_peer_drain_bounded (elapsed received : U64)
+    (h : delivery.h2_peer_drain_allowed elapsed received = ok true) :
+    elapsed.val < 30000 ∧ received.val < 1048576 := by
+  simpa [h2_peer_drain_eq] using h
+
+theorem h2_peer_drain_time_limit (elapsed received : U64) (h : 30000 ≤ elapsed.val) :
+    delivery.h2_peer_drain_allowed elapsed received = ok false := by
+  simp [h2_peer_drain_eq]
+  omega
+
+theorem h2_peer_drain_byte_limit (elapsed received : U64) (h : 1048576 ≤ received.val) :
+    delivery.h2_peer_drain_allowed elapsed received = ok false := by
+  simp [h2_peer_drain_eq]
+  omega
+
 end CancellationProofs

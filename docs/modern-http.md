@@ -166,7 +166,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **393 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **397 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -406,3 +406,17 @@ library queue accounting, correct polling, I/O observation and clocks remain
 trusted boundaries. This change adds no dependency. It addresses a reproduced
 transport defect; success of the full 24-browser migration gate is tracked
 separately and must not be inferred from this regression.
+
+
+## Late peer frames after final output (2026-11-04)
+
+Successful TLS flushing does not prove peer delivery: Linux can still hold the
+response tail in its TCP send queue. An anonymous raw HTTP/2 client reproduced
+a 379,746-byte image truncating at 114,688 bytes when a slow receiver sent a late
+PING. The server now half-closes its write side after TLS close-notify and drains
+raw peer bytes until EOF, without parsing or dispatching further requests.
+The fixed deadline is 30 seconds and raw receive allowance is 1 MiB; each read
+yields, and progress never renews the deadline. Explicit server stop remains
+separately bounded. Four extracted Lean lemmas prove the allowance conjunction
+and rejection at either limit, not TCP delivery or adapter refinement.
+A Linux-only regression delays reading a 512 KiB response and sends a late PING.

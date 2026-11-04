@@ -9,7 +9,7 @@ use rustls::{
 use std::{
     fmt,
     io::{self, Read, Write},
-    net::TcpStream,
+    net::{Shutdown, TcpStream},
     sync::{Arc, RwLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -383,6 +383,7 @@ impl TlsServer {
         Ok(Some(TlsTransport {
             stream: StreamOwned::new(conn, socket),
             sni: name,
+            close_drain: None,
         }))
     }
 }
@@ -425,6 +426,12 @@ impl Write for DeadlineTcp {
 pub struct TlsTransport {
     stream: StreamOwned<ServerConnection, DeadlineTcp>,
     pub sni: String,
+    close_drain: Option<CloseDrain>,
+}
+struct CloseDrain {
+    began: Instant,
+    received: u64,
+    write_closed: bool,
 }
 impl Read for TlsTransport {
     fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
@@ -462,6 +469,47 @@ impl TlsTransport {
     pub fn finish(&mut self) -> io::Result<()> {
         self.stream.conn.send_close_notify();
         self.stream.flush()
+    }
+    pub(crate) fn finish_h2(&mut self) -> io::Result<()> {
+        // A successful write/flush only hands bytes to the local TCP stack.
+        // Dropping the socket while late peer frames arrive can reset TCP and
+        // discard the still-unread response tail. Half-close, then drain raw
+        // peer bytes until EOF. They are never parsed or dispatched as HTTP.
+        let drain = self.close_drain.get_or_insert_with(|| CloseDrain {
+            began: Instant::now(),
+            received: 0,
+            write_closed: false,
+        });
+        if !pathward::delivery::h2_peer_drain_allowed(
+            drain.began.elapsed().as_millis().min(u64::MAX as u128) as u64,
+            drain.received,
+        ) {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "HTTP/2 peer drain limit",
+            ));
+        }
+        if !drain.write_closed {
+            self.finish()?;
+            self.stream.sock.stream.shutdown(Shutdown::Write)?;
+            self.close_drain
+                .as_mut()
+                .expect("initialized drain")
+                .write_closed = true;
+        }
+        let drain = self.close_drain.as_mut().expect("initialized drain");
+        let mut bytes = [0; 4096];
+        let limit = (1_048_576 - drain.received).min(bytes.len() as u64) as usize;
+        match self.stream.sock.read(&mut bytes[..limit]) {
+            Ok(0) => Ok(()),
+            Ok(n) => {
+                drain.received += n as u64;
+                // Yield even after progress: late traffic must not monopolize
+                // the cooperative executor or renew either drain deadline.
+                Err(io::ErrorKind::WouldBlock.into())
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
