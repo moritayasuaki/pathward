@@ -1,3 +1,4 @@
+import SafetyProofs
 import DeliveryProofs
 import ContentProofs
 import UpstreamProofs
@@ -343,3 +344,14 @@ import ReleaseProofs
 #print axioms DeliveryProofs.wire_eq
 #print axioms DeliveryProofs.wire_bounded
 #print axioms DeliveryProofs.wire_total
+
+#print axioms SafetyProofs.lookup_subset
+#print axioms SafetyProofs.authorization_subset
+#print axioms SafetyProofs.revoked_lookup
+#print axioms SafetyProofs.revoked_authorization
+#print axioms SafetyProofs.stale_after_success
+#print axioms SafetyProofs.service_tightening
+#print axioms SafetyProofs.deadline_tightening
+#print axioms SafetyProofs.early_restriction
+#print axioms SafetyProofs.wire_run_accounting
+#print axioms SafetyProofs.wire_run_bounded

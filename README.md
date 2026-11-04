@@ -264,7 +264,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 313 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 323 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 
@@ -314,3 +314,7 @@ identity, private-file admission, no unpersisted/expired activation and total
 renewal arithmetic. Metadata, clock, certificate-name/key checks and durable-write
 results are adapter inputs. Lean does not establish TLS cryptography, parser/OS
 correctness, renewal liveness or whole-server resource bounds.
+
+Read the [Japanese proof walkthrough](docs/proof-tour-ja.md) for publication
+restriction/revocation, stale-writer exclusion, early-data restrictions and
+fragmented-input accounting, including each theorem's explicit assumptions.
