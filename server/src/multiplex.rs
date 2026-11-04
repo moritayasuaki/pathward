@@ -181,6 +181,28 @@ async fn h2_reset(sender: &mut h2::server::SendResponse<Bytes>) -> io::Result<()
         Some(Err(e)) => Err(h2_error(e)),
     }
 }
+/// Dropping a wait after observed cancellation releases its owned leases.
+/// In particular, cancelled requests must not occupy the whole admission queue
+/// until its timeout while another reload fills h2's pending-reset queue.
+async fn while_h2_open<T>(
+    sender: &mut h2::server::SendResponse<Bytes>,
+    future: impl Future<Output = T>,
+) -> io::Result<T> {
+    futures_lite::future::or(
+        async {
+            let error = match futures_lite::future::poll_fn(|cx| sender.poll_reset(cx)).await {
+                Ok(h2::Reason::CANCEL | h2::Reason::NO_ERROR) => {
+                    io::ErrorKind::ConnectionAborted.into()
+                }
+                Ok(_) => failure(),
+                Err(e) => h2_error(e),
+            };
+            Err(error)
+        },
+        async { Ok(future.await) },
+    )
+    .await
+}
 /// A separate, process-wide queue bounds streams waiting for admission. It
 /// cannot consume all active permits or reserve all response-buffer credit.
 pub struct Pending<'a>(&'a std::sync::atomic::AtomicU64);
@@ -529,20 +551,23 @@ async fn exchange(
     shutdown: &AtomicBool,
     waiting: Pending<'_>,
     admission: &Arc<admission::Admission>,
+    began: Instant,
 ) {
-    let began = Instant::now();
     let mut generation = server.generation();
     let mut phase = observe::TransportStage::Admission;
     let result = async {
         h2_reset(&mut sender).await?;
-        let _permit = match admit(
-            admission,
-            peer,
-            shutdown,
-            began + delivery::QUEUE_BUDGET,
-            waiting,
+        let _permit = match while_h2_open(
+            &mut sender,
+            admit(
+                admission,
+                peer,
+                shutdown,
+                began + delivery::QUEUE_BUDGET,
+                waiting,
+            ),
         )
-        .await
+        .await?
         {
             Ok(p) => p,
             Err(reason) => {
@@ -559,14 +584,17 @@ async fn exchange(
             Err(status) => return send_h2(rejection(status), &mut sender).await,
         };
         generation = request.generation;
-        let Some(_input) = input_lease(
-            budget,
-            peer,
-            3 * request.length.unwrap_or(request.limit) + delivery::HEAD_BYTES as u64,
-            shutdown,
-            began + delivery::QUEUE_BUDGET,
+        let Some(_input) = while_h2_open(
+            &mut sender,
+            input_lease(
+                budget,
+                peer,
+                3 * request.length.unwrap_or(request.limit) + delivery::HEAD_BYTES as u64,
+                shutdown,
+                began + delivery::QUEUE_BUDGET,
+            ),
         )
-        .await
+        .await?
         else {
             return send_h2(rejection(503), &mut sender).await;
         };
@@ -598,10 +626,13 @@ async fn exchange(
         }
         h2_reset(&mut sender).await?;
         phase = observe::TransportStage::Responder;
-        let response = respond(
-            server, request, body, sni, port, peer, budget, shutdown, false,
+        let response = while_h2_open(
+            &mut sender,
+            respond(
+                server, request, body, sni, port, peer, budget, shutdown, false,
+            ),
         )
-        .await?;
+        .await??;
         phase = observe::TransportStage::Output;
         send_h2(response, &mut sender).await
     }
@@ -707,7 +738,7 @@ pub async fn serve_h2(
     let mut count = 0;
     let mut idle = Instant::now();
     let mut drain = None;
-    let mut queue_wait = None;
+    let mut held = None;
     loop {
         if drain.is_none()
             && (shutdown.load(Ordering::Acquire)
@@ -717,7 +748,7 @@ pub async fn serve_h2(
                 // admission gate below still enforces 100 / 120 seconds.
                 || count >= 68
                 || accepted.elapsed() >= Duration::from_secs(115)
-                || (tasks.is_empty() && idle.elapsed() >= Duration::from_secs(5)))
+                || (tasks.is_empty() && held.is_none() && idle.elapsed() >= Duration::from_secs(5)))
         {
             connection.graceful_shutdown();
             drain = Some(Instant::now() + Duration::from_secs(5));
@@ -725,22 +756,12 @@ pub async fn serve_h2(
         if drain.is_some_and(|d| Instant::now() >= d) {
             return Ok(());
         }
-        // Leave excess streams in h2's advertised, bounded stream window.
-        // Continue driving I/O so existing responses can release admission and
-        // byte credit. Pulling another stream and immediately resetting it
-        // turns a bounded browser reload burst into a retry/reset storm.
-        let waiting = pending(server);
-        let incoming = if waiting.is_some() {
-            queue_wait = None;
+        // One held head is part of the same 32-stream window, not an admitted
+        // task. It lets us consume cancelled heads even when the global queue
+        // is full. No body, response credit or service permit is allocated here.
+        let incoming = if pathward::delivery::head_slot(tasks.len() as u64, held.is_some()) {
             futures_lite::future::poll_once(connection.accept()).await
         } else {
-            let since = queue_wait.get_or_insert_with(Instant::now);
-            if since.elapsed() >= delivery::QUEUE_BUDGET {
-                server
-                    .observe
-                    .admission_rejected(admission::Rejection::GlobalActive);
-                return Err(io::ErrorKind::WouldBlock.into());
-            }
             match futures_lite::future::poll_once(futures_lite::future::poll_fn(|cx| {
                 connection.poll_closed(cx)
             }))
@@ -750,7 +771,7 @@ pub async fn serve_h2(
                 Some(Err(e)) => {
                     return Err(observe::connection_error(
                         h2_error(e),
-                        tasks.len() as u64,
+                        tasks.len() as u64 + u64::from(held.is_some()),
                         count,
                     ));
                 }
@@ -761,29 +782,20 @@ pub async fn serve_h2(
             Some(Some(Ok((req, mut response)))) => {
                 count += 1;
                 idle = Instant::now();
-                let permit = if pathward::delivery::multiplex_slot(
+                if pathward::delivery::multiplex_slot(
                     tasks.len() as u64,
                     count - 1,
                     accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
                     shutdown.load(Ordering::Acquire) || server.is_draining(),
                 ) {
-                    waiting
+                    held = Some((req, response, Instant::now()));
                 } else {
-                    None
-                };
-                match permit {
-                    Some(waiting) => tasks.push(Box::pin(exchange(
-                        server, req, response, &sni, port, peer, budget, shutdown, waiting,
-                        admission,
-                    ))),
-                    None => {
-                        server
-                            .observe
-                            .admission_rejected(admission::Rejection::GlobalActive);
-                        response.send_reset(h2::Reason::REFUSED_STREAM);
-                        connection.graceful_shutdown();
-                        drain = Some(Instant::now() + Duration::from_secs(5));
-                    }
+                    server
+                        .observe
+                        .admission_rejected(admission::Rejection::GlobalActive);
+                    response.send_reset(h2::Reason::REFUSED_STREAM);
+                    connection.graceful_shutdown();
+                    drain = Some(Instant::now() + Duration::from_secs(5));
                 }
             }
             Some(Some(Err(e))) => {
@@ -795,6 +807,41 @@ pub async fn serve_h2(
             }
             Some(None) => return Ok(()),
             None => {}
+        }
+        if let Some((req, mut response, began)) = held.take() {
+            let cancelled = h2_reset(&mut response).await.err();
+            match pathward::delivery::held_action(
+                cancelled.is_some(),
+                began.elapsed().as_millis().min(u64::MAX as u128) as u64,
+            ) {
+                pathward::delivery::HeldAction::Discard => {
+                    let result = Err(observe::stage_error(
+                        cancelled.expect("verified discard requires observed cancellation"),
+                        observe::TransportStage::Admission,
+                    ));
+                    server
+                        .observe
+                        .request(server.generation(), began.elapsed(), &result);
+                }
+                pathward::delivery::HeldAction::Expire => {
+                    server
+                        .observe
+                        .admission_rejected(admission::Rejection::GlobalActive);
+                    response.send_reset(h2::Reason::REFUSED_STREAM);
+                    connection.graceful_shutdown();
+                    drain = Some(Instant::now() + Duration::from_secs(5));
+                }
+                pathward::delivery::HeldAction::TryAdmission => {
+                    if let Some(waiting) = pending(server) {
+                        tasks.push(Box::pin(exchange(
+                            server, req, response, &sni, port, peer, budget, shutdown, waiting,
+                            admission, began,
+                        )));
+                    } else {
+                        held = Some((req, response, began));
+                    }
+                }
+            }
         }
         let mut i = 0;
         while i < tasks.len() {
@@ -910,6 +957,60 @@ mod tests {
             assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
         });
     }
+    #[test]
+    fn cancelled_admission_releases_queue_before_capacity_or_timeout() {
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let admission = Arc::new(admission::Admission::new(false));
+        let peer = "127.0.0.1".parse().unwrap();
+        let _held: Vec<_> = (0..6)
+            .map(|_| admission.acquire(peer, false).unwrap())
+            .collect();
+        let stop = AtomicBool::new(false);
+        let released = AtomicBool::new(false);
+        let (client_io, server_io) = tokio::io::duplex(65536);
+        futures_lite::future::block_on(async {
+            bounded(Instant::now() + Duration::from_secs(3), async {
+                futures_lite::future::zip(async {
+                    let mut connection = h2::server::handshake(server_io).await.unwrap();
+                    let (_request, mut sender) = connection.accept().await.unwrap().unwrap();
+                    let began = Instant::now();
+                    let waiting = pending(&server).unwrap();
+                    futures_lite::future::race(async {
+                        futures_lite::future::poll_fn(|cx| connection.poll_closed(cx)).await.unwrap();
+                        panic!("connection closed before cancellation was consumed");
+                    }, async {
+                        let result = while_h2_open(&mut sender, admit(
+                            &admission, peer, &stop, began + delivery::QUEUE_BUDGET, waiting,
+                        )).await;
+                        assert!(matches!(result, Err(e) if e.kind() == io::ErrorKind::ConnectionAborted));
+                        let polled = std::cell::Cell::new(false);
+                        let again = while_h2_open(&mut sender, async { polled.set(true); 1 }).await;
+                        assert!(matches!(again, Err(e) if e.kind() == io::ErrorKind::ConnectionAborted));
+                        assert!(!polled.get(), "observed cancellation must win even against ready work");
+                        assert!(began.elapsed() < Duration::from_secs(1));
+                        assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
+                        assert!(admission.acquire(peer, false).is_err());
+                        released.store(true, Ordering::Release);
+                    }).await;
+                }, async {
+                    let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+                    futures_lite::future::race(async { let _ = connection.await; }, async {
+                        let (_response, mut outgoing) = client.send_request(
+                            http_types::Request::builder().uri("https://app.example/").body(()).unwrap(), true,
+                        ).unwrap();
+                        while server.pending_requests.load(Ordering::Acquire) == 0 { async_http::pause().await; }
+                        outgoing.send_reset(h2::Reason::CANCEL);
+                        while !released.load(Ordering::Acquire) { async_http::pause().await; }
+                    }).await;
+                }).await;
+                assert!(released.load(Ordering::Acquire));
+            }).await.unwrap();
+        });
+    }
     fn h2_cancel_window(excess: bool) {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
         backend.set_nonblocking(true).unwrap();
@@ -936,6 +1037,43 @@ mod tests {
                 while socket.conn.is_handshaking() {
                     socket.conn.complete_io(&mut socket.sock).unwrap();
                 }
+                if excess {
+                    let _held: Vec<_> = (0..64).map(|_| pending(&server).unwrap()).collect();
+                    // One TLS record contains 33 unconsumed HEADERS/RST pairs.
+                    // This is a rapid-reset burst, unlike separated page reloads.
+                    let mut wire = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".to_vec();
+                    fn frame(wire: &mut Vec<u8>, kind: u8, flags: u8, id: u32, body: &[u8]) {
+                        wire.extend_from_slice(&(body.len() as u32).to_be_bytes()[1..]);
+                        wire.extend_from_slice(&[kind, flags]);
+                        wire.extend_from_slice(&id.to_be_bytes());
+                        wire.extend_from_slice(body);
+                    }
+                    frame(&mut wire, 4, 0, 0, &[]);
+                    // HPACK indexed GET, https, /; literal indexed :authority.
+                    let mut headers = vec![0x82, 0x87, 0x84, 0x01, 11];
+                    headers.extend_from_slice(b"app.example");
+                    for n in 0..33 {
+                        let id = 2 * n + 1;
+                        frame(&mut wire, 1, 5, id, &headers);
+                        frame(&mut wire, 3, 0, id, &8u32.to_be_bytes());
+                    }
+                    socket.write_all(&wire).unwrap();
+                    socket.flush().unwrap();
+                    for _ in 0..40 {
+                        let mut head = [0u8; 9];
+                        socket.read_exact(&mut head).unwrap();
+                        let length = u32::from_be_bytes([0, head[0], head[1], head[2]]) as usize;
+                        assert!(length <= 16384);
+                        let mut body = vec![0u8; length];
+                        socket.read_exact(&mut body).unwrap();
+                        if head[3] == 7 {
+                            assert_eq!(&body[4..8], &11u32.to_be_bytes());
+                            assert_eq!(&body[8..], b"too_many_resets");
+                            return;
+                        }
+                    }
+                    panic!("unconsumed reset ceiling was not enforced");
+                }
                 socket.sock.set_nonblocking(true).unwrap();
                 futures_lite::future::block_on(async {
                     bounded(Instant::now() + Duration::from_secs(8), async {
@@ -955,45 +1093,30 @@ mod tests {
                                         async_http::pause().await;
                                     }
                                 }
-                                let mut requests = Vec::new();
-                                for _ in 0..32 {
-                                    client = client.ready().await.unwrap();
-                                    requests.push(
-                                        client
-                                            .send_request(
-                                                http_types::Request::builder()
-                                                    .uri("https://app.example/")
-                                                    .body(())
-                                                    .unwrap(),
-                                                true,
-                                            )
-                                            .unwrap(),
-                                    );
-                                }
-                                // Headers arrive while the application queue is full;
-                                // then a reload cancels the in-flight browser window.
-                                async_io::Timer::after(Duration::from_millis(150)).await;
-                                for (_, stream) in &mut requests {
-                                    stream.send_reset(h2::Reason::CANCEL);
-                                }
-                                drop(requests);
-                                async_io::Timer::after(Duration::from_millis(150)).await;
-                                if excess {
-                                    client = client.ready().await.unwrap();
-                                    let (response, mut outgoing) = client
-                                        .send_request(
-                                            http_types::Request::builder()
-                                                .uri("https://other.example/")
-                                                .body(())
+                                for _ in 0..2 {
+                                    let mut requests = Vec::new();
+                                    for _ in 0..32 {
+                                        client = client.ready().await.unwrap();
+                                        requests.push(
+                                            client
+                                                .send_request(
+                                                    http_types::Request::builder()
+                                                        .uri("https://app.example/")
+                                                        .body(())
+                                                        .unwrap(),
+                                                    true,
+                                                )
                                                 .unwrap(),
-                                            true,
-                                        )
-                                        .unwrap();
-                                    async_io::Timer::after(Duration::from_millis(100)).await;
-                                    outgoing.send_reset(h2::Reason::CANCEL);
-                                    drop(response);
-                                    async_io::Timer::after(Duration::from_secs(2)).await;
-                                    panic!("unconsumed reset ceiling was not enforced");
+                                        );
+                                    }
+                                    // Headers arrive while the application queue is full;
+                                    // then a reload cancels the in-flight browser window.
+                                    async_io::Timer::after(Duration::from_millis(150)).await;
+                                    for (_, stream) in &mut requests {
+                                        stream.send_reset(h2::Reason::CANCEL);
+                                    }
+                                    drop(requests);
+                                    async_io::Timer::after(Duration::from_millis(150)).await;
                                 }
                                 drop(held);
                                 client = client.ready().await.unwrap();
@@ -1041,7 +1164,7 @@ mod tests {
         });
     }
     #[test]
-    fn h2_reload_cancels_one_advertised_window_without_killing_connection() {
+    fn h2_reload_drains_repeated_cancel_windows_while_queue_is_full() {
         h2_cancel_window(false);
     }
     #[test]

@@ -66,6 +66,30 @@ pub fn encode_allowed(
 pub fn multiplex_slot(active: u64, seen: u64, age_ms: u64, draining: bool) -> bool {
     !draining && active < 32 && seen < 100 && age_ms < 120000
 }
+
+/// A held head uses one slot of the same connection window as running tasks.
+pub fn head_slot(active: u64, held: bool) -> bool {
+    !held && active < 32
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeldAction {
+    Discard,
+    Expire,
+    TryAdmission,
+}
+
+/// Observed cancellation wins over both an expired deadline and free capacity.
+/// The clock starts when this head is accepted and is never restarted by waits.
+pub fn held_action(cancelled: bool, elapsed_ms: u64) -> HeldAction {
+    if cancelled {
+        HeldAction::Discard
+    } else if elapsed_ms >= 5000 {
+        HeldAction::Expire
+    } else {
+        HeldAction::TryAdmission
+    }
+}
 /// Before handshake confirmation, only anonymous, exact static grants are safe.
 pub fn early_allowed(
     confirmed: bool,

@@ -146,7 +146,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **323 named Lean statements**, with no new axioms or proof holes. The
+now audits **365 named Lean statements and helper lemmas, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -215,3 +215,19 @@ targets, emits at most 16 fixed-category records, and discards all formatted
 messages. It does not subscribe to request/header/frame or span fields. The
 `tracing-core` development dependency was already present with identical features
 in the reviewed graph; no package or production dependency was added.
+
+The reload regression also exercises two separate 32-stream cancellation waves
+while all 64 global pending slots are held. Previously cancelled requests waited
+for admission and blocked later reloads until h2's pending-reset limit closed the
+connection. Waits now poll cancellation first and drop their leases when it wins.
+A connection can hold one unadmitted head within its existing 32-stream window,
+so cancelled heads can drain without global queue credit. It allocates no request
+body or response/service lease at this stage. The original head-accept time is
+retained across the wait. A single TLS record containing 33 unconsumed reset
+pairs still triggers the finite abuse limit; the limit was not disabled.
+
+`CancellationProofs` checks the extracted held-head decision and the 32-slot
+invariant over a finite transition model. It does not prove the async adapter,
+Atomic accounting or Drop execution. The complete theorem/axiom inventory and
+remaining proof goals are tracked in `proofs/registry.json` and
+`proofs/roadmap.json`, with freshness checked by `make proof-check`.

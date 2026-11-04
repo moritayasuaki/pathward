@@ -237,8 +237,37 @@ def delivery.multiplex_slot
          else ok false
     else ok false
 
+/-- [pathward::delivery::head_slot]:
+    Source: 'src/delivery.rs', lines 71:0-73:1
+    Visibility: public -/
+def delivery.head_slot (active : Std.U64) (held : Bool) : RustM Bool := do
+  if held
+  then ok false
+  else ok (active < 32#u64)
+
+/-- [pathward::delivery::HeldAction]
+    Source: 'src/delivery.rs', lines 76:0-80:1
+    Visibility: public -/
+@[discriminant isize]
+inductive delivery.HeldAction where
+| Discard : delivery.HeldAction
+| Expire : delivery.HeldAction
+| TryAdmission : delivery.HeldAction
+
+/-- [pathward::delivery::held_action]:
+    Source: 'src/delivery.rs', lines 84:0-92:1
+    Visibility: public -/
+def delivery.held_action
+  (cancelled : Bool) (elapsed_ms : Std.U64) : RustM delivery.HeldAction := do
+  if cancelled
+  then ok delivery.HeldAction.Discard
+  else
+    if elapsed_ms >= 5000#u64
+    then ok delivery.HeldAction.Expire
+    else ok delivery.HeldAction.TryAdmission
+
 /-- [pathward::delivery::early_allowed]:
-    Source: 'src/delivery.rs', lines 70:0-78:1
+    Source: 'src/delivery.rs', lines 94:0-102:1
     Visibility: public -/
 def delivery.early_allowed
   (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
@@ -258,7 +287,7 @@ def delivery.early_allowed
     else ok false
 
 /-- [pathward::delivery::wire_fits]:
-    Source: 'src/delivery.rs', lines 81:0-83:1
+    Source: 'src/delivery.rs', lines 105:0-107:1
     Visibility: public -/
 def delivery.wire_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do

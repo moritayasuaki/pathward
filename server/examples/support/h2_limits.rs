@@ -63,6 +63,7 @@ mod tests {
     use super::*;
     #[test]
     fn only_fixed_categories_survive() {
+        install();
         assert_eq!(
             category("recv_reset; remotely-reset pending-accept streams reached limit (32)"),
             Some("pending_resets")
@@ -79,9 +80,5 @@ mod tests {
             category("https://private.example/?secret=must-not-log"),
             None
         );
-    }
-    #[test]
-    fn installation_is_available_to_the_driver() {
-        let _ = install as fn();
     }
 }
