@@ -57,7 +57,7 @@ content-consistency assertions. The 2026-11-01 review-fix run passed 57,598
 ordinary-load requests, 36,010 fresh post-commit probes (including 7,202 revoked-URL
 checks), and 80 renewals. Public Host ports are validated independently of internal
 forwarding ports, and final RSS growth is asserted before reporting success.
-The current axiom audit covers 275 statements. The dispatcher prevents a single peer from
+The current axiom audit covers 289 statements. The dispatcher prevents a single peer from
 occupying all workers while retaining queued CA validation connections.
 
 ## Still required before public production serving

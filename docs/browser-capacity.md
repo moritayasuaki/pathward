@@ -1,15 +1,18 @@
 # Real-browser capacity rehearsal
 
-**Acceptance status: incomplete. Do not treat this as a 24-user production pass.**
-The admission and staged-delivery corrections pass Rust/Linux/Lean checks, but
-browser acceptance still fails. The latest delivery run created all six rooms,
-then aborted 18 guest joins and reported nine empty asset responses. The earlier
-four-408/six-aborted-create run below is retained as historical evidence. The PR
-remains a draft. Public-CA testing has not run.
+**The 2026-11-04 isolated HTTP functional rehearsal passed with classified peer
+closures; public production acceptance remains incomplete.** The latest run
+completed 24 cold-cache entries, six rooms, two synchronized reloads, board
+agreement and 24 comments verified on all 24 screens. It lasted about eight
+minutes and is not a one-hour soak or a public-network/TLS test.
 
-See the [delivery result](delivery-browser-result-2026-11-03.json) and
-[analysis](delivery.md#real-browser-result--2026-11-03) for the latest run and a
-separate isolated Caddy HTTP/1.1 diagnostic. Neither completed 24-user cold entry.
+See the [latest result](delivery-browser-result-2026-11-04.json) and
+[analysis](delivery.md#real-browser-result--2026-11-04). The earlier
+[failed run](delivery-browser-result-2026-11-03.json), isolated Caddy diagnostic,
+and four-408/six-aborted-create result below remain historical evidence. The
+earlier empty responses and mutation aborts did not recur in three fresh runs;
+their complete cause is not established. The PR remains a draft. Public-CA
+testing has not run.
 
 The shared-NAT profile needed additional headroom for 24 simultaneous browser
 reloads. Its old 64-per-peer / 128-global connection refill rates covered the
@@ -71,8 +74,15 @@ monotonic revisions, four members per room and the configured generation header.
 Only synthetic room identifiers are inspected; bearer tokens and response bodies
 are not saved in the report.
 
-Admission rejection, overload, request I/O error, unexpected 4xx (including 408),
-5xx and lost-log counters must remain zero. A create/join/command cancellation
+Admission rejection, overload, unexpected 4xx (including 408), 5xx and lost-log
+counters must remain zero. The original zero-I/O-error oracle stopped two
+2026-11-04 diagnostic runs despite successful UI recovery. The completed run
+retains every I/O failure, permits only classified peer-close errors during
+reconnect settling, requires no further growth after 45 seconds, and fails on
+timeout/EOF/other reasons. Independent browser checks still reject empty
+responses, connection failures and failed mutations. This is an explicit change
+in the test oracle, not a claim that the server's I/O error count is zero or that
+every peer reset is harmless. A create/join/command cancellation
 outside navigation is a failure, even when its transport code is ERR_ABORTED. Navigation cancellations are recorded separately from empty-response
 or connection failures. A response body invalidated by a new document loader is
 recorded as a CDP navigation diagnostic; other verification errors fail the test.
@@ -129,7 +139,7 @@ one more entry, verify the 192-peer bound and check unrelated-peer progress.
 The browser replay remains necessary; this synthetic envelope is not a browser.
 
 The actual Rust constants and gates are re-extracted with Charon/Aeneas. All
-275 audited Lean statements must pass with no proof holes or nonstandard axioms,
+289 audited Lean statements must pass with no proof holes or nonstandard axioms,
 including the updated finite capacity/refill arithmetic, queue-plus-workers
 identity, strict peer/global inequality, exact rejection classification,
 standard-profile equivalence and capacity preservation on accepted reload.
@@ -139,7 +149,7 @@ complete deployment correct.
 No package, feature, manifest, lockfile or vendored dependency was changed.
 The reviewed graphs remain core 0, configuration 8, server 104 and unused
 candidate 163 external packages. The refreshed [RustSec record](../server/audit-result.json)
-uses database `e52a8212cbf9b915380afd9534da050d6f5d9af1` with no findings or warnings.
+uses database `965bf9ad083b58e6340d65829d85217b18be9290` with no findings or warnings.
 The source review covered the opt-in rate/occupancy increases, conservative
 bucket accounting, queue capacity, metric derivation, immutable profile and
 preservation of the existing worker/service/stream boundaries. Test tooling uses
@@ -176,7 +186,7 @@ Primary browser references: [Chrome Headless](https://developer.chrome.com/docs/
 [CDP Target](https://chromedevtools.github.io/devtools-protocol/tot/Target/),
 [CDP Network](https://chromedevtools.github.io/devtools-protocol/tot/Network/).
 
-## Recorded result
+## Historical result — 2026-11-02
 
 The [sanitized result](browser-capacity-result-2026-11-02.json) records the failed
 acceptance result, earlier candidates, exact binary/source identity and counters.
@@ -192,9 +202,9 @@ The documentation/audit snapshot `99b0c85` also passed [PR CI](https://github.co
 Neither green CI nor bounded-resource proofs turn the failed browser acceptance
 into a pass.
 
-## Remaining capacity blocker
+## Historical capacity failure — 2026-11-02
 
-The last independent-transport run reached no verified actors/rooms in the
+That independent-transport run reached no verified actors/rooms in the
 browser oracle. Six create requests were aborted by the client; the server
 nevertheless recorded three 201 responses. The driver does not retry such
 mutations. Four asset requests received 408. No admission refusal was counted.

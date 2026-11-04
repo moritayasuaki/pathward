@@ -82,8 +82,9 @@ Final adapter review also corrected a timeout race: if the transport deadline
 expires just after the input phase check, a partial head still receives 408 rather
 than silently closing. The socket regression now checks partial-head expiry and
 silent idle-preconnection expiry. The extracted classification gate is unchanged.
-The browser report below identifies the preceding `92a6bf1` binary; this small
-follow-up has not been given a new full browser acceptance run.
+The 2026-11-03 browser report below identifies the preceding `92a6bf1` binary.
+The 2026-11-04 run includes the timeout correction and additional delivery
+diagnostics; its scope and revised cancellation oracle are recorded separately.
 
 ## Real-browser result — 2026-11-03
 
@@ -134,3 +135,60 @@ repeat cold entry plus both reload waves. HTTP compression may reduce JavaScript
 traffic but will not remove the already-compressed sprite workload. Public-link
 TLS/CA and production cutover remain separate pending gates; the current draft
 must not be promoted on the basis of green CI alone.
+
+## Real-browser result — 2026-11-04
+
+The [isolated HTTP functional rehearsal](delivery-browser-result-2026-11-04.json)
+completed 24 cold-cache Chrome contexts, six rooms with four distinct players
+each, two synchronized reloads, four board-consistency checks, and 24 comments
+verified in all 24 screens after reload. No create/join/command was retried.
+Total browser activity was 477 seconds; the five post-entry phases ran for
+462 seconds, including a final 183-second steady period. All six creates and
+18 joins returned 201; maximum CDP time to response headers was 1.713 and
+1.464 seconds respectively. This is a bounded functional rehearsal on the
+available SSH path, not a latency guarantee or public-network benchmark.
+
+Two preceding diagnostic runs completed entry but stopped at the original
+zero-I/O-error gate: 243 errors with a transparent TCP relay and 41 without it.
+Chrome NetLog on the direct run showed client `CANCELLED` events after response
+headers and partial image reads. Among cancelled asset requests, 1,483 had sent
+request headers and 210 had read body bytes. These are browser-internal counts,
+not server request totals. The fixture rebuilds parts of its DOM while polling;
+that is a plausible contributor to image cancellation, not a proved attribution
+for every socket. No frontend or backend fixture was changed.
+
+Runtime `c982db8` adds fixed error categories and delivery progress. In the
+completed run, all 232 request I/O failures were 200 responses: 132 broken pipes
+during body writes and 100 not-connected failures at finish. They remain failures
+in both logs and the aggregate counter; partial bytes are not reported as
+completed delivery. The two reload phases added 129 and 103 errors. Each settled
+within the oracle's 45-second window; ordinary steady phases added none. Browser
+API/state checks and decoded comment history independently passed. There were
+no timeouts, EOF/other I/O errors, empty responses, connection failures, mutation
+aborts, unexpected HTTP errors, admission refusals, queue overload or log drops.
+Navigation-aborted room polls are separately retained. The result therefore
+passes the revised functional oracle, not the former unconditional zero-I/O gate.
+
+During the browser window, monitor samples observed 156 successful configuration
+changes and 22 rejected capacity-profile changes. Across the entire bounded
+server session, including setup/teardown, there were 194 changes, 27 rejections
+and 194 matching marker/private-canary checks. Sampled PathWard peaks were
+63,864 KiB RSS, 26 threads and 56 descriptors. All four owned children exited
+zero and production configuration, routes, service PIDs and listeners matched.
+
+The [runtime CI](https://github.com/moritayasuaki/pathward/actions/runs/41805580676)
+passed Linux integration, real local-CA issuance/renewal and overlap soak, all
+289 Lean statements, and dependency audit. The new real-socket cancellation
+regression also passes on Linux and macOS: fail a partially read response, retain
+its error and progress, and complete the next same-peer mutation without retry.
+Source review covered fixed enum/category labels, omission of error messages,
+bounded log queues and preservation of aggregate failure counters. No dependency,
+limit, admission rule, framing rule or security decision changed in this follow-up.
+The existing extracted Rust/Lean gates were rechecked; logging and sockets remain
+reviewed/tested adapter code, not newly proved code.
+
+Earlier empty responses and entry aborts did not recur in these three fresh
+runs. This does not establish their complete cause or justify deleting the failed
+reports. Public-link TLS/CA, certificate-update overlap in real browsers,
+connection reuse/HTTP2 and compression evaluation, full host/service parity and
+cutover/rollback remain separate migration gates.

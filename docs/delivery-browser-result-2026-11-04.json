@@ -1,0 +1,509 @@
+{
+  "schema": 1,
+  "date": "2026-11-04",
+  "acceptance": "PASSED_ISOLATED_HTTP_WITH_CLASSIFIED_PEER_CLOSES",
+  "production_ready": false,
+  "runtime": {
+    "source_commit": "c982db89bc4f71a4aac76bc1ddf309d0b0a2cb2b",
+    "ci_run": 41805580676,
+    "ci_result": "success",
+    "artifact_build": 41805574268,
+    "artifact_id": 13309647802,
+    "zip_sha256": "f7745cae1da2ab6426a3699404f8b82551808427a0ba15fe2f529d64344b8243",
+    "binary_sha256": "ee2654cb5a5c5d71f2ff055847839c8e65753790f8e6adeab9b6b8d0f953624c"
+  },
+  "fixtures": {
+    "frontend_js_sha256": "efae2a32eb074817e0006ca94542f2a5068ac1255acb7fd8e219028c4ba908fe",
+    "frontend_js_bytes": 2458646,
+    "web_files": 8,
+    "sprite_files": 90,
+    "backend_sha256": [
+      "6df748b8ff0c6b7dbd0910042afebc5b8551a50cef330040cfbafd9884a7398d",
+      "bac751741ac870b744fdbf3d12ee3373c0b9ac6f67bff21ee941c53c5246fdaf"
+    ],
+    "private_photos": "empty",
+    "state": "synthetic"
+  },
+  "pathward": {
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/156.0.8078.79",
+      "revision": "@a21ce95c24ce3964416f09ae1862f53f319eb4d0",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "jsVersion": "15.6.75.27"
+    },
+    "contexts": 24,
+    "verified_actors": 24,
+    "verified_rooms": 6,
+    "members_per_room": 4,
+    "counts": {
+      "cold:asset:200": 414,
+      "cold:other:200": 72,
+      "cold:room-create:201": 6,
+      "cold:room-read:200": 146,
+      "cold:command:200": 6,
+      "steady:command:200": 6,
+      "steady:room-read:200": 1555,
+      "reconnect-1:asset:200": 360,
+      "reconnect-1:room-read:transport:net::ERR_ABORTED": 27,
+      "reconnect-1:other:200": 48,
+      "reconnect-1:room-read:200": 3101,
+      "reconnect-1:cached:asset": 269,
+      "between-reconnects:room-read:200": 1568,
+      "reconnect-2:asset:200": 360,
+      "reconnect-2:room-read:200": 3011,
+      "reconnect-2:room-read:transport:net::ERR_ABORTED": 32,
+      "reconnect-2:other:200": 24,
+      "final-steady:room-read:200": 6266,
+      "cold:favicon:404": 3,
+      "cold:room-join:201": 18,
+      "reconnect-2:cached:asset": 166
+    },
+    "browser_failures": [],
+    "diagnostics": [
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation",
+      "response body invalidated by navigation"
+    ],
+    "transport": "HTTP/1.1 through 24 independent SSH SOCKS paths, no TCP tracing relay",
+    "public_tls": false,
+    "public_ca": false,
+    "browser_acme_overlap": false,
+    "completed_reload_waves": 2,
+    "comment_sends": 24,
+    "comment_receipt_screens": 24,
+    "comments_per_screen": 4,
+    "board_checks": 4,
+    "scenario_seconds": 461.558,
+    "total_browser_seconds": 477.435,
+    "phases": [
+      {
+        "name": "steady",
+        "seconds": 45.333,
+        "io_delta": 0.0,
+        "room_reads": 1696
+      },
+      {
+        "name": "reconnect-1",
+        "seconds": 91.446,
+        "io_delta": 129.0,
+        "room_reads": 4675
+      },
+      {
+        "name": "between-reconnects",
+        "seconds": 45.84,
+        "io_delta": 0.0,
+        "room_reads": 6361
+      },
+      {
+        "name": "reconnect-2",
+        "seconds": 92.429,
+        "io_delta": 103.0,
+        "room_reads": 9358
+      },
+      {
+        "name": "final-steady",
+        "seconds": 182.7,
+        "io_delta": 0.0,
+        "room_reads": 15622
+      }
+    ],
+    "latency": {
+      "room-create": {
+        "count": 6,
+        "max_total_ms": 1709,
+        "max_response_headers_ms": 1712.287
+      },
+      "room-join": {
+        "count": 18,
+        "max_total_ms": 1455,
+        "max_response_headers_ms": 1463.748
+      }
+    },
+    "metrics": {
+      "pathward_admission_global_limit": 256.0,
+      "pathward_admission_peer_limit": 192.0,
+      "pathward_admission_queue_limit": 252.0,
+      "pathward_admission_global_rate": 512.0,
+      "pathward_admission_peer_rate": 256.0,
+      "pathward_admission_global_burst": 512.0,
+      "pathward_admission_peer_burst": 384.0,
+      "pathward_connections_total": 20764.0,
+      "pathward_connections_active": 1.0,
+      "pathward_connections_overloaded_total": 0.0,
+      "pathward_admission_rejected_total": 0.0,
+      "pathward_requests_total": 20755.0,
+      "pathward_request_io_errors_total": 232.0,
+      "pathward_body_bytes_total": 1938135519.0,
+      "pathward_tls_handshake_errors_total": 0.0,
+      "pathward_reloads_total": 181.0,
+      "pathward_reload_errors_total": 25.0,
+      "pathward_acme_orders_total": 0.0,
+      "pathward_acme_activations_total": 0.0,
+      "pathward_acme_errors_total": 0.0,
+      "pathward_log_dropped_total": 0.0,
+      "pathward_config_generation": 182.0,
+      "pathward_ready": 1.0,
+      "pathward_draining": 0.0,
+      "pathward_tls_enabled": 0.0,
+      "pathward_certificate_present": 0.0,
+      "pathward_certificate_not_before_seconds": 0.0,
+      "pathward_certificate_not_after_seconds": 0.0,
+      "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+      "pathward_request_io_failures_total{reason=\"timed_out\"}": 0.0,
+      "pathward_request_io_failures_total{reason=\"connection_reset\"}": 0.0,
+      "pathward_request_io_failures_total{reason=\"connection_aborted\"}": 0.0,
+      "pathward_request_io_failures_total{reason=\"broken_pipe\"}": 132.0,
+      "pathward_request_io_failures_total{reason=\"not_connected\"}": 100.0,
+      "pathward_request_io_failures_total{reason=\"unexpected_eof\"}": 0.0,
+      "pathward_request_io_failures_total{reason=\"other\"}": 0.0,
+      "pathward_responses_total{class=\"1xx\"}": 0.0,
+      "pathward_responses_total{class=\"2xx\"}": 20339.0,
+      "pathward_responses_total{class=\"3xx\"}": 0.0,
+      "pathward_responses_total{class=\"4xx\"}": 184.0,
+      "pathward_responses_total{class=\"5xx\"}": 0.0
+    },
+    "io_errors_by_stage": [
+      {
+        "reason": "broken_pipe",
+        "phase": "body",
+        "intended_status": 200,
+        "count": 132
+      },
+      {
+        "reason": "not_connected",
+        "phase": "finish",
+        "intended_status": 200,
+        "count": 100
+      }
+    ],
+    "io_error_samples": [
+      {
+        "time": 1793783913,
+        "event": "request",
+        "generation": 48,
+        "status": 0,
+        "body_bytes": 0,
+        "duration_us": 70283,
+        "io_error": "broken_pipe",
+        "delivery_phase": "body",
+        "delivery_status": 200,
+        "head_bytes_written": 536,
+        "body_bytes_written": 360448
+      },
+      {
+        "time": 1793783913,
+        "event": "request",
+        "generation": 48,
+        "status": 0,
+        "body_bytes": 0,
+        "duration_us": 61576,
+        "io_error": "not_connected",
+        "delivery_phase": "finish",
+        "delivery_status": 200,
+        "head_bytes_written": 536,
+        "body_bytes_written": 303876
+      },
+      {
+        "time": 1793783913,
+        "event": "request",
+        "generation": 48,
+        "status": 0,
+        "body_bytes": 0,
+        "duration_us": 71622,
+        "io_error": "broken_pipe",
+        "delivery_phase": "body",
+        "delivery_status": 200,
+        "head_bytes_written": 536,
+        "body_bytes_written": 278528
+      }
+    ],
+    "churn": {
+      "switches": 194,
+      "rejections": 27,
+      "marker_checks": 194,
+      "private_checks": 194,
+      "failures": []
+    },
+    "peak_resources": {
+      "rss_kib": 63864,
+      "threads": 26,
+      "fds": 56
+    },
+    "peak_browser_rss_kib": 9819296,
+    "child_exit_codes": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "production_inventory_unchanged": true,
+    "observed_browser_window": {
+      "monitor_samples": 238,
+      "configuration_generations": [
+        26.0,
+        182.0
+      ],
+      "reload_success_increase": 156.0,
+      "reload_rejection_increase": 22.0
+    },
+    "churn_scope": "Whole bounded server session, including setup and teardown; observed_browser_window gives monitor deltas within browser activity."
+  },
+  "diagnostic_runs": [
+    {
+      "name": "trace",
+      "runtime": "ddaff0081626903fd67bd0c127d4dcb23f87349c",
+      "acceptance": "STOPPED_BY_ZERO_IO_ERROR_GATE",
+      "tcp_relay": true,
+      "verified_actors": 24,
+      "verified_rooms": 6,
+      "browser_failures": [],
+      "counts": {
+        "cold:asset:200": 414,
+        "cold:other:200": 72,
+        "cold:favicon:404": 2,
+        "cold:room-create:201": 6,
+        "cold:room-read:200": 168,
+        "cold:command:200": 6,
+        "steady:command:200": 6,
+        "steady:room-read:200": 4930,
+        "reconnect-1:asset:200": 360,
+        "reconnect-1:room-read:transport:net::ERR_ABORTED": 31,
+        "reconnect-1:other:200": 24,
+        "reconnect-1:room-read:200": 16513,
+        "reconnect-1:cached:asset": 267,
+        "cold:room-join:201": 18
+      },
+      "io_errors": 243,
+      "driver_result": {
+        "started": 1793782842.8870752,
+        "phases": [
+          {
+            "name": "steady",
+            "duration_seconds": 45.675,
+            "room_reads": 5094,
+            "metrics": {
+              "pathward_admission_global_limit": 256.0,
+              "pathward_admission_peer_limit": 192.0,
+              "pathward_admission_queue_limit": 252.0,
+              "pathward_admission_global_rate": 512.0,
+              "pathward_admission_peer_rate": 256.0,
+              "pathward_admission_global_burst": 512.0,
+              "pathward_admission_peer_burst": 384.0,
+              "pathward_connections_total": 5684.0,
+              "pathward_connections_active": 1.0,
+              "pathward_connections_overloaded_total": 0.0,
+              "pathward_admission_rejected_total": 0.0,
+              "pathward_requests_total": 5683.0,
+              "pathward_request_io_errors_total": 0.0,
+              "pathward_body_bytes_total": 323588981.0,
+              "pathward_tls_handshake_errors_total": 0.0,
+              "pathward_reloads_total": 65.0,
+              "pathward_reload_errors_total": 9.0,
+              "pathward_acme_orders_total": 0.0,
+              "pathward_acme_activations_total": 0.0,
+              "pathward_acme_errors_total": 0.0,
+              "pathward_log_dropped_total": 0.0,
+              "pathward_config_generation": 66.0,
+              "pathward_ready": 1.0,
+              "pathward_draining": 0.0,
+              "pathward_tls_enabled": 0.0,
+              "pathward_certificate_present": 0.0,
+              "pathward_certificate_not_before_seconds": 0.0,
+              "pathward_certificate_not_after_seconds": 0.0,
+              "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+              "pathward_responses_total{class=\"1xx\"}": 0.0,
+              "pathward_responses_total{class=\"2xx\"}": 5616.0,
+              "pathward_responses_total{class=\"3xx\"}": 0.0,
+              "pathward_responses_total{class=\"4xx\"}": 67.0,
+              "pathward_responses_total{class=\"5xx\"}": 0.0
+            }
+          }
+        ],
+        "failures": [
+          "AssertionError: ('pathward_request_io_errors_total', 1.0)"
+        ],
+        "board_checks": 1,
+        "comment_sends": 0,
+        "passed": false,
+        "ended": 1793782894.943087,
+        "duration_seconds": 52.056
+      },
+      "churn": {
+        "switches": 227,
+        "rejections": 32,
+        "marker_checks": 227,
+        "private_checks": 227,
+        "failures": []
+      },
+      "peak_resources": {
+        "rss_kib": 52620,
+        "threads": 26,
+        "fds": 63
+      },
+      "child_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "production_inventory_unchanged": true
+    },
+    {
+      "name": "direct",
+      "runtime": "ddaff0081626903fd67bd0c127d4dcb23f87349c",
+      "acceptance": "STOPPED_BY_ZERO_IO_ERROR_GATE",
+      "tcp_relay": false,
+      "verified_actors": 24,
+      "verified_rooms": 6,
+      "browser_failures": [],
+      "counts": {
+        "cold:asset:200": 414,
+        "cold:other:200": 72,
+        "cold:room-create:201": 6,
+        "cold:room-read:200": 169,
+        "cold:command:200": 6,
+        "steady:command:200": 6,
+        "steady:room-read:200": 2296,
+        "reconnect-1:asset:200": 360,
+        "reconnect-1:room-read:transport:net::ERR_ABORTED": 25,
+        "reconnect-1:other:200": 24,
+        "reconnect-1:room-read:200": 1239,
+        "reconnect-1:cached:asset": 272,
+        "cold:favicon:404": 2,
+        "cold:room-join:201": 18
+      },
+      "io_errors": 41,
+      "driver_result": {
+        "started": 1793783603.133109,
+        "phases": [
+          {
+            "name": "steady",
+            "duration_seconds": 45.431,
+            "room_reads": 2461,
+            "metrics": {
+              "pathward_admission_global_limit": 256.0,
+              "pathward_admission_peer_limit": 192.0,
+              "pathward_admission_queue_limit": 252.0,
+              "pathward_admission_global_rate": 512.0,
+              "pathward_admission_peer_rate": 256.0,
+              "pathward_admission_global_burst": 512.0,
+              "pathward_admission_peer_burst": 384.0,
+              "pathward_connections_total": 3058.0,
+              "pathward_connections_active": 3.0,
+              "pathward_connections_overloaded_total": 0.0,
+              "pathward_admission_rejected_total": 0.0,
+              "pathward_requests_total": 3046.0,
+              "pathward_request_io_errors_total": 0.0,
+              "pathward_body_bytes_total": 264967996.0,
+              "pathward_tls_handshake_errors_total": 0.0,
+              "pathward_reloads_total": 48.0,
+              "pathward_reload_errors_total": 6.0,
+              "pathward_acme_orders_total": 0.0,
+              "pathward_acme_activations_total": 0.0,
+              "pathward_acme_errors_total": 0.0,
+              "pathward_log_dropped_total": 0.0,
+              "pathward_config_generation": 49.0,
+              "pathward_ready": 1.0,
+              "pathward_draining": 0.0,
+              "pathward_tls_enabled": 0.0,
+              "pathward_certificate_present": 0.0,
+              "pathward_certificate_not_before_seconds": 0.0,
+              "pathward_certificate_not_after_seconds": 0.0,
+              "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+              "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+              "pathward_responses_total{class=\"1xx\"}": 0.0,
+              "pathward_responses_total{class=\"2xx\"}": 2996.0,
+              "pathward_responses_total{class=\"3xx\"}": 0.0,
+              "pathward_responses_total{class=\"4xx\"}": 50.0,
+              "pathward_responses_total{class=\"5xx\"}": 0.0
+            }
+          }
+        ],
+        "failures": [
+          "AssertionError: ('pathward_request_io_errors_total', 4.0)"
+        ],
+        "board_checks": 1,
+        "comment_sends": 0,
+        "passed": false,
+        "ended": 1793783658.21213,
+        "duration_seconds": 55.079
+      },
+      "churn": {
+        "switches": 63,
+        "rejections": 9,
+        "marker_checks": 63,
+        "private_checks": 63,
+        "failures": []
+      },
+      "peak_resources": {
+        "rss_kib": 53364,
+        "threads": 26,
+        "fds": 51
+      },
+      "child_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "production_inventory_unchanged": true
+    }
+  ],
+  "diagnosis": {
+    "direct_chrome_netlog": "Client CANCELLED events follow 200 response headers and partial body reads on sprite requests. No secrets or raw URL logs are published. This is evidence for client-initiated cancellation, not a packet-by-packet join between every server error and browser event.",
+    "direct_asset_requests_cancelled_after_send": 1483,
+    "direct_cancelled_asset_requests_with_body_read": 210,
+    "original_empty_response_and_mutation_abort_cause": "Not reproduced in these three fresh runs; no new causal fix is claimed. Historical failed results remain retained.",
+    "oracle_change": "The earlier unconditional zero-I/O gate stopped two runs. The completed run preserves every failure and permits only classified peer-close kinds during reconnect settling, asserts no increase after 45 seconds, checks browser state/operations independently, and fails on timeout/EOF/other, refusal, overload, unexpected HTTP error, empty response or mutation abort.",
+    "scope": "Bounded functional rehearsal, not a one-hour soak, public-link benchmark or public-CA migration pass."
+  },
+  "verification": {
+    "lean_statements": 289,
+    "proof_holes": 0,
+    "axioms": "standard Lean only",
+    "dependency_additions": 0,
+    "external_packages": {
+      "core": 0,
+      "config": 8,
+      "server": 104
+    },
+    "rustsec_database": "965bf9ad083b58e6340d65829d85217b18be9290",
+    "rustsec_findings": 0,
+    "rustsec_warnings": 0,
+    "cancel_smoke": "passed on macOS and Linux; partial response failure remains visible and subsequent mutation progresses without retry"
+  }
+}

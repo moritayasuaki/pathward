@@ -8,7 +8,9 @@ import json
 import queue
 import signal
 import socket
+import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -209,6 +211,37 @@ site "example.com" {{
             s.close()
         held = []
 
+        # A client can cancel an image after receiving its head and first bytes.
+        # Keep that failure visible, release its reservations, and serve another
+        # same-peer mutation without a retry or loss of ordinary worker capacity.
+        before_errors = metrics()["pathward_request_io_errors_total"]
+        cancelled = connect()
+        try:
+            cancelled.sendall(b"GET /image HTTP/1.1\r\nHost: example.com\r\n\r\n")
+            assert head(cancelled).startswith(b"HTTP/1.1 200 ")
+            assert cancelled.recv(1)
+            cancelled.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        finally:
+            cancelled.close()
+        end = time.monotonic() + 3
+        while True:
+            sample = metrics()
+            # macOS can surface the post-RST socket failure as another I/O
+            # kind; Linux must retain one of the explicit peer-close reasons.
+            reasons = ("connection_reset", "broken_pipe") + (("other",) if sys.platform == "darwin" else ())
+            failures = [r for r in records if r.get("delivery_phase") == "body"
+                        and r.get("io_error") in reasons]
+            if sample["pathward_request_io_errors_total"] > before_errors and failures:
+                break
+            assert time.monotonic() < end, ("cancelled delivery was not diagnosed", sample,
+                                           [r for r in records if r.get("status") == 0][-3:])
+            time.sleep(.02)
+        failure = failures[-1]
+        assert failure["status"] == 0 and failure["body_bytes"] == 0
+        assert failure["delivery_status"] == 200 and 0 < failure["body_bytes_written"] < len(PAYLOAD)
+        post("last")
+        assert created == 5, "mutation after cancellation was repeated"
+
         # Incomplete input is discarded on shutdown, while delivery is bounded.
         stalled = connect()
         stalled.sendall(b"GET / HTTP/1.1\r\n")
@@ -217,7 +250,7 @@ site "example.com" {{
         process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=7) == 0
         assert time.monotonic() - before < 7
-        print("Delivery passed: partial headers, 24 slow same-IP bodies, API progress, reload consistency, pre-mutation byte reservation, no retry, bounded shutdown.")
+        print("Delivery passed: partial headers, 24 slow same-IP bodies, API progress, reload consistency, pre-mutation byte reservation, diagnosed peer cancellation, no retry, bounded shutdown.")
     finally:
         hold_release.set()
         for s in downloads + held:
