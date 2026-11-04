@@ -232,6 +232,13 @@ so cancelled heads can drain without global queue credit. It allocates no reques
 body or response/service lease at this stage. The original head-accept time is
 retained across the wait. A single TLS record containing 33 unconsumed reset
 pairs still triggers the finite abuse limit; the limit was not disabled.
+The two-wave regression now separates cancellation windows by only 5 ms.
+The old one-head-per-2-ms loop reproducibly exceeded that reset queue; the
+adapter now consumes at most 32 ready steps before yielding, and checks
+cancellation before the connection retirement/refusal gate. It polls existing
+tasks between heads. Stream, pending-reset, queue, age and request caps are
+unchanged. No request data is logged; fixed events distinguish the connection
+window gate from a held-head deadline.
 
 `CancellationProofs` checks the extracted held-head decision and the 32-slot
 invariant over a finite transition model. It does not prove the async adapter,
@@ -256,3 +263,9 @@ The adapter records only a boolean indicating whether a plaintext byte arrived.
 A partial preface still fails; other I/O/protocol errors are unchanged. Actual
 TLS tests cover empty EOF, empty timeout and one-byte truncated preface.
 No request URL, header or body is added to logging; no dependency is added.
+
+A proxy with a multi-megabyte input cap no longer reserves that cap for an HTTP/2
+request whose END_STREAM flag already proves the input is empty. Missing
+Content-Length or GET alone does not establish emptiness. The 24-way real TLS
+regression uses a 3 MiB cap and waits for every upstream request before replying.
+Nonempty and unknown-length inputs retain their existing byte-credit checks.

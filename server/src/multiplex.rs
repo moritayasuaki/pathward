@@ -632,10 +632,15 @@ async fn exchange(
         h2_reset(&mut sender).await?;
         phase = observe::TransportStage::Input;
         let (parts, mut data) = req.into_parts();
-        let request = match request_head(server, parts, sni, port) {
+        let mut request = match request_head(server, parts, sni, port) {
             Ok(r) => r,
             Err(status) => return send_h2(rejection(status), &mut sender).await,
         };
+        // END_STREAM is a framing fact, not an inference from GET or a missing
+        // Content-Length. No body credit is needed for a completed empty input.
+        if data.is_end_stream() && request.length.is_none() {
+            request.length = Some(0);
+        }
         generation = request.generation;
         let Some(_input) = while_h2_open(
             &mut sender,
@@ -811,6 +816,7 @@ pub async fn serve_h2(
     let mut idle = Instant::now();
     let mut retirement = Retirement::default();
     let mut held = None;
+    let mut burst = 0;
     loop {
         let stopping = shutdown.load(Ordering::Acquire) || server.is_draining();
         if stopping {
@@ -834,6 +840,7 @@ pub async fn serve_h2(
         // One held head is part of the same 32-stream window, not an admitted
         // task. It lets us consume cancelled heads even when the global queue
         // is full. No body, response credit or service permit is allocated here.
+        let mut progressed = false;
         let incoming = if pathward::delivery::head_slot(tasks.len() as u64, held.is_some()) {
             futures_lite::future::poll_once(connection.accept()).await
         } else {
@@ -854,24 +861,13 @@ pub async fn serve_h2(
             }
         };
         match incoming {
-            Some(Some(Ok((req, mut response)))) => {
+            Some(Some(Ok((req, response)))) => {
                 count += 1;
                 idle = Instant::now();
-                if pathward::delivery::multiplex_slot(
-                    tasks.len() as u64,
-                    count - 1,
-                    accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                    shutdown.load(Ordering::Acquire) || server.is_draining(),
-                ) {
-                    held = Some((req, response, Instant::now()));
-                } else {
-                    server
-                        .observe
-                        .admission_rejected(admission::Rejection::GlobalActive);
-                    response.send_reset(h2::Reason::REFUSED_STREAM);
-                    connection.graceful_shutdown();
-                    retirement.begin();
-                }
+                progressed = true;
+                // A reset can already be queued with this head. Observe it
+                // before applying any refusal policy, including retirement.
+                held = Some((req, response, Instant::now()));
             }
             Some(Some(Err(e))) => {
                 return Err(observe::connection_error(
@@ -890,6 +886,7 @@ pub async fn serve_h2(
                 began.elapsed().as_millis().min(u64::MAX as u128) as u64,
             ) {
                 pathward::delivery::HeldAction::Discard => {
+                    progressed = true;
                     let result = Err(observe::stage_error(
                         cancelled.expect("verified discard requires observed cancellation"),
                         observe::TransportStage::Admission,
@@ -899,6 +896,10 @@ pub async fn serve_h2(
                         .request(server.generation(), began.elapsed(), &result);
                 }
                 pathward::delivery::HeldAction::Expire => {
+                    progressed = true;
+                    server
+                        .observe
+                        .event("h2_head_wait_expired", server.generation(), count);
                     server
                         .observe
                         .admission_rejected(admission::Rejection::GlobalActive);
@@ -907,7 +908,25 @@ pub async fn serve_h2(
                     retirement.begin();
                 }
                 pathward::delivery::HeldAction::TryAdmission => {
-                    if let Some(waiting) = pending(server) {
+                    if !pathward::delivery::multiplex_slot(
+                        tasks.len() as u64,
+                        count - 1,
+                        accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                        shutdown.load(Ordering::Acquire) || server.is_draining(),
+                    ) {
+                        progressed = true;
+                        server.observe.event(
+                            "h2_stream_window_exhausted",
+                            server.generation(),
+                            count,
+                        );
+                        server
+                            .observe
+                            .admission_rejected(admission::Rejection::GlobalActive);
+                        response.send_reset(h2::Reason::REFUSED_STREAM);
+                        connection.graceful_shutdown();
+                        retirement.begin();
+                    } else if let Some(waiting) = pending(server) {
                         tasks.push(Box::pin(exchange(
                             server, req, response, &sni, port, peer, budget, shutdown, waiting,
                             admission, began,
@@ -925,12 +944,21 @@ pub async fn serve_h2(
                 .is_some()
             {
                 drop(tasks.swap_remove(i));
+                progressed = true;
                 idle = Instant::now();
             } else {
                 i += 1;
             }
         }
-        async_http::pause().await;
+        // Drain a bounded batch of already-ready heads/resets before sleeping.
+        // One head per 2ms lets separate legitimate cancellation windows pile
+        // up in h2's pending-reset queue. The same 32-reset abuse cap remains.
+        if progressed && burst < 31 {
+            burst += 1;
+        } else {
+            burst = 0;
+            async_http::pause().await;
+        }
     }
 }
 
@@ -1239,7 +1267,7 @@ mod tests {
                                         async_http::pause().await;
                                     }
                                 }
-                                for _ in 0..2 {
+                                for wave in 0..2 {
                                     let mut requests = Vec::new();
                                     for _ in 0..32 {
                                         client = client.ready().await.unwrap();
@@ -1257,12 +1285,17 @@ mod tests {
                                     }
                                     // Headers arrive while the application queue is full;
                                     // then a reload cancels the in-flight browser window.
-                                    async_io::Timer::after(Duration::from_millis(150)).await;
+                                    async_io::Timer::after(Duration::from_millis(if wave == 0 {
+                                        150
+                                    } else {
+                                        5
+                                    }))
+                                    .await;
                                     for (_, stream) in &mut requests {
                                         stream.send_reset(h2::Reason::CANCEL);
                                     }
                                     drop(requests);
-                                    async_io::Timer::after(Duration::from_millis(150)).await;
+                                    async_io::Timer::after(Duration::from_millis(5)).await;
                                 }
                                 drop(held);
                                 client = client.ready().await.unwrap();
@@ -1521,7 +1554,7 @@ mod tests {
     #[test]
     fn real_tls_h2_multiplexes_24_waits_compression_and_streams_sse() {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
-        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"4KiB\"\nproxy-limit \"response-body\" \"256KiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
+        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"3MiB\"\nproxy-limit \"response-body\" \"256KiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
         let server = Server::new(&config.compile().unwrap()).unwrap();
         let (identity, client) = identity();
         let tls = crate::tls::TlsServer::new(identity).unwrap();
