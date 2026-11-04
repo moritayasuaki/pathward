@@ -211,11 +211,11 @@ impl TlsServer {
                 identity: identity.clone(),
                 challenge,
             }));
-            cfg.alpn_protocols = vec![if challenge {
-                b"acme-tls/1".to_vec()
+            cfg.alpn_protocols = if challenge {
+                vec![b"acme-tls/1".to_vec()]
             } else {
-                b"http/1.1".to_vec()
-            }];
+                vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+            };
             cfg.session_storage = Arc::new(rustls::server::NoServerSessionStorage {});
             cfg.send_tls13_tickets = 0;
             cfg.max_early_data_size = 0;
@@ -229,8 +229,60 @@ impl TlsServer {
             challenge,
         })
     }
-    /// ACME validation connections complete TLS and return without HTTP dispatch.
+    pub(crate) fn quic_config(&self) -> io::Result<quinn::ServerConfig> {
+        let mut cfg = self.normal.as_ref().clone();
+        cfg.alpn_protocols = vec![b"h3".to_vec()];
+        // Stateful, single-use resumption tickets. Secrets remain in bounded memory.
+        cfg.session_storage = rustls::server::ServerSessionMemoryCache::new(256);
+        cfg.send_tls13_tickets = 2;
+        cfg.max_early_data_size = u32::MAX;
+        let crypto =
+            quinn::crypto::rustls::QuicServerConfig::try_from(cfg).map_err(|_| denied())?;
+        let mut config = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+        config
+            .migration(true)
+            .max_incoming(64)
+            .incoming_buffer_size(131072)
+            .incoming_buffer_size_total(8388608);
+        let transport = Arc::get_mut(&mut config.transport).ok_or_else(denied)?;
+        transport
+            .max_concurrent_bidi_streams(32u32.into())
+            .max_concurrent_uni_streams(3u32.into())
+            .stream_receive_window(16384u32.into())
+            .receive_window(65535u32.into())
+            .send_window(131072)
+            .crypto_buffer_size(131072)
+            .datagram_receive_buffer_size(None)
+            .keep_alive_interval(Some(Duration::from_secs(10)))
+            .max_idle_timeout(Some(
+                Duration::from_secs(30).try_into().map_err(|_| denied())?,
+            ));
+        Ok(config)
+    }
+    pub(crate) fn current_identity(&self, name: &str) -> bool {
+        self.identity.known(name)
+            && self
+                .identity
+                .certificate
+                .read()
+                .ok()
+                .is_some_and(|c| c.as_ref().is_some_and(|c| c.active()))
+    }
+    /// Blocking compatibility API for embedders and focused transport tests.
     pub fn accept(&self, stream: TcpStream, accepted: Instant) -> io::Result<Option<TlsTransport>> {
+        let result = futures_lite::future::block_on(self.accept_async(stream, accepted))?;
+        if let Some(transport) = &result {
+            transport.stream.sock.stream.set_nonblocking(false)?;
+        }
+        Ok(result)
+    }
+    /// ACME validation connections complete TLS and return without HTTP dispatch.
+    pub async fn accept_async(
+        &self,
+        stream: TcpStream,
+        accepted: Instant,
+    ) -> io::Result<Option<TlsTransport>> {
+        stream.set_nonblocking(true)?;
         let mut socket = DeadlineTcp {
             stream,
             deadline: accepted + HANDSHAKE_BUDGET,
@@ -238,7 +290,10 @@ impl TlsServer {
         };
         let mut acceptor = Acceptor::default();
         let accepted = loop {
-            if acceptor.read_tls(&mut socket)? == 0 {
+            if crate::async_http::operation(socket.deadline, || acceptor.read_tls(&mut socket))
+                .await?
+                == 0
+            {
                 return Err(io::ErrorKind::UnexpectedEof.into());
             }
             match acceptor.accept() {
@@ -265,10 +320,10 @@ impl TlsServer {
         let mut conn = accepted.into_connection(config).map_err(|_| denied())?;
         conn.set_buffer_limit(Some(32_768));
         while conn.is_handshaking() {
-            conn.complete_io(&mut socket)?;
+            crate::async_http::operation(socket.deadline, || conn.complete_io(&mut socket)).await?;
         }
         while conn.wants_write() {
-            conn.write_tls(&mut socket)?;
+            crate::async_http::operation(socket.deadline, || conn.write_tls(&mut socket)).await?;
         }
         if challenge {
             return Ok(None);
@@ -350,8 +405,8 @@ impl Transport for TlsTransport {
     }
 }
 impl TlsTransport {
-    pub(crate) fn blocking(&mut self) -> io::Result<()> {
-        self.stream.sock.stream.set_nonblocking(false)
+    pub(crate) fn is_h2(&self) -> bool {
+        self.stream.conn.alpn_protocol() == Some(b"h2")
     }
     pub fn finish(&mut self) -> io::Result<()> {
         self.stream.conn.send_close_notify();

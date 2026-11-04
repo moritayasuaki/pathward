@@ -72,7 +72,7 @@ pub fn time_limits(body: u64, connect: u64, head: u64, total: u64) -> bool {
 }
 
 pub fn connection_limit(limit: u64) -> bool {
-    limit > 0 && limit <= 3
+    limit > 0 && limit <= 64
 }
 
 /// Shared across generations; a captured old policy cannot exceed the live cap.

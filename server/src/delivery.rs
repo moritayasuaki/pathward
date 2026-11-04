@@ -107,8 +107,41 @@ pub struct Prepared {
     deadline: Instant,
     idle: Instant,
     _lease: Option<Lease>,
+    reusable: bool,
 }
 impl Prepared {
+    pub(crate) fn take_head(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.head).into_vec()
+    }
+    pub(crate) fn deadline_at(&self) -> Instant {
+        self.deadline
+    }
+    pub(crate) fn next_chunk(&mut self) -> io::Result<Option<Vec<u8>>> {
+        match &mut self.body {
+            Body::Bytes { data, at } if *at < data.len() => {
+                let end = data.len().min(*at + FILE_CHUNK);
+                let bytes = data[*at..end].to_vec();
+                *at = end;
+                Ok(Some(bytes))
+            }
+            Body::File { file, left, .. } if *left > 0 => {
+                let mut bytes = vec![0; (*left).min(FILE_CHUNK as u64) as usize];
+                file.read_exact(&mut bytes)?;
+                *left -= bytes.len() as u64;
+                Ok(Some(bytes))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    pub fn reuse(&mut self, enabled: bool) {
+        self.reusable = enabled;
+        if enabled {
+            let head =
+                String::from_utf8_lossy(&self.head).replace("\r\nConnection: close\r\n", "\r\n");
+            self.head = head.into_bytes().into_boxed_slice();
+        }
+    }
     fn progress(&self) -> observe::DeliveryProgress {
         let phase = if self.head_at < self.head.len() {
             observe::DeliveryPhase::Head
@@ -151,6 +184,7 @@ impl Prepared {
             deadline,
             idle: Instant::now() + Duration::from_secs(5),
             _lease: Some(lease),
+            reusable: false,
         })
     }
     pub fn file(
@@ -181,6 +215,7 @@ impl Prepared {
             deadline,
             idle: Instant::now() + Duration::from_secs(5),
             _lease: Some(lease),
+            reusable: false,
         })
     }
     pub fn rejection(status: u16) -> Self {
@@ -198,6 +233,7 @@ impl Prepared {
             deadline: Instant::now() + Duration::from_secs(1),
             idle: Instant::now() + Duration::from_secs(1),
             _lease: None,
+            reusable: false,
         }
     }
     fn step(&mut self, c: &mut Connection, drain: Option<Instant>) -> io::Result<bool> {
@@ -251,7 +287,9 @@ impl Prepared {
             }
             _ => {
                 c.flush()?;
-                c.complete()?;
+                if !self.reusable {
+                    c.complete()?;
+                }
                 return Ok(true);
             }
         };
@@ -268,6 +306,9 @@ pub struct Input {
     pub redirect: bool,
     pub permit: admission::Permit,
     pub active: observe::Active,
+    pub born: Instant,
+    pub completed: u64,
+    pub idle: bool,
 }
 pub enum Work {
     Handshake {
@@ -288,6 +329,9 @@ pub struct Output {
     pub started: Instant,
     pub _permit: admission::Permit,
     pub _active: observe::Active,
+    pub born: Instant,
+    pub completed: u64,
+    pub redirect: bool,
 }
 enum Event {
     Head(Input),
@@ -340,6 +384,9 @@ impl Reactor {
             started: input.started,
             _permit: input.permit,
             _active: input.active,
+            born: input.born,
+            completed: input.completed,
+            redirect: input.redirect,
         });
     }
     pub fn run(
@@ -370,7 +417,7 @@ impl Reactor {
                     5000,
                     drain.is_some(),
                 );
-                if !live {
+                if !live || input.born.elapsed() >= Duration::from_secs(120) {
                     let status =
                         pathward::delivery::input_timeout_status(input.prefix.len() as u64);
                     if status != 0 {
@@ -386,7 +433,13 @@ impl Reactor {
                     .and_then(|_| input.client.read(&mut buffer[..left]));
                 match read {
                     Ok(0) => continue,
-                    Ok(n) => input.prefix.extend_from_slice(&buffer[..n]),
+                    Ok(n) => {
+                        if input.idle {
+                            input.started = Instant::now();
+                            input.idle = false;
+                        }
+                        input.prefix.extend_from_slice(&buffer[..n]);
+                    }
                     Err(e) if blocked(&e) => {
                         self.heads.push_back(input);
                         continue;
@@ -404,6 +457,13 @@ impl Reactor {
                     Err(_) => continue,
                 }
                 if input.prefix.windows(4).any(|w| w == b"\r\n\r\n") {
+                    if input.completed > 0
+                        && let Err(reason) = input.permit.next_request(drain.is_some())
+                    {
+                        observe.admission_rejected(reason);
+                        self.reject(input, 503, generation());
+                        continue;
+                    }
                     let peer = input.permit.peer();
                     if let Err(Work::Http { input, .. }) = queue.push(
                         peer,
@@ -425,17 +485,37 @@ impl Reactor {
                 let Some(mut output) = self.outputs.pop_front() else {
                     break;
                 };
+                output.prepared.reusable = pathward::delivery::reuse_allowed(
+                    output.completed.saturating_add(1),
+                    output.born.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                    output.prepared.reusable,
+                    drain.is_some(),
+                );
                 let result = output.prepared.step(&mut output.client, drain);
                 match result {
                     Ok(false) => self.outputs.push_back(output),
                     Err(e) if blocked(&e) => self.outputs.push_back(output),
                     other => {
+                        let successful = other.is_ok();
                         observe.delivery_request(
                             output.generation,
                             output.started.elapsed(),
                             &other.map(|_| (output.prepared.status, output.prepared.bytes)),
                             output.prepared.progress(),
                         );
+                        if successful && output.prepared.reusable {
+                            self.heads.push_back(Input {
+                                client: output.client,
+                                prefix: Vec::new(),
+                                started: Instant::now(),
+                                redirect: output.redirect,
+                                permit: output._permit,
+                                active: output._active,
+                                born: output.born,
+                                completed: output.completed + 1,
+                                idle: true,
+                            });
+                        }
                     }
                 }
             }

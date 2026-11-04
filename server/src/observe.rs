@@ -17,6 +17,9 @@ pub struct Observability {
     pub(crate) serving: AtomicBool,
     pub(crate) accepted: AtomicU64,
     pub(crate) overloaded: AtomicU64,
+    pub(crate) quic_migrations: AtomicU64,
+    pub(crate) early_static: AtomicU64,
+    pub(crate) early_rejected: AtomicU64,
     admission_rejected: AtomicU64,
     admission_reasons: [AtomicU64; 7],
     active: AtomicU64,
@@ -227,6 +230,21 @@ impl Observability {
     ) -> String {
         let mut out = String::new();
         for (name, kind, value) in [
+            (
+                "quic_path_changes_total",
+                "counter",
+                self.quic_migrations.load(Ordering::Relaxed),
+            ),
+            (
+                "early_static_total",
+                "counter",
+                self.early_static.load(Ordering::Relaxed),
+            ),
+            (
+                "early_rejected_total",
+                "counter",
+                self.early_rejected.load(Ordering::Relaxed),
+            ),
             (
                 "admission_global_limit",
                 "gauge",

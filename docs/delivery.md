@@ -1,5 +1,8 @@
 # Bounded input and downstream delivery
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 The cold-browser rehearsal exposed ordinary workers waiting on incomplete heads
 and slow downstream image transfers. A queued request could then reach a worker
 after its five-second header deadline had already expired. Admission headroom

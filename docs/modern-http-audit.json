@@ -1,0 +1,141 @@
+{
+  "checked_at": "2026-11-04T11:21:39.088549+00:00",
+  "auditor": "cargo-audit 0.22.2",
+  "database_commit": "965bf9ad083b58e6340d65829d85217b18be9290",
+  "profiles": {
+    "server_candidate": {
+      "manifest_sha256": "80645dae25eb0fb36fe5238b6c0cd3fc7c94bf4cbae32f6a72890cff2985f6a5",
+      "lockfile_sha256": "cbcf13fcd74d18613bf0f756099ff8fd712647e6788c3795a758baaeb2a81c4f"
+    },
+    "configuration": {
+      "manifest_sha256": "dbfe5c00032a706f6e3cd84c587b191324d27b46179cb9822705f605d064af41",
+      "lockfile_sha256": "39aa9909061dd6333615ce36e10add4b0be1b31cde1fb4b0790386c343057ee7"
+    },
+    "http_server": {
+      "manifest_sha256": "303acf7851895ecd4759c44b54b2c4b15d8f994b50dcd60082daf139407a3c2c",
+      "lockfile_sha256": "9bd9512d50bfea38e3407dca84c54af7f968a45544710233da7f0af17a928b4b",
+      "vendor_files_sha256": {
+        "Cargo.toml": "b3c9b5e14aae93e691ef86b02b9ded3893fa9d8d772b6f35da845ceb462a05b6",
+        "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "PROVENANCE.md": "a099b9b37d8bea5e5fdcfc00817bcef56b18068bd0be65006d930f71d393206c",
+        "src/acme.rs": "fd5d9c179cdd783c9dc64439a7d0587323cc983c28f2b56443228a2f4c5d26ef",
+        "src/https_helper.rs": "eab688b0e5d82bdb4667825dfc8c2ed6b63128c26785e43ea6ada233d3725c96",
+        "src/jose.rs": "c8fe2b0ee1f8a687b0d0762138fdbf0b610dd8c39f301c3c2a5dbf7883046080",
+        "src/lib.rs": "d898b71308f8341ccfc61fe42ececb48f773680254589bebd52ca927293106a1"
+      }
+    }
+  },
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "server_rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "reports": {
+    "core": {
+      "database": {
+        "advisory-count": 1403,
+        "last-commit": null,
+        "last-updated": null
+      },
+      "lockfile": {
+        "dependency-count": 1
+      },
+      "settings": {
+        "target_arch": [],
+        "target_os": [],
+        "severity": null,
+        "ignore": [],
+        "informational_warnings": [
+          "unmaintained",
+          "unsound",
+          "notice"
+        ]
+      },
+      "vulnerabilities": {
+        "found": false,
+        "count": 0,
+        "list": []
+      },
+      "warnings": {}
+    },
+    "server_candidate": {
+      "database": {
+        "advisory-count": 1403,
+        "last-commit": null,
+        "last-updated": null
+      },
+      "lockfile": {
+        "dependency-count": 164
+      },
+      "settings": {
+        "target_arch": [],
+        "target_os": [],
+        "severity": null,
+        "ignore": [],
+        "informational_warnings": [
+          "unmaintained",
+          "unsound",
+          "notice"
+        ]
+      },
+      "vulnerabilities": {
+        "found": false,
+        "count": 0,
+        "list": []
+      },
+      "warnings": {}
+    },
+    "configuration": {
+      "database": {
+        "advisory-count": 1403,
+        "last-commit": null,
+        "last-updated": null
+      },
+      "lockfile": {
+        "dependency-count": 10
+      },
+      "settings": {
+        "target_arch": [],
+        "target_os": [],
+        "severity": null,
+        "ignore": [],
+        "informational_warnings": [
+          "unmaintained",
+          "unsound",
+          "notice"
+        ]
+      },
+      "vulnerabilities": {
+        "found": false,
+        "count": 0,
+        "list": []
+      },
+      "warnings": {}
+    },
+    "http_server": {
+      "database": {
+        "advisory-count": 1403,
+        "last-commit": null,
+        "last-updated": null
+      },
+      "lockfile": {
+        "dependency-count": 160
+      },
+      "settings": {
+        "target_arch": [],
+        "target_os": [],
+        "severity": null,
+        "ignore": [],
+        "informational_warnings": [
+          "unmaintained",
+          "unsound",
+          "notice"
+        ]
+      },
+      "vulnerabilities": {
+        "found": false,
+        "count": 0,
+        "list": []
+      },
+      "warnings": {}
+    }
+  }
+}

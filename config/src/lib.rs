@@ -177,6 +177,7 @@ impl ParsedConfig {
                 .ok_or_else(|| self.at(node, "site requires a children block"))?;
             let mut root = None;
             let mut tls = None;
+            let mut encoding = None;
             let mut upstream = None;
             let mut denies = Vec::new();
             let mut proxy_paths = Vec::new();
@@ -292,6 +293,22 @@ impl ParsedConfig {
                             );
                         }
                         root = Some(values[0]);
+                    }
+                    "encode" => {
+                        let value = self.arguments(child, 1)?[0];
+                        let mode = match value {
+                            "gzip" => 1,
+                            "zstd" => 2,
+                            "gzip,zstd" => 3,
+                            _ => {
+                                return Err(
+                                    self.at(child, "encode must be gzip, zstd or gzip,zstd")
+                                );
+                            }
+                        };
+                        if encoding.replace(mode).is_some() {
+                            return Err(self.at(child, "duplicate encode directive"));
+                        }
                     }
                     "tls" => {
                         let values = self.arguments(child, 1)?;
@@ -488,6 +505,7 @@ impl ParsedConfig {
             // Moving the same vector preserves the byte-for-byte declarations
             // accepted by rules::compile; no expansion or additional rule occurs.
             sites.push(CompiledSite {
+                encoding: encoding.unwrap_or(0),
                 host,
                 root,
                 tls,
@@ -567,6 +585,7 @@ pub enum TlsPolicy {
 }
 
 pub struct CompiledSite<'a> {
+    encoding: u8,
     host: &'a str,
     root: Option<&'a str>,
     upstream: Option<SocketAddr>,
@@ -583,6 +602,9 @@ pub struct CompiledSite<'a> {
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn encoding(&self) -> u8 {
+        self.encoding
+    }
     pub fn proxy_routes(&self) -> &[ProxyRoute<'a>] {
         &self.proxy_routes
     }

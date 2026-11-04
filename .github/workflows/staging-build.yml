@@ -3,7 +3,7 @@ name: Staging binaries
 on:
   workflow_dispatch:
   push:
-    branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity, codex/browser-public-staging]
+    branches: [codex/modern-http, codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity, codex/browser-public-staging]
     paths: ["src/**", "server/**", "config/**", "vendor/**", "scripts/load_smoke.py", "scripts/capacity_smoke.py", ".github/workflows/staging-build.yml"]
 
 permissions:
@@ -25,9 +25,17 @@ jobs:
           cp server/target/release/examples/soak_server bundle/
           cp server/target/release/examples/migration_gate bundle/
           cp .tools/pebble/pebble bundle/
+          cargo +1.99.1 test --offline --locked --manifest-path server/Cargo.toml --lib --no-run --message-format=json > "$RUNNER_TEMP/test-build.json"
+          python3 - "$RUNNER_TEMP/test-build.json" <<'PY'
+          import json, shutil, sys
+          for line in open(sys.argv[1]):
+              item = json.loads(line)
+              if item.get("reason") == "compiler-artifact" and item.get("executable") and item.get("target", {}).get("name") == "pathward_server":
+                  shutil.copy2(item["executable"], "bundle/pathward-server-tests")
+          PY
           git rev-parse HEAD > bundle/SOURCE_COMMIT
           cd bundle
-          sha256sum pathward-server soak_server migration_gate pebble SOURCE_COMMIT > SHA256SUMS
+          sha256sum pathward-server soak_server migration_gate pebble pathward-server-tests SOURCE_COMMIT > SHA256SUMS
           cat SHA256SUMS
       # Build-only, exact upload directory, no deployment keys or host access.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

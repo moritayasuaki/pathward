@@ -1,5 +1,8 @@
 # TLS and automatic certificates
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 PathWard serves HTTP/1.1 through rustls on Linux 5.6+ and continuously obtains and
 renews certificates with ACME TLS-ALPN-01. Existing KDL `tls "auto"` declarations
 are activated by `serve-tls`; `serve-http` remains explicitly loopback-only.

@@ -53,7 +53,7 @@ fn real_tls_rejects_unknown_missing_sni_and_unsupported_alpn() {
         ("a.test", true, vec![b"http/1.1".to_vec()], true),
         ("unknown.test", true, vec![], false),
         ("a.test", false, vec![], false),
-        ("a.test", true, vec![b"h2".to_vec()], false),
+        ("a.test", true, vec![b"h9".to_vec()], false),
         (
             "a.test",
             true,

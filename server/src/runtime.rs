@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::{io, path::Path};
 
 pub(crate) struct Site {
+    pub encoding: u8,
     pub host: String,
     pub root: Option<DocumentRoot>,
     pub upstream: Option<SocketAddr>,
@@ -364,6 +365,7 @@ impl Snapshot {
             .iter()
             .map(|site| {
                 Ok(Site {
+                    encoding: site.encoding(),
                     host: site.host().to_owned(),
                     root: site.root().map(DocumentRoot::open).transpose()?,
                     upstream: site.upstream(),

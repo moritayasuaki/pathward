@@ -3,7 +3,7 @@
 A small Rust path authorization and publication-rule compiler, with Lean proofs
 tied to the Rust implementation through Charon and Aeneas extraction. A separate
 KDL configuration crate turns explicit site declarations into checked rules.
-A separate Linux HTTP/1.1 server serves those rules with descriptor-based file
+A separate Linux HTTP/1.1 and HTTP/2 server serves those rules with descriptor-based file
 opening, rustls TLS, private ACME key storage and automatic certificate renewal.
 Explicit whole-host delegation to a bounded local HTTP reverse proxy is also available.
 
@@ -98,11 +98,12 @@ identity on failure, and rejects expired identities on new handshakes. SNI must
 be configured and HTTP Host must match it. See [operation](docs/tls-serving.md)
 and [TLS/key-storage audit](docs/tls-audit.md) for limits and trust assumptions.
 
-The actual server has **104 crates.io package versions plus one small attributed
-rustls-acme fork** across all targets (90 crates.io versions plus the fork in the
-Linux normal/build graph). No Axum, Tower, Tokio, Hyper or HTTP/2 stack is linked.
-The verified core remains zero-dependency. The fork and every transitive/build
-package are included in the reviewed inventory; this is not a full source proof.
+The actual server has **156 external package versions plus three local packages**
+across all targets. The core remains zero-dependency. [Modern HTTP and its audit](docs/modern-http.md)
+cover cooperative upstream waits, bounded HTTP/1 reuse, TLS HTTP/2, opt-in
+experimental HTTP/3 with migration and restricted 0-RTT, and gzip/zstd encoding.
+No Axum, Hyper or Tower frontend is added; codecs/protocol libraries and their
+integration are reviewed/tested trusted code, outside the Lean proof.
 
 ## Runtime operation
 
@@ -263,7 +264,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers 275 statements. Linux resolution,
+pinned/reopened inode). The axiom audit covers 313 statements. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 

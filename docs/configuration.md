@@ -160,3 +160,10 @@ origins require `proxy-stream "websocket"`. See [streaming policy](streaming.md)
 
 For explicit directory publications, typed cache rules, large files and resource
 upstream routing, see [site compatibility](site-compatibility.md).
+
+## Representation encoding
+
+An optional site-level `encode "gzip"`, `"zstd"`, or `"gzip,zstd"` enables bounded
+HTTP encoding. It defaults off, survives generation/reload, and is independent
+of WebSocket compression. Per-service `connections` now accepts 1–64 (default 2).
+See [Modern HTTP](modern-http.md) for exclusions, budgets and protocol settings.

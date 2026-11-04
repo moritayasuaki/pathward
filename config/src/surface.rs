@@ -50,6 +50,7 @@ pub(crate) fn check(source: &str) -> Result<(), ConfigError> {
                 | "deny"
                 | "proxy-path"
                 | "proxy-stream"
+                | "encode"
                 | "websocket-origin"
                 | "websocket-compression" => 1,
                 "publish" | "proxy-limit" | "proxy-timeout" | "cache" | "cache-prefix"

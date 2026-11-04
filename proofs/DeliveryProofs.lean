@@ -84,4 +84,117 @@ theorem partial_head_times_out (n : U64) (h : 0 < n.val) :
   simp [delivery.input_timeout_status, UScalar.eq_equiv]
   omega
 
+theorem reuse_eq (c a : U64) (r d : Bool) :
+    delivery.reuse_allowed c a r d = ok (decide
+      (r = true ∧ d = false ∧ 0 < c.val ∧ c.val < 100 ∧ a.val < 120000)) := by
+  cases r <;> cases d <;> simp [delivery.reuse_allowed]
+  split_ifs <;> simp_all
+
+theorem reuse_bounded (c a : U64) (r d : Bool)
+    (h : delivery.reuse_allowed c a r d = ok true) :
+    c.val < 100 ∧ a.val < 120000 ∧ r = true ∧ d = false := by
+  simp [reuse_eq] at h
+  tauto
+
+theorem reuse_no_draining (c a : U64) (r : Bool) :
+    delivery.reuse_allowed c a r true = ok false := by simp [reuse_eq]
+
+theorem reuse_expired (c a : U64) (r d : Bool) (h : 120000 ≤ a.val) :
+    delivery.reuse_allowed c a r d = ok false := by
+  simp [reuse_eq]
+  omega
+
+theorem reuse_total (c a : U64) (r d : Bool) :
+    ∃ b, delivery.reuse_allowed c a r d = ok b := ⟨_, reuse_eq c a r d⟩
+
+theorem request_credit_eq (g p : U64) (d : Bool) :
+    delivery.request_credit g p d = ok (decide (d = false ∧ 0 < g.val ∧ 0 < p.val)) := by
+  cases d <;> simp [delivery.request_credit]
+  split_ifs <;> simp_all
+
+theorem request_credit_positive (g p : U64) (d : Bool)
+    (h : delivery.request_credit g p d = ok true) :
+    0 < g.val ∧ 0 < p.val ∧ d = false := by
+  simp [request_credit_eq] at h
+  tauto
+
+theorem request_credit_no_draining (g p : U64) :
+    delivery.request_credit g p true = ok false := rfl
+
+theorem request_credit_total (g p : U64) (d : Bool) :
+    ∃ b, delivery.request_credit g p d = ok b := ⟨_, request_credit_eq g p d⟩
+
+theorem task_slot_eq (n : U64) :
+    delivery.task_slot n = ok (decide (n.val < 64)) := by rfl
+
+theorem tasks_bounded (n : U64) (h : delivery.task_slot n = ok true) : n.val + 1 ≤ 64 := by
+  simp [task_slot_eq] at h
+  omega
+
+theorem encode_eq (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool) :
+    delivery.encode_allowed e n s m p r c t x = ok (decide
+      (e = true ∧ 1024 ≤ n.val ∧ n.val ≤ 1048576 ∧ s.val = 200 ∧ m = true ∧
+       p = false ∧ r = false ∧ c = false ∧ t = false ∧ x = true)) := by
+  simp [delivery.encode_allowed, UScalar.eq_equiv]
+  split_ifs <;> simp_all
+
+theorem encode_safe (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool)
+    (h : delivery.encode_allowed e n s m p r c t x = ok true) :
+    n.val ≤ 1048576 ∧ p = false ∧ r = false ∧ c = false ∧ t = false := by
+  simp [encode_eq] at h
+  tauto
+
+theorem encode_total (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool) :
+    ∃ b, delivery.encode_allowed e n s m p r c t x = ok b := ⟨_, encode_eq e n s m p r c t x⟩
+
+theorem multiplex_eq (a n t : U64) (d : Bool) :
+    delivery.multiplex_slot a n t d = ok (decide (d = false ∧ a.val < 32 ∧ n.val < 100 ∧ t.val < 120000)) := by
+  simp [delivery.multiplex_slot]
+  split_ifs <;> simp_all
+
+theorem multiplex_bounded (a n t : U64) (d : Bool)
+    (h : delivery.multiplex_slot a n t d = ok true) :
+    a.val + 1 ≤ 32 ∧ n.val + 1 ≤ 100 ∧ t.val < 120000 ∧ d = false := by
+  simp [multiplex_eq] at h
+  rcases h with ⟨hd, ha, hn, ht⟩
+  exact ⟨by omega, by omega, ht, hd⟩
+
+theorem multiplex_total (a n t : U64) (d : Bool) :
+    ∃ b, delivery.multiplex_slot a n t d = ok b := ⟨_, multiplex_eq a n t d⟩
+
+theorem early_eq (c r p : Bool) (n : U64) (s : Bool) :
+    delivery.early_allowed c r p n s = ok (decide (c = true ∨ (r = true ∧ p = true ∧ n.val = 0 ∧ s = false))) := by
+  cases c <;> simp [delivery.early_allowed, UScalar.eq_equiv]
+  split_ifs <;> simp_all
+
+theorem early_only_published_reads (r p : Bool) (n : U64) (s : Bool)
+    (h : delivery.early_allowed false r p n s = ok true) :
+    r = true ∧ p = true ∧ n.val = 0 ∧ s = false := by simpa [early_eq] using h
+
+theorem early_no_proxy (r : Bool) (n : U64) (s : Bool) :
+    delivery.early_allowed false r false n s = ok false := by simp [early_eq]
+
+theorem early_total (c r p : Bool) (n : U64) (s : Bool) :
+    ∃ b, delivery.early_allowed c r p n s = ok b := ⟨_, early_eq c r p n s⟩
+
+theorem wire_eq (u n l : U64) :
+    delivery.wire_fits u n l = ok (decide (l.val ≤ 134283264 ∧ u.val + n.val ≤ l.val)) := by
+  unfold delivery.wire_fits
+  by_cases hl : l.val ≤ 134283264
+  · by_cases hu : u.val ≤ l.val
+    · obtain ⟨diff, hd, hv, _⟩ := WP.spec_imp_exists (U64.sub_bv_spec (x := l) (y := u) (by omega))
+      simp [hl, hu, hd, hv]
+      omega
+    · simp [hl, hu]
+      omega
+  · simp [hl]
+
+theorem wire_bounded (u n l : U64) (h : delivery.wire_fits u n l = ok true) :
+    u.val + n.val ≤ l.val ∧ l.val ≤ 134283264 ∧ u.val + n.val < 2^64 := by
+  simp [wire_eq] at h
+  omega
+
+theorem wire_total (u n l : U64) :
+    ∃ b, delivery.wire_fits u n l = ok b := ⟨_, wire_eq u n l⟩
+
 end DeliveryProofs

@@ -315,3 +315,31 @@ import ReleaseProofs
 #print axioms DeliveryProofs.phase_no_draining
 #print axioms DeliveryProofs.idle_has_no_http_timeout
 #print axioms DeliveryProofs.partial_head_times_out
+
+#print axioms DeliveryProofs.reuse_eq
+#print axioms DeliveryProofs.reuse_bounded
+#print axioms DeliveryProofs.reuse_no_draining
+#print axioms DeliveryProofs.reuse_expired
+#print axioms DeliveryProofs.reuse_total
+#print axioms DeliveryProofs.request_credit_eq
+#print axioms DeliveryProofs.request_credit_positive
+#print axioms DeliveryProofs.request_credit_no_draining
+#print axioms DeliveryProofs.request_credit_total
+
+#print axioms DeliveryProofs.task_slot_eq
+#print axioms DeliveryProofs.tasks_bounded
+
+#print axioms DeliveryProofs.encode_eq
+#print axioms DeliveryProofs.encode_safe
+#print axioms DeliveryProofs.encode_total
+
+#print axioms DeliveryProofs.multiplex_eq
+#print axioms DeliveryProofs.multiplex_bounded
+#print axioms DeliveryProofs.multiplex_total
+#print axioms DeliveryProofs.early_eq
+#print axioms DeliveryProofs.early_only_published_reads
+#print axioms DeliveryProofs.early_no_proxy
+#print axioms DeliveryProofs.early_total
+#print axioms DeliveryProofs.wire_eq
+#print axioms DeliveryProofs.wire_bounded
+#print axioms DeliveryProofs.wire_total

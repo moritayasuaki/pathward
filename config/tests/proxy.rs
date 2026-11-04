@@ -83,7 +83,7 @@ fn mixed_routes_and_human_readable_service_limits_compile_atomically() {
         "proxy-limit \"request-body\" \"17MiB\"",
         "proxy-limit \"response-body\" \"65MiB\"",
         "proxy-limit \"connections\" \"0\"",
-        "proxy-limit \"connections\" \"4\"",
+        "proxy-limit \"connections\" \"65\"",
         "proxy-limit \"request-body\" \"1MB\"",
         "proxy-limit \"response-body\" \"01B\"",
         "proxy-limit \"request-body\" \"18446744073709551615MiB\"",
@@ -202,5 +202,22 @@ fn stream_capacity_compression_and_origins_are_explicit_and_bounded() {
                 .replace("proxy-stream \"websocket\"", "")
                 .replace("EXTRA", directive)
         ));
+    }
+}
+
+#[test]
+fn encoding_is_explicit_bounded_and_rejects_ambiguous_directives() {
+    for (value, mode) in [("gzip", 1), ("zstd", 2), ("gzip,zstd", 3)] {
+        let p=ParsedConfig::parse(&format!("site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"127.0.0.1:3000\"\nencode \"{value}\"\n}}" )).unwrap();
+        assert_eq!(p.compile().unwrap().sites()[0].encoding(), mode);
+    }
+    for extra in [
+        "encode \"brotli\"",
+        "encode \"gzip\"\nencode \"zstd\"",
+        "encode \"gzip\" \"zstd\"",
+    ] {
+        assert!(!valid(&format!(
+            "site \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"127.0.0.1:3000\"\n{extra}\n}}"
+        )));
     }
 }

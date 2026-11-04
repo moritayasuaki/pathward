@@ -837,7 +837,10 @@ fn bounded_accept(listener: &TcpListener) -> TcpStream {
     let end = std::time::Instant::now() + Duration::from_secs(4);
     loop {
         match listener.accept() {
-            Ok((s, _)) => return s,
+            Ok((s, _)) => {
+                s.set_nonblocking(false).unwrap();
+                return s;
+            }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 assert!(std::time::Instant::now() < end, "missing upstream exchange");
                 std::thread::sleep(Duration::from_millis(5));
@@ -999,5 +1002,96 @@ fn fixed_route_and_query_headers_preserve_component_boundaries() {
             assert!(out.contains("x-robots-tag: prefix\r\n"));
             assert!(b.accept().is_err());
         })
+    });
+}
+
+fn framed_response(s: &mut impl Read) -> (String, Vec<u8>) {
+    let mut head = Vec::new();
+    while !head.ends_with(b"\r\n\r\n") {
+        let mut byte = [0];
+        s.read_exact(&mut byte).unwrap();
+        head.push(byte[0]);
+        assert!(head.len() <= 16384);
+    }
+    let head = String::from_utf8(head).unwrap();
+    let length: usize = head
+        .lines()
+        .find_map(|l| l.strip_prefix("Content-Length: "))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut body = vec![0; length];
+    s.read_exact(&mut body).unwrap();
+    (head, body)
+}
+
+#[test]
+fn twenty_four_waiting_upstreams_progress_on_one_peer_without_worker_starvation() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    let parsed = ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"4KiB\"\nproxy-limit \"response-body\" \"4KiB\"\n}}", backend.local_addr().unwrap())).unwrap();
+    with_config(&parsed, |addr, _| {
+        std::thread::scope(|scope| {
+            let requests: Vec<_> = (0..24)
+                .map(|_| scope.spawn(|| exchange(addr, GET)))
+                .collect();
+            // No response is sent until all 24 requests have reached the origin.
+            // The previous synchronous four-worker / two-per-peer model stalls here.
+            let mut accepted = Vec::new();
+            for _ in 0..24 {
+                let s = bounded_accept(&backend);
+                read_request(&s);
+                accepted.push(s);
+            }
+            for mut s in accepted {
+                s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+                    .unwrap();
+            }
+            for request in requests {
+                assert!(request.join().unwrap().ends_with(b"OK"));
+            }
+        });
+    });
+}
+
+#[test]
+fn keepalive_is_framed_and_rechecks_snapshot_then_closes_at_100_exchanges() {
+    let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+    let config = |marker| {
+        ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nheader \"*\" \"x-robots-tag\" \"{marker}\"\n}}", backend.local_addr().unwrap())).unwrap()
+    };
+    with_config(&config("old"), |addr, server| {
+        std::thread::scope(|scope| {
+            let origin = scope.spawn(|| {
+                for _ in 0..100 {
+                    let mut s = bounded_accept(&backend);
+                    assert!(read_request(&s).ends_with(b"ONCE"));
+                    s.write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\n\r\nOK")
+                        .unwrap();
+                }
+            });
+            let mut client = TcpStream::connect(addr).unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            for i in 0..100 {
+                if i == 1 {
+                    server
+                        .reload(&config("new").compile().unwrap(), &AtomicBool::new(false))
+                        .unwrap();
+                }
+                client.write_all(b"POST /create HTTP/1.1\r\nHost: app.example\r\nConnection: keep-alive\r\nContent-Length: 4\r\n\r\nONCE").unwrap();
+                let (head, body) = framed_response(&mut client);
+                assert!(head.starts_with("HTTP/1.1 201 "));
+                assert_eq!(body, b"OK");
+                assert!(head.contains(if i == 0 {
+                    "x-robots-tag: old\r\n"
+                } else {
+                    "x-robots-tag: new\r\n"
+                }));
+                assert_eq!(head.contains("Connection: close\r\n"), i == 99);
+            }
+            assert_eq!(client.read(&mut [0]).unwrap(), 0);
+            origin.join().unwrap();
+        });
     });
 }

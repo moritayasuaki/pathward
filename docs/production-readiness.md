@@ -1,5 +1,8 @@
 # Production readiness
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 PathWard now has a verified policy core, KDL configuration compiler, and a minimal
 Linux HTTP/1.1 static server with TLS/ACME, private key persistence and automatic
 renewal, atomic config reload, graceful shutdown and operational telemetry. HTTP file serving stays loopback-only; explicit TLS mode can bind public TLS

@@ -8,10 +8,11 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread,
 };
-const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--http-listen 0.0.0.0:80] [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\npathward-server check CONFIG [--cache DIR]\npathward-server generate BASE SITE ROOT MANIFEST [--index FILE]\npathward-server init CONTROL_DIR CONFIG\npathward-server status --control-dir DIR\npathward-server activate --control-dir DIR --expect GENERATION:SHA256 CONFIG\npathward-server rollback --control-dir DIR --expect GENERATION:SHA256\nServing modes accept --control-dir DIR with CONFIG=DIR/.config.\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
+const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--http-listen 0.0.0.0:80] [--experimental-http3] [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\npathward-server check CONFIG [--cache DIR]\npathward-server generate BASE SITE ROOT MANIFEST [--index FILE]\npathward-server init CONTROL_DIR CONFIG\npathward-server status --control-dir DIR\npathward-server activate --control-dir DIR --expect GENERATION:SHA256 CONFIG\npathward-server rollback --control-dir DIR --expect GENERATION:SHA256\nServing modes accept --control-dir DIR with CONFIG=DIR/.config.\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
 #[derive(Default)]
 struct ServiceOptions {
     monitor: Option<SocketAddr>,
+    http3: bool,
     http_listen: Option<SocketAddr>,
     control_dir: Option<PathBuf>,
 }
@@ -169,6 +170,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let flag = args[i].to_str().ok_or(HELP)?;
                 if !seen.insert(flag) {
                     return Err("duplicate CLI option".into());
+                }
+                if flag == "--experimental-http3" {
+                    options.http3 = true;
+                    i += 1;
+                    continue;
                 }
                 if flag == "--accept-terms" {
                     accept = true;
@@ -382,6 +388,10 @@ fn run_service(
             })
             .transpose()?;
         let result = match tls.as_ref() {
+            Some(tls) if options.http3 => {
+                let udp = std::net::UdpSocket::bind(listener.local_addr()?)?;
+                server.serve_tls_http3(listener, redirect, udp, &signals.shutdown, tls)
+            }
             Some(tls) => match redirect {
                 Some(redirect) => {
                     server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, tls)

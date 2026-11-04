@@ -1,5 +1,8 @@
 # HTTP serving and Linux file opening
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 The `pathward-server` crate implements a deliberately small **HTTP/1.1, loopback-only**
 static server, with a separate [bounded reverse-proxy mode](reverse-proxy.md).
 The behavior below describes static sites. It uses the existing KDL configuration and verified publication

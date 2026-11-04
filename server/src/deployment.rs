@@ -60,6 +60,16 @@ pub fn generate(
             "site {} {{\n    tls \"auto\"\n",
             quoted(site.host())
         ));
+        if site.encoding() != 0 {
+            out.push_str(&format!(
+                "    encode {}\n",
+                quoted(match site.encoding() {
+                    1 => "gzip",
+                    2 => "zstd",
+                    _ => "gzip,zstd",
+                })
+            ));
+        }
         if let Some(old_root) = site.root() {
             out.push_str(&format!(
                 "    root {}\n",

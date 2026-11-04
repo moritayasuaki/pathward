@@ -148,6 +148,128 @@ def delivery.input_timeout_status (bytes : Std.U64) : RustM Std.U16 := do
   then ok 0#u16
   else ok 408#u16
 
+/-- [pathward::delivery::reuse_allowed]:
+    Source: 'src/delivery.rs', lines 26:0-28:1
+    Visibility: public -/
+def delivery.reuse_allowed
+  (completed : Std.U64) (age_ms : Std.U64) (requested : Bool) (draining : Bool)
+  :
+  RustM Bool
+  := do
+  if requested
+  then
+    if draining
+    then ok false
+    else
+      if completed > 0#u64
+      then if completed < 100#u64
+           then ok (age_ms < 120000#u64)
+           else ok false
+      else ok false
+  else ok false
+
+/-- [pathward::delivery::request_credit]:
+    Source: 'src/delivery.rs', lines 31:0-33:1
+    Visibility: public -/
+def delivery.request_credit
+  (global : Std.U64) (peer : Std.U64) (draining : Bool) : RustM Bool := do
+  if draining
+  then ok false
+  else if global > 0#u64
+       then ok (peer > 0#u64)
+       else ok false
+
+/-- [pathward::delivery::task_slot]:
+    Source: 'src/delivery.rs', lines 36:0-38:1
+    Visibility: public -/
+def delivery.task_slot (running : Std.U64) : RustM Bool := do
+  ok (running < 64#u64)
+
+/-- [pathward::delivery::encode_allowed]:
+    Source: 'src/delivery.rs', lines 42:0-63:1
+    Visibility: public -/
+def delivery.encode_allowed
+  (enabled : Bool) (size : Std.U64) (status : Std.U16) (safe_method : Bool)
+  (sensitive : Bool) (range : Bool) (encoded : Bool) (no_transform : Bool)
+  (text : Bool) :
+  RustM Bool
+  := do
+  if enabled
+  then
+    if size >= 1024#u64
+    then
+      if size <= 1048576#u64
+      then
+        if status = 200#u16
+        then
+          if safe_method
+          then
+            if sensitive
+            then ok false
+            else
+              if range
+              then ok false
+              else
+                if encoded
+                then ok false
+                else if no_transform
+                     then ok false
+                     else ok text
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::delivery::multiplex_slot]:
+    Source: 'src/delivery.rs', lines 66:0-68:1
+    Visibility: public -/
+def delivery.multiplex_slot
+  (active : Std.U64) (seen : Std.U64) (age_ms : Std.U64) (draining : Bool) :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else
+    if active < 32#u64
+    then if seen < 100#u64
+         then ok (age_ms < 120000#u64)
+         else ok false
+    else ok false
+
+/-- [pathward::delivery::early_allowed]:
+    Source: 'src/delivery.rs', lines 70:0-78:1
+    Visibility: public -/
+def delivery.early_allowed
+  (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
+  (sensitive : Bool) :
+  RustM Bool
+  := do
+  if confirmed
+  then ok true
+  else
+    if read
+    then
+      if published
+      then if body = 0#u64
+           then ok (¬ sensitive)
+           else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::delivery::wire_fits]:
+    Source: 'src/delivery.rs', lines 81:0-83:1
+    Visibility: public -/
+def delivery.wire_fits
+  (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do
+  if limit <= 134283264#u64
+  then
+    if used <= limit
+    then let i ← limit - used
+         ok (next <= i)
+    else ok false
+  else ok false
+
 /-- [pathward::State]
     Source: 'src/lib.rs', lines 11:0-18:1
     Visibility: public -/
@@ -1598,7 +1720,7 @@ def routing.time_limits
     Visibility: public -/
 def routing.connection_limit (limit : Std.U64) : RustM Bool := do
   if limit > 0#u64
-  then ok (limit <= 3#u64)
+  then ok (limit <= 64#u64)
   else ok false
 
 /-- [pathward::routing::service_admit]:

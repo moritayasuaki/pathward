@@ -101,6 +101,13 @@ def main():
                         "--start-from", "pathward::delivery::shrink_allowed",
                         "--start-from", "pathward::delivery::phase_live",
                         "--start-from", "pathward::delivery::input_timeout_status",
+                        "--start-from", "pathward::delivery::reuse_allowed",
+                        "--start-from", "pathward::delivery::request_credit",
+        "--start-from", "pathward::delivery::task_slot",
+        "--start-from", "pathward::delivery::encode_allowed",
+        "--start-from", "pathward::delivery::multiplex_slot",
+        "--start-from", "pathward::delivery::early_allowed",
+        "--start-from", "pathward::delivery::wire_fits",
                         "--dest-file", str(llbc)],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
