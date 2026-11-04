@@ -163,7 +163,7 @@ content without any of these signals must not opt into compression.
 
 The extracted Rust gates cover reuse/draining/credit, task and multiplex limits,
 encoding exclusions, early-read authorization and raw wire arithmetic. The project
-now audits **377 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
+now audits **380 named Lean statements and helper lemmas**, with no new axioms or proof holes. The
 zero-dependency core remains zero-dependency. Parser adapters, asynchronous
 scheduling, TLS/QUIC/HPACK/QPACK/codecs, RAII, allocator and Linux remain reviewed
 and tested trusted code, not a proved server.
@@ -304,3 +304,21 @@ native regression includes a fake second response in that prefix and verifies
 that none reaches the client. Non-HEAD 204/304 responses with prefetched bytes
 remain errors; ambiguous lengths and other framing checks are unchanged.
 ProxyProofs checks the actual extracted body-mode selector.
+
+## Unadmitted cancellation accounting (2026-11-04)
+
+A pending head already cancelled before dispatch consumes no successful-admission
+credit. Counting those discarded heads toward 100 caused normal reloads to
+prematurely refuse later asset requests. The admission count now advances only
+when the head obtains the bounded pending lease and is dispatched. Its existing
+100-request/120-second cap and 68-request retirement threshold remain. Requests
+cancelled after dispatch still consume admission credit.
+
+Discarded unadmitted heads have an independent finite lifetime allowance: at most
+256, only while connection age is below 120 seconds. Exceeding it closes the
+connection with a fixed diagnostic event. The 100-entry unconsumed-reset queue
+and all active/global/body limits remain. The extracted `cancel_slot` gate proves
+the discard and age bounds plus safe counter increment. It does not prove every
+executor transition. A real TLS regression completes 48 requests, fills all 64
+global pending slots, cancels two windows of 32 and then serves a new request.
+The prior counter implementation fails this regression; the corrected one passes.

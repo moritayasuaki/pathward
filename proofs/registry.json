@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 377,
+  "theorem_count": 380,
   "axiom_free_count": 15,
   "axiom_counts": {
-    "Classical.choice": 340,
-    "Quot.sound": 340,
-    "propext": 362
+    "Classical.choice": 343,
+    "Quot.sound": 343,
+    "propext": 365
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "b4a87ba5f18e35fd615f0f88c7ad10fad9ec3c69df3a8200e9c160dc1882020b",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
-    "proofs/DeliveryProofs.lean": "430e5a2085485552ed01364129326ca1dae359c5bc5ef3bf121e6ee25d38d911",
-    "proofs/Generated/Pathward.lean": "9e05d82c36ee5a33b53a455a1d84b3fdda10e3fdda0e4f3af995e9b4294ce833",
+    "proofs/DeliveryProofs.lean": "c58597d41ac06ca65e09bd2a7a277a644897316b796ec8170bcecdf2cf1f3b49",
+    "proofs/Generated/Pathward.lean": "2d4ec485ba0c0d6c7aee4cfee4ab6677b3e629e1ad8cc1cfeb9448afbbf4a24a",
     "proofs/PathwardProofs.lean": "5d9d9bcf81471e51c943900d046ae5ac0506c3328df218e3f5155962473a4c57",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -25,9 +25,9 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "7b4ce40741de15e25d4d74892b1cf1f73ea5710511669dde01cd46f21dd5f6db",
+    "scripts/extract.py": "2fff5da657c9434b8a2fb1863657e87bef59eed399ba92eac7c59307d123bdf3",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
-    "src/delivery.rs": "979a84e38efb108f39a411234c6f34d1db9fbe4198b03f741dbe803c7fbf4933",
+    "src/delivery.rs": "d880cbac821781183a29987505a9c09d2f3e575b5e1a1a127ad2aef7fe98448c",
     "src/lib.rs": "3f2e9632bfaa960c0ed7cdc723f2011455833d77fb1219f63f7367090d4a2d6c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
@@ -816,6 +816,42 @@
       "source": "proofs/DeliveryProofs.lean",
       "line": 230,
       "statement": "theorem wire_total (u n l : U64) :\n    ∃ b, delivery.wire_fits u n l = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancel_slot_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 233,
+      "statement": "theorem cancel_slot_eq (n t : U64) :\n    delivery.cancel_slot n t = ok (decide (n.val < 256 ∧ t.val < 120000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancelled_heads_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 238,
+      "statement": "theorem cancelled_heads_bounded (n t : U64)\n    (h : delivery.cancel_slot n t = ok true) :\n    n.val + 1 ≤ 256 ∧ t.val < 120000 ∧ n.val + 1 < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancel_slot_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 244,
+      "statement": "theorem cancel_slot_total (n t : U64) :\n    ∃ b, delivery.cancel_slot n t = ok b",
       "axioms": [
         "Classical.choice",
         "Quot.sound",

@@ -814,6 +814,7 @@ pub async fn serve_h2(
     };
     let mut tasks: Vec<Pin<Box<dyn Future<Output = ()> + '_>>> = Vec::new();
     let mut count = 0;
+    let mut cancelled_heads = 0;
     let mut idle = Instant::now();
     let mut retirement = Retirement::default();
     let mut held = None;
@@ -863,7 +864,6 @@ pub async fn serve_h2(
         };
         match incoming {
             Some(Some(Ok((req, response)))) => {
-                count += 1;
                 idle = Instant::now();
                 progressed = true;
                 // A reset can already be queued with this head. Observe it
@@ -887,6 +887,18 @@ pub async fn serve_h2(
                 began.elapsed().as_millis().min(u64::MAX as u128) as u64,
             ) {
                 pathward::delivery::HeldAction::Discard => {
+                    if !pathward::delivery::cancel_slot(
+                        cancelled_heads,
+                        accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                    ) {
+                        server.observe.event(
+                            "h2_cancel_budget_exhausted",
+                            server.generation(),
+                            cancelled_heads,
+                        );
+                        return Err(io::Error::other("cancelled-head budget exhausted"));
+                    }
+                    cancelled_heads += 1;
                     progressed = true;
                     let result = Err(observe::stage_error(
                         cancelled.expect("verified discard requires observed cancellation"),
@@ -911,7 +923,7 @@ pub async fn serve_h2(
                 pathward::delivery::HeldAction::TryAdmission => {
                     if !pathward::delivery::multiplex_slot(
                         tasks.len() as u64,
-                        count - 1,
+                        count,
                         accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
                         shutdown.load(Ordering::Acquire) || server.is_draining(),
                     ) {
@@ -928,6 +940,7 @@ pub async fn serve_h2(
                         connection.graceful_shutdown();
                         retirement.begin();
                     } else if let Some(waiting) = pending(server) {
+                        count += 1;
                         tasks.push(Box::pin(exchange(
                             server, req, response, &sni, port, peer, budget, shutdown, waiting,
                             admission, began,
@@ -1268,6 +1281,21 @@ mod tests {
                                 assert!(excess, "connection closed during reload: {outcome:?}");
                             },
                             async {
+                                // Existing successful requests must retain their
+                                // budget when later unadmitted heads cancel.
+                                for _ in 0..48 {
+                                    client = client.ready().await.unwrap();
+                                    let (reply, _) = client
+                                        .send_request(
+                                            http_types::Request::builder()
+                                                .uri("https://other.example/")
+                                                .body(())
+                                                .unwrap(),
+                                            true,
+                                        )
+                                        .unwrap();
+                                    assert_eq!(reply.await.unwrap().status(), 421);
+                                }
                                 let mut held = Vec::new();
                                 while held.len() < 64 {
                                     if let Some(p) = pending(&server) {

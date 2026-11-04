@@ -230,4 +230,18 @@ theorem wire_bounded (u n l : U64) (h : delivery.wire_fits u n l = ok true) :
 theorem wire_total (u n l : U64) :
     ∃ b, delivery.wire_fits u n l = ok b := ⟨_, wire_eq u n l⟩
 
+theorem cancel_slot_eq (n t : U64) :
+    delivery.cancel_slot n t = ok (decide (n.val < 256 ∧ t.val < 120000)) := by
+  simp [delivery.cancel_slot]
+  split_ifs <;> simp_all
+
+theorem cancelled_heads_bounded (n t : U64)
+    (h : delivery.cancel_slot n t = ok true) :
+    n.val + 1 ≤ 256 ∧ t.val < 120000 ∧ n.val + 1 < 2^64 := by
+  simp [cancel_slot_eq] at h
+  omega
+
+theorem cancel_slot_total (n t : U64) :
+    ∃ b, delivery.cancel_slot n t = ok b := ⟨_, cancel_slot_eq n t⟩
+
 end DeliveryProofs

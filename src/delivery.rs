@@ -74,6 +74,12 @@ pub fn multiplex_slot(active: u64, seen: u64, age_ms: u64, draining: bool) -> bo
     !draining && active < 32 && seen < 100 && age_ms < 120000
 }
 
+/// Unadmitted, cancelled heads have a separate finite work and age budget.
+/// They never consume a successfully admitted request's reuse allowance.
+pub fn cancel_slot(discarded: u64, age_ms: u64) -> bool {
+    discarded < 256 && age_ms < 120000
+}
+
 /// A held head uses one slot of the same connection window as running tasks.
 pub fn head_slot(active: u64, held: bool) -> bool {
     !held && active < 32

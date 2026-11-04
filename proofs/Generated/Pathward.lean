@@ -251,8 +251,17 @@ def delivery.multiplex_slot
          else ok false
     else ok false
 
+/-- [pathward::delivery::cancel_slot]:
+    Source: 'src/delivery.rs', lines 79:0-81:1
+    Visibility: public -/
+def delivery.cancel_slot
+  (discarded : Std.U64) (age_ms : Std.U64) : RustM Bool := do
+  if discarded < 256#u64
+  then ok (age_ms < 120000#u64)
+  else ok false
+
 /-- [pathward::delivery::head_slot]:
-    Source: 'src/delivery.rs', lines 78:0-80:1
+    Source: 'src/delivery.rs', lines 84:0-86:1
     Visibility: public -/
 def delivery.head_slot (active : Std.U64) (held : Bool) : RustM Bool := do
   if held
@@ -260,7 +269,7 @@ def delivery.head_slot (active : Std.U64) (held : Bool) : RustM Bool := do
   else ok (active < 32#u64)
 
 /-- [pathward::delivery::HeldAction]
-    Source: 'src/delivery.rs', lines 83:0-87:1
+    Source: 'src/delivery.rs', lines 89:0-93:1
     Visibility: public -/
 @[discriminant isize]
 inductive delivery.HeldAction where
@@ -269,7 +278,7 @@ inductive delivery.HeldAction where
 | TryAdmission : delivery.HeldAction
 
 /-- [pathward::delivery::held_action]:
-    Source: 'src/delivery.rs', lines 91:0-99:1
+    Source: 'src/delivery.rs', lines 97:0-105:1
     Visibility: public -/
 def delivery.held_action
   (cancelled : Bool) (elapsed_ms : Std.U64) : RustM delivery.HeldAction := do
@@ -281,7 +290,7 @@ def delivery.held_action
     else ok delivery.HeldAction.TryAdmission
 
 /-- [pathward::delivery::retirement_close]:
-    Source: 'src/delivery.rs', lines 103:0-112:1
+    Source: 'src/delivery.rs', lines 109:0-118:1
     Visibility: public -/
 def delivery.retirement_close
   (retiring : Bool) (quiet_ms : Std.U64) (active : Std.U64) (held : Bool)
@@ -312,7 +321,7 @@ def delivery.retirement_close
     else ok false
 
 /-- [pathward::delivery::early_allowed]:
-    Source: 'src/delivery.rs', lines 115:0-123:1
+    Source: 'src/delivery.rs', lines 121:0-129:1
     Visibility: public -/
 def delivery.early_allowed
   (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
@@ -332,7 +341,7 @@ def delivery.early_allowed
     else ok false
 
 /-- [pathward::delivery::wire_fits]:
-    Source: 'src/delivery.rs', lines 126:0-128:1
+    Source: 'src/delivery.rs', lines 132:0-134:1
     Visibility: public -/
 def delivery.wire_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do

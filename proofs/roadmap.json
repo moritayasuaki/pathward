@@ -49,6 +49,17 @@
   ],
   "goals": [
     {
+      "id": "CANCEL-LIFETIME",
+      "priority": "P0",
+      "status": "proved",
+      "title": "受付前キャンセルだけを連続送信しても無制限に処理しない",
+      "acceptance": "実Rustの取消受付ゲートで、次の破棄件数は256以下・接続年齢120秒未満・64ビット加算の範囲内と証明。処理受付100件とは別に計数する実行器は回帰試験対象で、全非同期処理との対応証明は別課題。",
+      "theorems": [
+        "DeliveryProofs.cancelled_heads_bounded",
+        "DeliveryProofs.cancel_slot_total"
+      ]
+    },
+    {
       "id": "HEAD-PREFIX",
       "priority": "P0",
       "status": "proved",
