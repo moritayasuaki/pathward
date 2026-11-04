@@ -27,7 +27,8 @@ async fn exchange(
     peer: std::net::IpAddr,
     budget: &delivery::Budget,
     shutdown: &AtomicBool,
-    _permit: admission::Permit,
+    waiting: multiplex::Pending<'_>,
+    admission: &Arc<admission::Admission>,
     confirmed: &Cell<bool>,
     wire: &crate::quic_bounds::Budgets,
 ) {
@@ -40,6 +41,23 @@ async fn exchange(
                 .map_err(error)?;
         let early = !confirmed.get();
         let marked = req.headers().contains_key("early-data");
+        let _permit = match multiplex::admit(
+            admission,
+            peer,
+            shutdown,
+            began + delivery::QUEUE_BUDGET,
+            waiting,
+        )
+        .await
+        {
+            Ok(p) => p,
+            Err(reason) => {
+                server.observe.admission_rejected(reason);
+                stream.stop_stream(h3::error::Code::H3_REQUEST_REJECTED);
+                stream.stop_sending(h3::error::Code::H3_REQUEST_REJECTED);
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+        };
         let stream_id = stream.id();
         let result = async {
             let request = match multiplex::request_head(server, req.into_parts().0, sni, port) {
@@ -50,11 +68,15 @@ async fn exchange(
             if !wire.body(stream_id, request.length.unwrap_or(request.limit)) {
                 return send(multiplex::rejection(431), &mut stream).await;
             }
-            let Some(_input) = budget.reserve(
+            let Some(_input) = multiplex::input_lease(
+                budget,
                 peer,
                 3 * request.length.unwrap_or(request.limit) + delivery::HEAD_BYTES as u64,
-                shutdown.load(Ordering::Acquire),
-            ) else {
+                shutdown,
+                began + delivery::QUEUE_BUDGET,
+            )
+            .await
+            else {
                 return send(multiplex::rejection(503), &mut stream).await;
             };
             let mut body = Vec::with_capacity(request.length.unwrap_or(request.limit) as usize);
@@ -243,16 +265,19 @@ async fn connection(
                 seen += 1;
                 idle = Instant::now();
                 let p = if slot {
-                    admission.acquire(peer, false)
+                    multiplex::pending(server)
                 } else {
-                    Err(admission::Rejection::GlobalActive)
+                    None
                 };
                 match p {
-                    Ok(p) => tasks.push(Box::pin(exchange(
-                        server, resolver, &sni, port, peer, budget, shutdown, p, &confirmed, &wire,
+                    Some(p) => tasks.push(Box::pin(exchange(
+                        server, resolver, &sni, port, peer, budget, shutdown, p, admission,
+                        &confirmed, &wire,
                     ))),
-                    Err(reason) => {
-                        server.observe.admission_rejected(reason);
+                    None => {
+                        server
+                            .observe
+                            .admission_rejected(admission::Rejection::GlobalActive);
                         quic.close(
                             h3::error::Code::H3_EXCESSIVE_LOAD
                                 .value()

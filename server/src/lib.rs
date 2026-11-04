@@ -33,7 +33,7 @@ use std::{
     net::{Shutdown, TcpListener},
     sync::{
         Arc, Mutex, RwLock,
-        atomic::{AtomicBool, AtomicU16, Ordering},
+        atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -76,6 +76,7 @@ struct State {
 pub struct Server {
     shared_nat: bool,
     http3_port: AtomicU16,
+    pending_requests: AtomicU64,
     state: RwLock<State>,
     reload_lock: Mutex<()>,
     stream_quota: streaming::Quota,
@@ -93,6 +94,7 @@ impl Server {
         Ok(Self {
             shared_nat: config.shared_nat(),
             http3_port: AtomicU16::new(0),
+            pending_requests: AtomicU64::new(0),
             state: RwLock::new(State {
                 generation: 1,
                 draining: false,

@@ -105,8 +105,73 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
 fn failure() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "multiplexed HTTP")
 }
-fn h2_error(_: h2::Error) -> io::Error {
+fn h2_error(e: h2::Error) -> io::Error {
+    if e.is_io() {
+        return e.into_io().unwrap_or_else(failure);
+    }
+    if e.is_remote()
+        && e.is_reset()
+        && matches!(e.reason(), Some(h2::Reason::CANCEL | h2::Reason::NO_ERROR))
+    {
+        return io::ErrorKind::ConnectionAborted.into();
+    }
     failure()
+}
+/// A separate, process-wide queue bounds streams waiting for admission. It
+/// cannot consume all active permits or reserve all response-buffer credit.
+pub struct Pending<'a>(&'a std::sync::atomic::AtomicU64);
+impl Drop for Pending<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+pub fn pending(server: &Server) -> Option<Pending<'_>> {
+    server
+        .pending_requests
+        .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            pathward::delivery::task_slot(n).then(|| n + 1)
+        })
+        .ok()?;
+    Some(Pending(&server.pending_requests))
+}
+pub async fn admit(
+    admission: &Arc<admission::Admission>,
+    peer: IpAddr,
+    shutdown: &AtomicBool,
+    deadline: Instant,
+    _pending: Pending<'_>,
+) -> Result<admission::Permit, admission::Rejection> {
+    let mut last = admission::Rejection::GlobalActive;
+    loop {
+        if shutdown.load(Ordering::Acquire) {
+            return Err(admission::Rejection::Draining);
+        }
+        if Instant::now() >= deadline {
+            return Err(last);
+        }
+        match admission.acquire(peer, false) {
+            Ok(p) => return Ok(p),
+            Err(e) => last = e,
+        }
+        async_http::pause().await;
+    }
+}
+pub async fn input_lease(
+    budget: &delivery::Budget,
+    peer: IpAddr,
+    amount: u64,
+    shutdown: &AtomicBool,
+    deadline: Instant,
+) -> Option<delivery::Lease> {
+    loop {
+        if shutdown.load(Ordering::Acquire) || Instant::now() >= deadline {
+            return None;
+        }
+        if let Some(lease) = budget.reserve(peer, amount, false) {
+            return Some(lease);
+        }
+        async_http::pause().await;
+    }
 }
 pub async fn bounded<T>(deadline: Instant, f: impl Future<Output = T>) -> io::Result<T> {
     let delay = http::remaining(deadline)?;
@@ -398,22 +463,43 @@ async fn exchange(
     peer: IpAddr,
     budget: &delivery::Budget,
     shutdown: &AtomicBool,
-    _permit: admission::Permit,
+    waiting: Pending<'_>,
+    admission: &Arc<admission::Admission>,
 ) {
     let began = Instant::now();
     let mut generation = server.generation();
     let result = async {
+        let _permit = match admit(
+            admission,
+            peer,
+            shutdown,
+            began + delivery::QUEUE_BUDGET,
+            waiting,
+        )
+        .await
+        {
+            Ok(p) => p,
+            Err(reason) => {
+                server.observe.admission_rejected(reason);
+                sender.send_reset(h2::Reason::REFUSED_STREAM);
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+        };
         let (parts, mut data) = req.into_parts();
         let request = match request_head(server, parts, sni, port) {
             Ok(r) => r,
             Err(status) => return send_h2(rejection(status), &mut sender).await,
         };
         generation = request.generation;
-        let Some(_input) = budget.reserve(
+        let Some(_input) = input_lease(
+            budget,
             peer,
             3 * request.length.unwrap_or(request.limit) + delivery::HEAD_BYTES as u64,
-            shutdown.load(Ordering::Acquire),
-        ) else {
+            shutdown,
+            began + delivery::QUEUE_BUDGET,
+        )
+        .await
+        else {
             return send_h2(rejection(503), &mut sender).await;
         };
         let mut body = Vec::with_capacity(request.length.unwrap_or(request.limit) as usize);
@@ -474,9 +560,28 @@ async fn send_h2(
                 deadline,
                 futures_lite::future::poll_fn(|cx| stream.poll_capacity(cx)),
             )
-            .await?
-            .ok_or_else(failure)?
-            .map_err(h2_error)?;
+            .await?;
+            // h2 returns None for a closed send side before exposing its reset
+            // reason through poll_capacity. Preserve a verified peer cancel;
+            // an unexplained closure remains a protocol failure.
+            let capacity = match capacity {
+                Some(result) => result.map_err(h2_error)?,
+                None => {
+                    return Err(
+                        match futures_lite::future::poll_once(futures_lite::future::poll_fn(|cx| {
+                            stream.poll_reset(cx)
+                        }))
+                        .await
+                        {
+                            Some(Ok(h2::Reason::CANCEL | h2::Reason::NO_ERROR)) => {
+                                io::ErrorKind::ConnectionAborted.into()
+                            }
+                            Some(Err(e)) => h2_error(e),
+                            _ => failure(),
+                        },
+                    );
+                }
+            };
             let count = capacity.min(bytes.len());
             if count == 0 {
                 continue;
@@ -554,16 +659,19 @@ pub async fn serve_h2(
                     accepted.elapsed().as_millis().min(u64::MAX as u128) as u64,
                     drain.is_some(),
                 ) {
-                    admission.acquire(peer, false)
+                    pending(server)
                 } else {
-                    Err(admission::Rejection::GlobalActive)
+                    None
                 };
                 match permit {
-                    Ok(permit) => tasks.push(Box::pin(exchange(
-                        server, req, response, &sni, port, peer, budget, shutdown, permit,
+                    Some(waiting) => tasks.push(Box::pin(exchange(
+                        server, req, response, &sni, port, peer, budget, shutdown, waiting,
+                        admission,
                     ))),
-                    Err(reason) => {
-                        server.observe.admission_rejected(reason);
+                    None => {
+                        server
+                            .observe
+                            .admission_rejected(admission::Rejection::GlobalActive);
                         response.send_reset(h2::Reason::REFUSED_STREAM);
                         connection.graceful_shutdown();
                         drain = Some(Instant::now() + Duration::from_secs(5));
@@ -620,9 +728,78 @@ mod tests {
         (identity, Arc::new(client))
     }
     #[test]
+    fn admission_and_input_waits_release_capacity_without_reserving_the_queue() {
+        let p = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:9000\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&p.compile().unwrap()).unwrap();
+        let mut queue: Vec<_> = (0..64).map(|_| pending(&server).unwrap()).collect();
+        assert!(pending(&server).is_none());
+        drop(queue.pop());
+        assert!(pending(&server).is_some());
+        drop(queue);
+        let budget = delivery::Budget::default();
+        let peer = "127.0.0.1".parse().unwrap();
+        let held = budget.reserve(peer, 201326592, false).unwrap();
+        let stop = AtomicBool::new(false);
+        futures_lite::future::block_on(async {
+            let waiting = input_lease(
+                &budget,
+                peer,
+                262144,
+                &stop,
+                Instant::now() + Duration::from_secs(1),
+            );
+            let release = async {
+                async_io::Timer::after(Duration::from_millis(50)).await;
+                drop(held);
+            };
+            let (lease, ()) = futures_lite::future::zip(waiting, release).await;
+            assert!(lease.is_some());
+            drop(lease);
+            assert!(
+                input_lease(&budget, peer, 1, &stop, Instant::now())
+                    .await
+                    .is_none()
+            );
+            let admission = Arc::new(admission::Admission::new(false));
+            let leases: Vec<_> = (0..6)
+                .map(|_| admission.acquire(peer, false).unwrap())
+                .collect();
+            let waiting = admit(
+                &admission,
+                peer,
+                &stop,
+                Instant::now() + Duration::from_secs(1),
+                pending(&server).unwrap(),
+            );
+            let release = async {
+                async_io::Timer::after(Duration::from_millis(50)).await;
+                drop(leases);
+            };
+            let (permit, ()) = futures_lite::future::zip(waiting, release).await;
+            assert!(permit.is_ok());
+            drop(permit);
+            assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
+            assert!(
+                admit(
+                    &admission,
+                    peer,
+                    &stop,
+                    Instant::now(),
+                    pending(&server).unwrap()
+                )
+                .await
+                .is_err()
+            );
+            assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
+        });
+    }
+    #[test]
     fn real_tls_h2_multiplexes_24_waits_compression_and_streams_sse() {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
-        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"4KiB\"\nproxy-limit \"response-body\" \"64KiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
+        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-limit \"connections\" \"32\"\nproxy-limit \"request-body\" \"4KiB\"\nproxy-limit \"response-body\" \"256KiB\"\nproxy-stream \"sse\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
         let server = Server::new(&config.compile().unwrap()).unwrap();
         let (identity, client) = identity();
         let tls = crate::tls::TlsServer::new(identity).unwrap();
@@ -641,6 +818,9 @@ mod tests {
                 s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n9\r\ndata: a\n\n\r\n").unwrap();
                 std::thread::sleep(Duration::from_millis(500));
                 s.write_all(b"9\r\ndata: b\n\n\r\n0\r\n\r\n").unwrap();
+                let mut s=accept();let req=http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();assert!(req.starts_with(b"GET /cancel "));
+                s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 131072\r\n\r\n").unwrap();
+                s.write_all(&[b'x';131072]).unwrap();
             });
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let socket = TcpStream::connect(address).unwrap();
@@ -717,6 +897,17 @@ mod tests {
                                 body.flow_control().release_capacity(second.len()).unwrap();
                                 while let Some(last) = body.data().await {
                                     assert!(last.unwrap().is_empty());
+                                }
+                                client = client.ready().await.unwrap();
+                                let (r, mut outgoing) = client.send_request(http_types::Request::builder().uri("https://app.example/cancel").body(()).unwrap(), true).unwrap();
+                                let response = r.await.unwrap(); assert_eq!(response.status(), 200);
+                                outgoing.send_reset(h2::Reason::CANCEL); drop(response);
+                                let until=Instant::now()+Duration::from_secs(2);
+                                loop {
+                                    let metrics=server.observe.metrics(1,true,false,true,None);
+                                    if metrics.contains("pathward_request_io_failures_total{reason=\"connection_aborted\"} 1\n") { break; }
+                                    assert!(Instant::now()<until,"remote reset classification: {metrics}");
+                                    async_http::pause().await;
                                 }
                                 client = client.ready().await.unwrap();
                                 let (r, _) = client

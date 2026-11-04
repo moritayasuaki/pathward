@@ -16,6 +16,13 @@ its existing total deadline. No upstream request is retried. Raising concurrency
 also requires appropriate request/response caps: reservations include the request
 cap, twice the response cap and 256 KiB; HTTP/2/3 additionally reserve bounded
 input translation buffers. Large configured maxima can legitimately cause 503.
+Multiplexed streams may wait up to five seconds for common admission/input
+credit, with at most 64 admission waiters process-wide and 32 streams per
+connection. Waiting for admission reserves no body/response buffer and consumes
+no active permit. Input credit is acquired before allocating a body. Shutdown
+and the existing request deadlines still terminate waits; no upstream replay
+occurs. Remote HTTP/2 CANCEL/NO_ERROR resets are recorded as peer cancellation,
+while unexplained closure and other protocol errors remain failures.
 
 Example additions to an existing, explicitly scoped site:
 
