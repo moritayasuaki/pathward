@@ -106,6 +106,16 @@ fn failure() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "multiplexed HTTP")
 }
 fn h2_error(e: h2::Error) -> io::Error {
+    #[cfg(test)]
+    eprintln!(
+        "h2 reason={:?} remote={} reset={} goaway={} library={} io={}",
+        e.reason(),
+        e.is_remote(),
+        e.is_reset(),
+        e.is_go_away(),
+        e.is_library(),
+        e.is_io()
+    );
     if e.is_io() {
         return e.into_io().unwrap_or_else(failure);
     }
@@ -116,6 +126,18 @@ fn h2_error(e: h2::Error) -> io::Error {
         return io::ErrorKind::ConnectionAborted.into();
     }
     failure()
+}
+async fn h2_reset(sender: &mut h2::server::SendResponse<Bytes>) -> io::Result<()> {
+    match futures_lite::future::poll_once(futures_lite::future::poll_fn(|cx| sender.poll_reset(cx)))
+        .await
+    {
+        None => Ok(()),
+        Some(Ok(h2::Reason::CANCEL | h2::Reason::NO_ERROR)) => {
+            Err(io::ErrorKind::ConnectionAborted.into())
+        }
+        Some(Ok(_)) => Err(failure()),
+        Some(Err(e)) => Err(h2_error(e)),
+    }
 }
 /// A separate, process-wide queue bounds streams waiting for admission. It
 /// cannot consume all active permits or reserve all response-buffer credit.
@@ -469,6 +491,7 @@ async fn exchange(
     let began = Instant::now();
     let mut generation = server.generation();
     let result = async {
+        h2_reset(&mut sender).await?;
         let _permit = match admit(
             admission,
             peer,
@@ -485,6 +508,7 @@ async fn exchange(
                 return Err(io::ErrorKind::WouldBlock.into());
             }
         };
+        h2_reset(&mut sender).await?;
         let (parts, mut data) = req.into_parts();
         let request = match request_head(server, parts, sni, port) {
             Ok(r) => r,
@@ -528,6 +552,7 @@ async fn exchange(
         {
             return send_h2(rejection(400), &mut sender).await;
         }
+        h2_reset(&mut sender).await?;
         let response = respond(
             server, request, body, sni, port, peer, budget, shutdown, false,
         )
@@ -544,6 +569,7 @@ async fn send_h2(
     mut response: Response,
     sender: &mut h2::server::SendResponse<Bytes>,
 ) -> io::Result<(u16, u64)> {
+    h2_reset(sender).await?;
     let mut stream = sender
         .send_response(response.head, false)
         .map_err(h2_error)?;
@@ -621,7 +647,10 @@ pub async fn serve_h2(
             .header_table_size(4096)
             .max_send_buffer_size(16384)
             .max_concurrent_reset_streams(32)
-            .max_pending_accept_reset_streams(8)
+            // A page reload can cancel the entire advertised stream window
+            // while admission is backpressured. Keep this finite, but do not
+            // mistake one legitimate 32-stream cancellation for rapid reset.
+            .max_pending_accept_reset_streams(32)
             .max_local_error_reset_streams(Some(8))
             .handshake::<_, Bytes>(Io::new(transport)),
     )
@@ -821,6 +850,144 @@ mod tests {
             );
             assert_eq!(server.pending_requests.load(Ordering::Acquire), 0);
         });
+    }
+    fn h2_cancel_window(excess: bool) {
+        let backend = TcpListener::bind("127.0.0.1:0").unwrap();
+        backend.set_nonblocking(true).unwrap();
+        let config = pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\n}}", backend.local_addr().unwrap())).unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let (identity, client) = identity();
+        let tls = crate::tls::TlsServer::new(identity).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let serving = scope.spawn(|| server.serve_tls(listener, &stop, &tls));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let socket = TcpStream::connect(address).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let connection = rustls::ClientConnection::new(
+                    client,
+                    rustls::pki_types::ServerName::try_from("app.example").unwrap(),
+                )
+                .unwrap();
+                let mut socket = rustls::StreamOwned::new(connection, socket);
+                while socket.conn.is_handshaking() {
+                    socket.conn.complete_io(&mut socket.sock).unwrap();
+                }
+                socket.sock.set_nonblocking(true).unwrap();
+                futures_lite::future::block_on(async {
+                    bounded(Instant::now() + Duration::from_secs(8), async {
+                        let (mut client, connection) =
+                            h2::client::handshake(Io::new(socket)).await.unwrap();
+                        futures_lite::future::race(
+                            async {
+                                let outcome = connection.await;
+                                assert!(excess, "connection closed during reload: {outcome:?}");
+                            },
+                            async {
+                                let mut held = Vec::new();
+                                while held.len() < 64 {
+                                    if let Some(p) = pending(&server) {
+                                        held.push(p);
+                                    } else {
+                                        async_http::pause().await;
+                                    }
+                                }
+                                let mut requests = Vec::new();
+                                for _ in 0..32 {
+                                    client = client.ready().await.unwrap();
+                                    requests.push(
+                                        client
+                                            .send_request(
+                                                http_types::Request::builder()
+                                                    .uri("https://app.example/")
+                                                    .body(())
+                                                    .unwrap(),
+                                                true,
+                                            )
+                                            .unwrap(),
+                                    );
+                                }
+                                // Headers arrive while the application queue is full;
+                                // then a reload cancels the in-flight browser window.
+                                async_io::Timer::after(Duration::from_millis(150)).await;
+                                for (_, stream) in &mut requests {
+                                    stream.send_reset(h2::Reason::CANCEL);
+                                }
+                                drop(requests);
+                                async_io::Timer::after(Duration::from_millis(150)).await;
+                                if excess {
+                                    client = client.ready().await.unwrap();
+                                    let (response, mut outgoing) = client
+                                        .send_request(
+                                            http_types::Request::builder()
+                                                .uri("https://other.example/")
+                                                .body(())
+                                                .unwrap(),
+                                            true,
+                                        )
+                                        .unwrap();
+                                    async_io::Timer::after(Duration::from_millis(100)).await;
+                                    outgoing.send_reset(h2::Reason::CANCEL);
+                                    drop(response);
+                                    async_io::Timer::after(Duration::from_secs(2)).await;
+                                    panic!("unconsumed reset ceiling was not enforced");
+                                }
+                                drop(held);
+                                client = client.ready().await.unwrap();
+                                let (response, _) = client
+                                    .send_request(
+                                        http_types::Request::builder()
+                                            .uri("https://other.example/")
+                                            .body(())
+                                            .unwrap(),
+                                        true,
+                                    )
+                                    .unwrap();
+                                assert_eq!(
+                                    response
+                                        .await
+                                        .expect("reload poisoned subsequent request")
+                                        .status(),
+                                    421
+                                );
+                            },
+                        )
+                        .await;
+                    })
+                    .await
+                    .unwrap();
+                });
+            }));
+            if result.is_ok() && !excess {
+                let metrics = server.observe.metrics(1, true, false, true, None);
+                assert!(
+                    metrics.contains("pathward_request_io_failures_total{reason=\"other\"} 0\n"),
+                    "{metrics}"
+                );
+            }
+            stop.store(true, Ordering::Release);
+            serving.join().unwrap().unwrap();
+            if let Err(p) = result {
+                std::panic::resume_unwind(p);
+            }
+            assert_eq!(
+                backend.accept().unwrap_err().kind(),
+                io::ErrorKind::WouldBlock,
+                "cancelled pending request reached upstream"
+            );
+        });
+    }
+    #[test]
+    fn h2_reload_cancels_one_advertised_window_without_killing_connection() {
+        h2_cancel_window(false);
+    }
+    #[test]
+    fn h2_unconsumed_reset_abuse_is_still_bounded() {
+        h2_cancel_window(true);
     }
     #[test]
     fn h2_retirement_finishes_in_flight_window_without_refusal_storm() {

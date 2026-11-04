@@ -29,6 +29,15 @@ an immediate REFUSED_STREAM retry storm. This wait is also capped at five
 seconds. GOAWAY starts after 68 requests or 115 seconds, leaving room for one
 32-stream window already in flight; the actual admission gate still enforces
 100 requests and 120 seconds, and shutdown never admits new requests.
+The pending remote-reset allowance matches the advertised 32-stream window:
+a page reload may cancel that whole window before application admission. The
+33rd unconsumed reset still closes the connection. Locally retained resets stay
+capped at 32 and internal error resets at eight. Explicit CANCEL/NO_ERROR is
+checked before admission, after waiting, before the common responder and before
+response headers. Cancellation observed before starting the responder prevents
+upstream contact; cancellation after upstream work begins cannot undo that work.
+An observed peer cancellation is not misreported as a local API error.
+Native TLS tests cover both the full-window reload and the excess-reset refusal.
 
 Example additions to an existing, explicitly scoped site:
 
