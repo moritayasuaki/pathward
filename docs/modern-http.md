@@ -102,8 +102,10 @@ attribution must be understood by upstream applications that use client IP.
 
 TLS 1.3 resumption uses a 256-entry in-memory, stateful session cache and two
 single-use tickets per successful connection. No resumption secrets are persisted;
-restart loses tickets and falls back to a full handshake. Certificate identity,
-validity and ALPN are checked on resumed connections as well. The existing
+restart loses tickets and falls back to a full handshake. Resumption authenticates
+with the cached session; it does not exchange a fresh certificate. The server
+also checks SNI, negotiated h3 and its currently valid certificate identity on
+connection entry and during serving. TCP TLS resumption remains disabled. The existing
 persist-before-activate ACME path supplies updated certificates to both transports.
 
 Only anonymous, bodyless GET/HEAD for an explicitly published static resource can
@@ -206,3 +208,10 @@ Public-CA/public-network verification, an interactive 24-browser rehearsal of
 these new protocols and actual network-switch tests on production-like mobile
 paths are separate deployment gates. Local loopback results do not establish
 those outcomes. Do not switch production solely because unit tests are green.
+
+The local `soak_server` can enable `PATHWARD_TEST_H2_DIAGNOSTICS=1` to distinguish
+pending-reset and internal-reset limits. Its subscriber accepts only two h2 WARN
+targets, emits at most 16 fixed-category records, and discards all formatted
+messages. It does not subscribe to request/header/frame or span fields. The
+`tracing-core` development dependency was already present with identical features
+in the reviewed graph; no package or production dependency was added.

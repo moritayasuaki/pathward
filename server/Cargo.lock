@@ -749,6 +749,7 @@ dependencies = [
  "rustls-acme",
  "signal-hook",
  "tokio",
+ "tracing-core",
  "webpki-roots",
  "x509-parser",
  "zstd",

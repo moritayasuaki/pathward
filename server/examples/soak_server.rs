@@ -1,5 +1,8 @@
 //! Local-only integration driver; the production CLI keeps its fixed public CA origins.
 #![forbid(unsafe_code)]
+#[cfg(any(target_os = "linux", test))]
+#[path = "support/h2_limits.rs"]
+mod h2_limits;
 #[cfg(target_os = "linux")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use pathward_server::{Server, acme, control, deployment, tls};
@@ -14,6 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread,
     };
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if std::env::var("PATHWARD_TEST_H2_DIAGNOSTICS").as_deref() == Ok("1") {
+        h2_limits::install();
+    }
     if args.len() != 5 && args.len() != 7 {
         return Err(
             "expected CONTROL CACHE LOCAL_DIRECTORY CA_PEM TLS_PORT [HTTP_PORT MONITOR_PORT]"

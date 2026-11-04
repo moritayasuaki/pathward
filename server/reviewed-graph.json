@@ -1,6 +1,6 @@
 {
-  "manifest_sha256": "303acf7851895ecd4759c44b54b2c4b15d8f994b50dcd60082daf139407a3c2c",
-  "lockfile_sha256": "9bd9512d50bfea38e3407dca84c54af7f968a45544710233da7f0af17a928b4b",
+  "manifest_sha256": "0d752cf2677c66783d4898ec23aa8eba7bee06bf012c8e0274ec75d41ac7213c",
+  "lockfile_sha256": "0cb2fc09c112318e4017f83e631e80465787857b4bdacef6e6a6fb1d1cf185f3",
   "packages": [
     {
       "name": "adler2",
