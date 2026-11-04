@@ -1102,7 +1102,7 @@ impl Server {
                                                             self.observe.request(
                                                                 self.generation(),
                                                                 accepted.elapsed(),
-                                                                &Err(e),
+                                                                &Err(observe::stage_error(e, observe::TransportStage::Connection)),
                                                             );
                                                         }
                                                         return;

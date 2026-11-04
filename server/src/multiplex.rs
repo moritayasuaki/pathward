@@ -105,6 +105,20 @@ impl<T: Write + Unpin> tokio::io::AsyncWrite for Io<T> {
 fn failure() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "multiplexed HTTP")
 }
+#[derive(Debug)]
+pub(crate) struct H2Failure {
+    pub reason: Option<u32>,
+    pub remote: bool,
+    pub reset: bool,
+    pub goaway: bool,
+    pub library: bool,
+}
+impl std::fmt::Display for H2Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HTTP/2 transport failure")
+    }
+}
+impl std::error::Error for H2Failure {}
 fn h2_error(e: h2::Error) -> io::Error {
     #[cfg(test)]
     eprintln!(
@@ -125,7 +139,16 @@ fn h2_error(e: h2::Error) -> io::Error {
     {
         return io::ErrorKind::ConnectionAborted.into();
     }
-    failure()
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        H2Failure {
+            reason: e.reason().map(u32::from),
+            remote: e.is_remote(),
+            reset: e.is_reset(),
+            goaway: e.is_go_away(),
+            library: e.is_library(),
+        },
+    )
 }
 async fn h2_reset(sender: &mut h2::server::SendResponse<Bytes>) -> io::Result<()> {
     match futures_lite::future::poll_once(futures_lite::future::poll_fn(|cx| sender.poll_reset(cx)))
@@ -490,6 +513,7 @@ async fn exchange(
 ) {
     let began = Instant::now();
     let mut generation = server.generation();
+    let mut phase = observe::TransportStage::Admission;
     let result = async {
         h2_reset(&mut sender).await?;
         let _permit = match admit(
@@ -509,6 +533,7 @@ async fn exchange(
             }
         };
         h2_reset(&mut sender).await?;
+        phase = observe::TransportStage::Input;
         let (parts, mut data) = req.into_parts();
         let request = match request_head(server, parts, sni, port) {
             Ok(r) => r,
@@ -553,16 +578,19 @@ async fn exchange(
             return send_h2(rejection(400), &mut sender).await;
         }
         h2_reset(&mut sender).await?;
+        phase = observe::TransportStage::Responder;
         let response = respond(
             server, request, body, sni, port, peer, budget, shutdown, false,
         )
         .await?;
+        phase = observe::TransportStage::Output;
         send_h2(response, &mut sender).await
     }
     .await;
     if result.is_err() {
         sender.send_reset(h2::Reason::CANCEL);
     }
+    let result = result.map_err(|e| observe::stage_error(e, phase));
     server.observe.request(generation, began.elapsed(), &result);
 }
 async fn send_h2(

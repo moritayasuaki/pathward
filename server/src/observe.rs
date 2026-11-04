@@ -61,6 +61,28 @@ pub(crate) enum DeliveryPhase {
     Body,
     Finish,
 }
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TransportStage {
+    Admission,
+    Input,
+    Responder,
+    Output,
+    Connection,
+}
+#[derive(Debug)]
+struct StageError {
+    stage: TransportStage,
+    error: io::Error,
+}
+impl std::fmt::Display for StageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("transport stage failure")
+    }
+}
+impl std::error::Error for StageError {}
+pub(crate) fn stage_error(error: io::Error, stage: TransportStage) -> io::Error {
+    io::Error::new(error.kind(), StageError { stage, error })
+}
 pub(crate) struct DeliveryProgress {
     pub phase: DeliveryPhase,
     pub status: u16,
@@ -159,6 +181,30 @@ impl Observability {
                 self.io_reasons[reason].fetch_add(1, Ordering::Relaxed);
                 // Never format the error: its message can contain request data.
                 detail = format!(",\"io_error\":\"{}\"", IO_REASONS[reason]);
+                let cause = if let Some(stage) =
+                    error.get_ref().and_then(|e| e.downcast_ref::<StageError>())
+                {
+                    let label = match stage.stage {
+                        TransportStage::Admission => "admission",
+                        TransportStage::Input => "input",
+                        TransportStage::Responder => "responder",
+                        TransportStage::Output => "output",
+                        TransportStage::Connection => "connection",
+                    };
+                    detail.push_str(&format!(",\"transport_phase\":\"{label}\""));
+                    &stage.error
+                } else {
+                    error
+                };
+                if let Some(h2) = cause
+                    .get_ref()
+                    .and_then(|e| e.downcast_ref::<crate::multiplex::H2Failure>())
+                {
+                    // Fixed fields only: no request/response bytes, URLs,
+                    // credentials or remote GOAWAY debug text are formatted.
+                    let reason = h2.reason.map_or_else(|| "null".into(), |n| n.to_string());
+                    detail.push_str(&format!(",\"h2_reason\":{reason},\"h2_remote\":{},\"h2_reset\":{},\"h2_goaway\":{},\"h2_library\":{}", h2.remote, h2.reset, h2.goaway, h2.library));
+                }
                 if let Some(p) = progress {
                     let phase = match p.phase {
                         DeliveryPhase::Head => "head",
@@ -444,6 +490,39 @@ mod tests {
                 "pathward_request_io_failures_total{{reason=\"{reason}\"}} 1\n"
             )));
         }
+    }
+    #[test]
+    fn transport_diagnostics_keep_only_fixed_fields_and_preserve_error_kind() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(2);
+        *obs.log.lock().unwrap() = Some(tx);
+        let secret = stage_error(
+            io::Error::new(io::ErrorKind::TimedOut, "secret /?token=private"),
+            TransportStage::Output,
+        );
+        obs.request(7, Duration::ZERO, &Err(secret));
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"transport_phase\":\"output\""));
+        assert!(line.contains("\"io_error\":\"timed_out\""));
+        assert!(!line.contains("secret") && !line.contains("token"));
+        let protocol = io::Error::new(
+            io::ErrorKind::InvalidData,
+            crate::multiplex::H2Failure {
+                reason: Some(11),
+                remote: false,
+                reset: false,
+                goaway: true,
+                library: true,
+            },
+        );
+        obs.request(
+            7,
+            Duration::ZERO,
+            &Err(stage_error(protocol, TransportStage::Connection)),
+        );
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"h2_reason\":11,\"h2_remote\":false,\"h2_reset\":false,\"h2_goaway\":true,\"h2_library\":true"));
+        assert!(line.contains("\"transport_phase\":\"connection\""));
     }
     #[test]
     fn admission_reasons_are_fixed_and_do_not_log_peer_or_request_data() {
