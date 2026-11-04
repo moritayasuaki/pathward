@@ -23,6 +23,7 @@ pub struct Observability {
     requests: AtomicU64,
     responses: [AtomicU64; 6],
     io_errors: AtomicU64,
+    io_reasons: [AtomicU64; 7],
     bytes: AtomicU64,
     tls_errors: AtomicU64,
     reloads: AtomicU64,
@@ -31,6 +32,37 @@ pub struct Observability {
     acme_successes: AtomicU64,
     acme_errors: AtomicU64,
     log_dropped: AtomicU64,
+}
+const IO_REASONS: [&str; 7] = [
+    "timed_out",
+    "connection_reset",
+    "connection_aborted",
+    "broken_pipe",
+    "not_connected",
+    "unexpected_eof",
+    "other",
+];
+fn io_reason(error: &io::Error) -> usize {
+    match error.kind() {
+        io::ErrorKind::TimedOut => 0,
+        io::ErrorKind::ConnectionReset => 1,
+        io::ErrorKind::ConnectionAborted => 2,
+        io::ErrorKind::BrokenPipe => 3,
+        io::ErrorKind::NotConnected => 4,
+        io::ErrorKind::UnexpectedEof => 5,
+        _ => 6,
+    }
+}
+pub(crate) enum DeliveryPhase {
+    Head,
+    Body,
+    Finish,
+}
+pub(crate) struct DeliveryProgress {
+    pub phase: DeliveryPhase,
+    pub status: u16,
+    pub head_bytes: usize,
+    pub body_bytes: u64,
 }
 impl Observability {
     pub(crate) fn for_capacity(shared_nat: bool) -> Self {
@@ -91,7 +123,26 @@ impl Observability {
         elapsed: Duration,
         result: &io::Result<(u16, u64)>,
     ) {
+        self.record_request(generation, elapsed, result, None);
+    }
+    pub(crate) fn delivery_request(
+        &self,
+        generation: u64,
+        elapsed: Duration,
+        result: &io::Result<(u16, u64)>,
+        progress: DeliveryProgress,
+    ) {
+        self.record_request(generation, elapsed, result, Some(progress));
+    }
+    fn record_request(
+        &self,
+        generation: u64,
+        elapsed: Duration,
+        result: &io::Result<(u16, u64)>,
+        progress: Option<DeliveryProgress>,
+    ) {
         self.requests.fetch_add(1, Ordering::Relaxed);
+        let mut detail = String::new();
         let (status, bytes) = match result {
             Ok((s, b)) => {
                 let (s, b) = (*s, *b);
@@ -99,12 +150,24 @@ impl Observability {
                 self.bytes.fetch_add(b, Ordering::Relaxed);
                 (s, b)
             }
-            Err(_) => {
+            Err(error) => {
                 self.io_errors.fetch_add(1, Ordering::Relaxed);
+                let reason = io_reason(error);
+                self.io_reasons[reason].fetch_add(1, Ordering::Relaxed);
+                // Never format the error: its message can contain request data.
+                detail = format!(",\"io_error\":\"{}\"", IO_REASONS[reason]);
+                if let Some(p) = progress {
+                    let phase = match p.phase {
+                        DeliveryPhase::Head => "head",
+                        DeliveryPhase::Body => "body",
+                        DeliveryPhase::Finish => "finish",
+                    };
+                    detail.push_str(&format!(",\"delivery_phase\":\"{phase}\",\"delivery_status\":{},\"head_bytes_written\":{},\"body_bytes_written\":{}", p.status, p.head_bytes, p.body_bytes));
+                }
                 (0, 0)
             }
         };
-        self.emit(format!("\"event\":\"request\",\"generation\":{generation},\"status\":{status},\"body_bytes\":{bytes},\"duration_us\":{}", elapsed.as_micros()));
+        self.emit(format!("\"event\":\"request\",\"generation\":{generation},\"status\":{status},\"body_bytes\":{bytes},\"duration_us\":{}{detail}", elapsed.as_micros()));
     }
     pub(crate) fn reload(&self, ok: bool, generation: u64) {
         if ok {
@@ -297,6 +360,13 @@ impl Observability {
                 self.admission_reasons[reason as usize].load(Ordering::Relaxed)
             ));
         }
+        out.push_str("# TYPE pathward_request_io_failures_total counter\n");
+        for (index, reason) in IO_REASONS.iter().enumerate() {
+            out.push_str(&format!(
+                "pathward_request_io_failures_total{{reason=\"{reason}\"}} {}\n",
+                self.io_reasons[index].load(Ordering::Relaxed)
+            ));
+        }
         out.push_str("# TYPE pathward_responses_total counter\n");
         for class in 1..=5 {
             out.push_str(&format!(
@@ -317,6 +387,46 @@ impl Drop for Active {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn io_failures_retain_failure_totals_and_never_format_error_messages() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(8);
+        *obs.log.lock().unwrap() = Some(tx);
+        for kind in [
+            io::ErrorKind::TimedOut,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::BrokenPipe,
+            io::ErrorKind::NotConnected,
+            io::ErrorKind::UnexpectedEof,
+            io::ErrorKind::InvalidData,
+        ] {
+            obs.delivery_request(
+                7,
+                Duration::from_micros(12),
+                &Err(io::Error::new(kind, "secret request /path?token=private")),
+                DeliveryProgress {
+                    phase: DeliveryPhase::Body,
+                    status: 200,
+                    head_bytes: 100,
+                    body_bytes: 16384,
+                },
+            );
+            let line = rx.recv().unwrap();
+            assert!(line.contains("\"status\":0,\"body_bytes\":0"));
+            assert!(line.contains("\"delivery_phase\":\"body\""));
+            assert!(line.contains("\"body_bytes_written\":16384"));
+            assert!(!line.contains("secret") && !line.contains("token") && !line.contains("path"));
+        }
+        let metrics = obs.metrics(7, true, false, false, None);
+        assert!(metrics.contains("pathward_request_io_errors_total 7\n"));
+        assert!(metrics.contains("pathward_body_bytes_total 0\n"));
+        for reason in IO_REASONS {
+            assert!(metrics.contains(&format!(
+                "pathward_request_io_failures_total{{reason=\"{reason}\"}} 1\n"
+            )));
+        }
+    }
     #[test]
     fn admission_reasons_are_fixed_and_do_not_log_peer_or_request_data() {
         let obs = Observability::default();

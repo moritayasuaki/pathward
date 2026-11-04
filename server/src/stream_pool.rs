@@ -71,6 +71,24 @@ impl Transport for Connection {
     }
 }
 impl Connection {
+    pub fn blocking(&mut self) -> io::Result<()> {
+        match self {
+            Self::Plain(s) => s.set_nonblocking(false),
+            Self::Tls(s) => s.blocking(),
+        }
+    }
+    pub fn complete(&mut self) -> io::Result<()> {
+        match self {
+            Self::Plain(s) => s.shutdown(Shutdown::Both),
+            Self::Tls(s) => s.finish(),
+        }
+    }
+    pub fn sni(&self) -> Option<&str> {
+        match self {
+            Self::Plain(_) => None,
+            Self::Tls(s) => Some(&s.sni),
+        }
+    }
     pub fn finish(&mut self) {
         match self {
             Self::Plain(s) => {

@@ -91,6 +91,63 @@ def content.shared_cache_allowed
       else ok false
   else ok false
 
+/-- [pathward::delivery::reserve_allowed]:
+    Source: 'src/delivery.rs', lines 2:0-9:1
+    Visibility: public -/
+def delivery.reserve_allowed
+  (global : Std.U64) (peer : Std.U64) (amount : Std.U64) (draining : Bool) :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else
+    if amount > 0#u64
+    then
+      if global <= 268435456#u64
+      then
+        if peer <= 201326592#u64
+        then
+          let i ← 268435456#u64 - global
+          if amount <= i
+          then let i1 ← 201326592#u64 - peer
+               ok (amount <= i1)
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::delivery::shrink_allowed]:
+    Source: 'src/delivery.rs', lines 11:0-13:1
+    Visibility: public -/
+def delivery.shrink_allowed
+  (before : Std.U64) (after : Std.U64) : RustM Bool := do
+  ok (after <= before)
+
+/-- [pathward::delivery::phase_live]:
+    Source: 'src/delivery.rs', lines 16:0-18:1
+    Visibility: public -/
+def delivery.phase_live
+  (elapsed_ms : Std.U64) (budget_ms : Std.U64) (draining : Bool) :
+  RustM Bool
+  := do
+  if draining
+  then ok false
+  else
+    if budget_ms > 0#u64
+    then
+      if budget_ms <= 120000#u64
+      then ok (elapsed_ms < budget_ms)
+      else ok false
+    else ok false
+
+/-- [pathward::delivery::input_timeout_status]:
+    Source: 'src/delivery.rs', lines 21:0-23:1
+    Visibility: public -/
+def delivery.input_timeout_status (bytes : Std.U64) : RustM Std.U16 := do
+  if bytes = 0#u64
+  then ok 0#u16
+  else ok 408#u16
+
 /-- [pathward::State]
     Source: 'src/lib.rs', lines 11:0-18:1
     Visibility: public -/
@@ -946,7 +1003,7 @@ def release.dispatch_allowed
     Visibility: public -/
 def release.capacity_global (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 192#u64
+  then ok 256#u64
   else ok 12#u64
 
 /-- [pathward::release::capacity_peer]:
@@ -954,7 +1011,7 @@ def release.capacity_global (shared_nat : Bool) : RustM Std.U64 := do
     Visibility: public -/
 def release.capacity_peer (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 144#u64
+  then ok 192#u64
   else ok 6#u64
 
 /-- [pathward::release::capacity_queue]:
@@ -962,7 +1019,7 @@ def release.capacity_peer (shared_nat : Bool) : RustM Std.U64 := do
     Visibility: public -/
 def release.capacity_queue (shared_nat : Bool) : RustM Std.U64 := do
   if shared_nat
-  then ok 188#u64
+  then ok 252#u64
   else ok 8#u64
 
 /-- [pathward::release::capacity_rate]:
@@ -972,8 +1029,8 @@ def release.capacity_rate
   (shared_nat : Bool) (peer : Bool) : RustM Std.U64 := do
   if shared_nat
   then if peer
-       then ok 64#u64
-       else ok 128#u64
+       then ok 256#u64
+       else ok 512#u64
   else if peer
        then ok 8#u64
        else ok 64#u64

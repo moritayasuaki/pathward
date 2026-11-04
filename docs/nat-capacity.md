@@ -17,21 +17,22 @@ Host selection. It is not a per-host policy or an authentication mechanism.
 
 | Admission resource | Standard | Shared NAT |
 | --- | ---: | ---: |
-| Global admitted/queued connections | 12 | 192 |
-| Per-peer admitted/queued connections | 6 | 144 |
-| Pending dispatch queue | 8 | 188 |
-| Global connections/second | 64 | 128 |
+| Global admitted/queued connections | 12 | 256 |
+| Per-peer admitted/queued connections | 6 | 192 |
+| Pending dispatch queue | 8 | 252 |
+| Global connections/second | 64 | 512 |
 | Global burst | 128 | 512 |
-| Per-peer connections/second | 8 | 64 |
+| Per-peer connections/second | 8 | 256 |
 | Per-peer burst | 16 | 384 |
 
 Both profiles retain four ordinary workers, at most two running jobs per peer,
-256 peer-table entries, the existing socket deadlines and independent service
-and streaming budgets. IPv6 peers share a /64; mapped IPv4 shares its IPv4 key.
+256 peer-table entries and independent service/streaming budgets. The subsequent
+[staged-delivery change](delivery.md) separates header and ready-queue deadlines
+and releases ordinary workers during downstream writes. IPv6 peers share a /64; mapped IPv4 shares its IPv4 key.
 Forwarded headers never select an admission identity. The larger queue stores
-owned sockets/permits, not parsed request bodies. It does not create a thread per
-connection, increase ordinary response buffers, or promise that queued work will
-finish before its original deadline. Kernel socket buffers add deployment-specific
+owned sockets/permits and bounded collected heads, not parsed request bodies.
+It does not create a thread per connection or promise completion before each
+phase deadline. Retained responses have a separate finite byte budget. Kernel socket buffers add deployment-specific
 memory overhead. Keep process/FD/memory/CPU limits and measure their effects.
 
 The larger peer burst accommodates a reviewed 24-client cold-asset workload;
@@ -40,6 +41,19 @@ the deployment. It is not a guarantee of 24 users for every application, network
 storage device or workload. Distributed floods can still consume global budgets.
 The scheduler leaves workers available to other peers, including CA validation;
 that is not an availability guarantee under arbitrary load.
+
+The browser-reload revision raises the shared-NAT refill rates from
+128/64 to 512/256 global/per-peer connections per second. A 24-browser
+game reload produced repeated image fetches over several seconds, beyond the
+earlier one-off asset burst and 700 ms polling simulation. The old profile
+exhausted peer credit even with normal browser caching. This quadruples the allowed
+sustained unauthenticated connection rate. Admitted/queued limits also grow from
+192/144 to 256/192 globally/per peer, with a 252-socket queue, to allow
+old and new browser connections to overlap on reload. This adds 64 globally
+admitted sockets (33%); peer occupancy still cannot consume the whole global
+budget. Burst credit, workers, body limits and deadlines remain unchanged. A deterministic 20-second
+200-request/second peer wave also checks progress for an independent 100-request/
+second peer. This regression is a capacity envelope, not a browser model.
 
 Capacity changes require a restart. Both SIGHUP and managed activation reject a
 different profile before committing; managed activation rejects it before writing
@@ -61,14 +75,15 @@ the startup-identity comparison. Seventeen additional Lean statements establish
 finite capacity/credit arithmetic, queue-plus-workers consistency, a strictly
 smaller peer cap, equivalence of the standard profile to the old gate, drain and
 exhausted-credit rejection, bounded diagnostic codes, totality and unchanged
-capacity on accepted reload. The complete audit contains 275 statements. This
+capacity on accepted reload. That revision audited 275 statements; staged delivery raises the complete audit
+to 289. This
 does not formally verify the KDL adapter, locks, sockets, clocks or OS resources.
 
 KDL surface review covers one optional flat node before the bounded site list,
 one decoded string argument, canonical enum matching and fail-closed handling of
 duplicates, malformed/nested/unknown settings. Generator and both activation
 paths preserve or check the capacity identity. Native Linux tests cover rejection
-before durable writes, 24 simultaneous clients, the 144-peer bound, healthy-peer
+before durable writes, 24 simultaneous clients, the 192-peer bound, healthy-peer
 progress behind slow sockets and shutdown. The existing standard-profile tests
 remain in CI. No package, feature, manifest, lockfile or vendored source changes
 are required.
@@ -79,6 +94,11 @@ grouping, concurrency and polling schedule, cold/warm cache behavior, reconnecte
 clients, failures without automatic POST retry, certificate changes, config
 commits during actual ACME orders, latency and resource ceilings. Local-CA and
 loopback results do not establish public-network or public-CA behavior.
+
+The subsequent [real-browser rehearsal](browser-capacity.md) exercises actual UI
+entry and repeated reloads, and explains why this profile now has additional
+headroom. The historical protocol-client results below used the original smaller
+shared-NAT limits; they do not retroactively validate the new bounds.
 
 ## Completed application capacity rehearsal — 2026-11-02
 

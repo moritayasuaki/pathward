@@ -4,6 +4,9 @@ use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
 pub trait Transport: Read + Write {
+    fn buffered_head(&mut self) -> Option<Vec<u8>> {
+        None
+    }
     fn deadline(&mut self, deadline: Instant) -> io::Result<()>;
     fn local_port(&self) -> io::Result<u16>;
     fn nonblocking(&mut self) -> io::Result<()> {
@@ -219,6 +222,16 @@ pub(crate) fn remaining(deadline: Instant) -> io::Result<Duration> {
 }
 
 pub fn read_head(stream: &mut impl Transport, deadline: Instant) -> io::Result<Vec<u8>> {
+    if let Some(head) = stream.buffered_head() {
+        stream.deadline(deadline)?;
+        if head.len() > MAX_HEAD_BYTES || !head.windows(4).any(|w| w == b"\r\n\r\n") {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "buffered header",
+            ));
+        }
+        return Ok(head);
+    }
     let mut data = Vec::with_capacity(MAX_HEAD_BYTES);
     let mut chunk = [0; 1024];
     loop {

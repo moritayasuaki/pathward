@@ -167,9 +167,10 @@ peers; this is a resource bound, not a fair per-host scheduler. The peer cap use
 the transport address, never forwarded headers; users behind NAT share a cap.
 
 Pre-handshake global 12/per-peer six admission, token buckets, pending queue eight
-and dispatch limits remain unchanged. The combined bound is 12 ordinary/admitted
-plus 16 reserved or established streams (upstream sockets and monitors are separate).
-The process allocates 20 serving threads even without active streams. This remains
+and dispatch limits remain unchanged. The combined standard-profile bound is 12 ordinary/admitted
+plus 16 reserved or established streams; shared-NAT permits 256 ordinary/admitted (upstream sockets and monitors are separate).
+With staged ordinary delivery the process allocates 21 serving threads
+(four ordinary, 16 stream and one input/output), even without active streams. This remains
 a small bounded server, not an event-loop runtime for thousands of streams.
 
 Candidate preparation does not modify active caps. Only successful configuration

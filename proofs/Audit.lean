@@ -1,3 +1,4 @@
+import DeliveryProofs
 import ContentProofs
 import UpstreamProofs
 import StreamingProofs
@@ -299,3 +300,18 @@ import ReleaseProofs
 #print axioms ReleaseProofs.capacity_reload_eq
 #print axioms ReleaseProofs.capacity_reload_unchanged
 #print axioms ReleaseProofs.capacity_reload_total
+
+#print axioms DeliveryProofs.reserve_eq
+#print axioms DeliveryProofs.reserve_bounded
+#print axioms DeliveryProofs.reserve_no_overflow
+#print axioms DeliveryProofs.reserve_no_draining
+#print axioms DeliveryProofs.reserve_positive
+#print axioms DeliveryProofs.reserve_total
+#print axioms DeliveryProofs.shrink_eq
+#print axioms DeliveryProofs.shrink_cannot_add_credit
+#print axioms DeliveryProofs.phase_eq
+#print axioms DeliveryProofs.phase_bounded
+#print axioms DeliveryProofs.phase_expired
+#print axioms DeliveryProofs.phase_no_draining
+#print axioms DeliveryProofs.idle_has_no_http_timeout
+#print axioms DeliveryProofs.partial_head_times_out

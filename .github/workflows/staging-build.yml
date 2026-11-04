@@ -3,7 +3,7 @@ name: Staging binaries
 on:
   workflow_dispatch:
   push:
-    branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity]
+    branches: [codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity, codex/browser-public-staging]
     paths: ["src/**", "server/**", "config/**", "vendor/**", "scripts/load_smoke.py", "scripts/capacity_smoke.py", ".github/workflows/staging-build.yml"]
 
 permissions:

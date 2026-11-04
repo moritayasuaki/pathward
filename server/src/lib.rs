@@ -4,6 +4,7 @@
 pub mod acme;
 mod admission;
 pub mod control;
+mod delivery;
 pub mod deployment;
 pub mod files;
 pub mod http;
@@ -23,7 +24,7 @@ use runtime::Snapshot;
 use std::path::{Path, PathBuf};
 use std::{
     io::{self, Read},
-    net::{Shutdown, TcpListener, TcpStream},
+    net::{Shutdown, TcpListener},
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
@@ -34,6 +35,16 @@ use std::{
 
 pub const WORKERS: usize = 4;
 pub const QUEUE_CAPACITY: usize = 8;
+
+enum Handoff {
+    Stream(stream_pool::Prepared),
+    Output(delivery::Prepared),
+}
+struct ResponseHandoff<'a> {
+    prepared: Option<Handoff>,
+    budget: &'a delivery::Budget,
+    peer: std::net::IpAddr,
+}
 
 struct State {
     generation: u64,
@@ -235,7 +246,7 @@ impl Server {
         automatic_redirect: bool,
         quota: &streaming::Quota,
         stopping: &dyn Fn() -> bool,
-        handoff: Option<&mut Option<stream_pool::Prepared>>,
+        handoff: Option<&mut ResponseHandoff<'_>>,
     ) -> io::Result<(u16, u64)> {
         let head = match http::read_head(stream, accepted + http::READ_BUDGET) {
             Ok(head) => head,
@@ -356,6 +367,21 @@ impl Server {
             let Some(_permit) = site.acquire() else {
                 return reject(stream, 503);
             };
+            // Reserve before any upstream side effect. No POST is retried if
+            // capacity is exhausted. Completed delivery has a separate budget
+            // after the upstream connection and ordinary service lease end.
+            let delivery_lease = if let Some(out) = &handoff {
+                match out.budget.reserve(
+                    out.peer,
+                    2 * site.limits.response_bytes + delivery::HEAD_BYTES as u64,
+                    stopping(),
+                ) {
+                    Some(lease) => Some(lease),
+                    None => return reject(stream, 503),
+                }
+            } else {
+                None
+            };
             // Reserve WS capacity before any upstream side effect. SSE is only
             // identified after its response head, before committing downstream.
             let reserve = || {
@@ -396,6 +422,28 @@ impl Server {
                 };
             }
             let deadline = accepted + Duration::from_millis(site.limits.total_ms);
+            if response.live.is_none() {
+                if let Some(out) = handoff {
+                    let head = site.proxy_head(&response, req.target, sni.is_some());
+                    let prepared = delivery::Prepared::buffered(
+                        head,
+                        response.body,
+                        response.status,
+                        deadline,
+                        delivery_lease.ok_or_else(|| io::Error::other("delivery lease"))?,
+                    )?;
+                    out.prepared = Some(Handoff::Output(prepared));
+                    return Ok((response.status, 0));
+                }
+                http::write_all(
+                    stream,
+                    site.proxy_head(&response, req.target, sni.is_some())
+                        .as_bytes(),
+                    deadline,
+                )?;
+                http::write_all(stream, &response.body, deadline)?;
+                return Ok((response.status, response.body.len() as u64));
+            }
             http::write_all(
                 stream,
                 site.proxy_head(&response, req.target, sni.is_some())
@@ -414,7 +462,7 @@ impl Server {
                 // An established stream no longer occupies the ordinary service cap.
                 drop(_permit);
                 if let Some(out) = handoff {
-                    *out = Some(prepared);
+                    out.prepared = Some(Handoff::Stream(prepared));
                     return Ok((response.status, 0));
                 }
                 return prepared
@@ -491,6 +539,27 @@ impl Server {
         head.truncate(head.len() - 2);
         head.push_str(&plan.fields);
         head.push_str("\r\n");
+        if let Some(out) = handoff {
+            let Some(lease) = out.budget.reserve(
+                out.peer,
+                (delivery::HEAD_BYTES + delivery::FILE_CHUNK) as u64,
+                stopping(),
+            ) else {
+                return reject(stream, 503);
+            };
+            use std::io::{Seek, SeekFrom};
+            opened.file.seek(SeekFrom::Start(plan.start))?;
+            let prepared = delivery::Prepared::file(
+                head,
+                opened.file,
+                if grant.send_body { plan.count } else { 0 },
+                plan.status,
+                deadline,
+                lease,
+            )?;
+            out.prepared = Some(Handoff::Output(prepared));
+            return Ok((plan.status, 0));
+        }
         http::write_all(
             stream,
             head.as_bytes(),
@@ -556,53 +625,92 @@ impl Server {
         result.map(|_| ())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn handle_owned(
         &self,
-        mut client: stream_pool::Connection,
-        accepted: Instant,
-        sni: Option<&str>,
+        mut input: delivery::Input,
+        queued: Instant,
         shutdown: &AtomicBool,
         pool: &stream_pool::Pool,
-        active: observe::Active,
+        sink: &delivery::Sink,
+        budget: &delivery::Budget,
     ) {
         let Ok(state) = self.state.read() else {
-            client.finish();
+            input.client.finish();
             return;
         };
         let generation = state.generation;
         let snapshot = state.snapshot.clone();
         drop(state);
         let started = Instant::now();
-        let mut handoff = None;
-        let result = Self::respond(
-            &snapshot,
-            &mut client,
-            accepted,
-            sni,
-            false,
-            &self.stream_quota,
-            &|| shutdown.load(Ordering::Acquire) || self.is_draining(),
-            Some(&mut handoff),
-        );
-        if let Some(prepared) = handoff {
-            if let Err(mut job) = pool.push(stream_pool::Job {
-                client,
-                prepared,
-                generation,
-                started,
-                _active: active,
-            }) {
-                job.client.finish();
-                self.observe.request(
-                    generation,
-                    started.elapsed(),
-                    &Err(io::ErrorKind::Interrupted.into()),
-                );
-            }
+        // Preserve time spent receiving the head in existing service budgets;
+        // exclude only the separately bounded ready-queue interval.
+        let request_started = started
+            .checked_sub(queued.saturating_duration_since(input.started))
+            .unwrap_or(input.started);
+        let peer = input.permit.peer();
+        let mut handoff = ResponseHandoff {
+            prepared: None,
+            budget,
+            peer,
+        };
+        let queued_ms = queued.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let result = if !pathward::delivery::phase_live(
+            queued_ms,
+            delivery::QUEUE_BUDGET.as_millis() as u64,
+            shutdown.load(Ordering::Acquire),
+        ) {
+            self.observe.overloaded.fetch_add(1, Ordering::Relaxed);
+            handoff.prepared = Some(Handoff::Output(delivery::Prepared::rejection(503)));
+            Ok((503, 0))
+        } else if let Err(e) = input.client.blocking() {
+            Err(e)
         } else {
-            self.observe.request(generation, started.elapsed(), &result);
-            client.finish();
+            let sni = input.client.sni().map(str::to_owned);
+            let mut replay = delivery::Replay::new(&mut input.client, &input.prefix);
+            Self::respond(
+                &snapshot,
+                &mut replay,
+                request_started,
+                sni.as_deref(),
+                input.redirect,
+                &self.stream_quota,
+                &|| shutdown.load(Ordering::Acquire) || self.is_draining(),
+                Some(&mut handoff),
+            )
+        };
+        match handoff.prepared {
+            Some(Handoff::Stream(prepared)) => {
+                if let Err(mut job) = pool.push(stream_pool::Job {
+                    client: input.client,
+                    prepared,
+                    generation,
+                    started,
+                    _active: input.active,
+                }) {
+                    job.client.finish();
+                    self.observe.request(
+                        generation,
+                        started.elapsed(),
+                        &Err(io::ErrorKind::Interrupted.into()),
+                    );
+                }
+            }
+            Some(Handoff::Output(prepared)) => {
+                if let Err(e) = sink.output(delivery::Output {
+                    client: input.client,
+                    prepared,
+                    generation,
+                    started,
+                    _permit: input.permit,
+                    _active: input.active,
+                }) {
+                    self.observe.request(generation, started.elapsed(), &Err(e));
+                }
+            }
+            None => {
+                self.observe.request(generation, started.elapsed(), &result);
+                input.client.finish();
+            }
         }
     }
 
@@ -657,8 +765,22 @@ impl Server {
         }
         let admission = Arc::new(admission::Admission::new(self.shared_nat));
         let result = thread::scope(|scope| {
-            let receive =
-                work::Queue::<(TcpStream, Instant, bool, admission::Permit)>::new(self.shared_nat);
+            let receive = work::Queue::<delivery::Work>::new(self.shared_nat);
+            let (sink, mut reactor) =
+                delivery::channel(pathward::release::capacity_global(self.shared_nat) as usize);
+            let budget = delivery::Budget::default();
+            let workers_done = Arc::new(AtomicBool::new(false));
+            let io_done = workers_done.clone();
+            let io_queue = receive.clone();
+            let io_worker = thread::Builder::new()
+                .name("pathward-io".into())
+                .spawn_scoped(scope, move || {
+                    let _stop = StopOnExit(shutdown);
+                    reactor.run(&io_queue, &self.observe, shutdown, &io_done, &|| {
+                        self.generation()
+                    });
+                })?;
+            let mut workers = Vec::new();
             let streams = stream_pool::Pool::new();
             for i in 0..stream_pool::WORKERS {
                 let pool = streams.clone();
@@ -683,87 +805,77 @@ impl Server {
                     shutdown.store(true, Ordering::Release);
                     streams.close();
                     receive.close();
+                    workers_done.store(true, Ordering::Release);
+                    let _ = io_worker.join();
                     return Err(e);
                 }
             }
             for i in 0..WORKERS {
                 let worker_queue = receive.clone();
                 let pool = streams.clone();
-                if let Err(e) = thread::Builder::new()
+                let sink = sink.clone();
+                let budget = budget.clone();
+                match thread::Builder::new()
                     .name(format!("pathward-{i}"))
                     .spawn_scoped(scope, move || {
                         let _stop = StopOnExit(shutdown);
-                        loop {
-                            let Some(((mut stream, accepted, redirect_only, _permit), _running)) =
-                                worker_queue.take(shutdown)
-                            else {
-                                break;
-                            };
-                            let _active = self.observe.connection();
-                            if !shutdown.load(Ordering::Acquire)
-                                && stream.set_nonblocking(false).is_ok()
-                            {
-                                if redirect_only {
-                                    if let Ok(state) = self.state.read() {
-                                        let snapshot = state.snapshot.clone();
-                                        let generation = state.generation;
-                                        drop(state);
-                                        let start = Instant::now();
-                                        let result = Self::respond(
-                                            &snapshot,
-                                            &mut stream,
-                                            accepted,
-                                            None,
-                                            true,
-                                            &self.stream_quota,
-                                            &|| {
-                                                shutdown.load(Ordering::Acquire)
-                                                    || self.is_draining()
-                                            },
-                                            None,
-                                        );
-                                        self.observe.request(generation, start.elapsed(), &result);
+                        while let Some((job, _running)) = worker_queue.take(shutdown) {
+                            match job {
+                                delivery::Work::Handshake {
+                                    stream,
+                                    accepted,
+                                    permit,
+                                    active,
+                                } => {
+                                    let Some(tls) = tls else {
+                                        continue;
+                                    };
+                                    if stream.set_nonblocking(false).is_err() {
+                                        self.observe.tls_failed();
+                                        continue;
                                     }
-                                    let _ = stream.shutdown(Shutdown::Both);
-                                    continue;
-                                }
-                                if let Some(tls) = tls {
-                                    // Own the socket through the entire TLS exchange.
                                     match tls.accept(stream, accepted) {
                                         Ok(Some(encrypted)) => {
-                                            let sni = encrypted.sni.clone();
-                                            self.handle_owned(
-                                                stream_pool::Connection::Tls(Box::new(encrypted)),
-                                                Instant::now(),
-                                                Some(&sni),
-                                                shutdown,
-                                                &pool,
-                                                _active,
-                                            );
+                                            if sink
+                                                .input(delivery::Input {
+                                                    client: stream_pool::Connection::Tls(Box::new(
+                                                        encrypted,
+                                                    )),
+                                                    prefix: Vec::new(),
+                                                    started: Instant::now(),
+                                                    redirect: false,
+                                                    permit,
+                                                    active,
+                                                })
+                                                .is_err()
+                                            {
+                                                self.observe.tls_failed();
+                                            }
                                         }
                                         Ok(None) => {}
                                         Err(_) => self.observe.tls_failed(),
                                     }
-                                    continue;
                                 }
-                                self.handle_owned(
-                                    stream_pool::Connection::Plain(stream),
-                                    accepted,
-                                    None,
-                                    shutdown,
-                                    &pool,
-                                    _active,
-                                );
-                                continue;
+                                delivery::Work::Http { input, queued } => {
+                                    self.handle_owned(
+                                        input, queued, shutdown, &pool, &sink, &budget,
+                                    );
+                                }
                             }
-                            let _ = stream.shutdown(Shutdown::Both);
                         }
-                    })
-                {
-                    shutdown.store(true, Ordering::Release);
-                    streams.close();
-                    receive.close();
-                    return Err(e);
+                    }) {
+                    Ok(worker) => workers.push(worker),
+                    Err(e) => {
+                        shutdown.store(true, Ordering::Release);
+                        streams.close();
+                        receive.close();
+                        for worker in workers {
+                            let _ = worker.join();
+                        }
+                        workers_done.store(true, Ordering::Release);
+                        let _ = io_worker.join();
+                        return Err(e);
+                    }
                 }
             }
             let result = 'accept: loop {
@@ -788,12 +900,33 @@ impl Server {
                                     continue;
                                 }
                             };
-                            if let Err((stream, _, _, _permit)) = receive.push(
-                                permit.peer(),
-                                (stream, Instant::now(), redirect_only, permit),
-                            ) {
+                            let accepted = Instant::now();
+                            let active = self.observe.connection();
+                            let submitted = if tls.is_some() && !redirect_only {
+                                receive
+                                    .push(
+                                        permit.peer(),
+                                        delivery::Work::Handshake {
+                                            stream,
+                                            accepted,
+                                            permit,
+                                            active,
+                                        },
+                                    )
+                                    .is_ok()
+                            } else {
+                                sink.input(delivery::Input {
+                                    client: stream_pool::Connection::Plain(stream),
+                                    prefix: Vec::new(),
+                                    started: accepted,
+                                    redirect: redirect_only,
+                                    permit,
+                                    active,
+                                })
+                                .is_ok()
+                            };
+                            if !submitted {
                                 self.observe.overloaded.fetch_add(1, Ordering::Relaxed);
-                                let _ = stream.shutdown(Shutdown::Both);
                             }
                         }
                         Err(e)
@@ -816,7 +949,17 @@ impl Server {
             self.observe.event("draining", self.generation(), 0);
             streams.close();
             receive.close();
-            result
+            let mut worker_failed = false;
+            for worker in workers {
+                worker_failed |= worker.join().is_err();
+            }
+            workers_done.store(true, Ordering::Release);
+            worker_failed |= io_worker.join().is_err();
+            if worker_failed {
+                Err(io::Error::other("serving worker failed"))
+            } else {
+                result
+            }
         });
         self.begin_shutdown();
         self.observe.serving.store(false, Ordering::Release);

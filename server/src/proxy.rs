@@ -461,8 +461,14 @@ fn receive(
         offset: 0,
         deadline,
     };
-    let mut body = Vec::new();
     let bodyless = head_only || status == 204 || status == 304;
+    // Reserve once, within the already-validated framing limit. This avoids
+    // transient geometric growth while ordinary response bodies are validated.
+    let mut body = Vec::with_capacity(if bodyless {
+        0
+    } else {
+        length.unwrap_or(limit) as usize
+    });
     let declared = if bodyless {
         if wire.unused() {
             return Err(invalid());

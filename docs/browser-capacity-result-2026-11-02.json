@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "date": "2026-11-02",
+  "acceptance": "FAILED_INCOMPLETE",
+  "production_ready": false,
+  "main_merge": {
+    "pr": 9,
+    "commit": "0c235897a9d96bc399cb82249fe8d5c2c6bdb815",
+    "ci_run": 41417749027,
+    "ci_result": "success"
+  },
+  "runtime": {
+    "source_commit": "3a919a11428ea5822a08d6b588c1a1c851c2a574",
+    "ci_run": 41428275462,
+    "ci_result": "success",
+    "artifact_build": 41428275280,
+    "artifact_id": 13133271040,
+    "zip_sha256": "e089b91a2dcfd7950318bd62a8d6a2d781bbf796b705bd63186e73c53895ea80",
+    "binary_sha256": "79a6a12730edbb1fa7b2e91d7593780caea6903f38acf62965bb0f83c11500a3"
+  },
+  "fixtures": {
+    "frontend_js_sha256": "efae2a32eb074817e0006ca94542f2a5068ac1255acb7fd8e219028c4ba908fe",
+    "frontend_js_bytes": 2458646,
+    "web_files": 8,
+    "sprite_files": 90,
+    "backend_sha256": [
+      "6df748b8ff0c6b7dbd0910042afebc5b8551a50cef330040cfbafd9884a7398d",
+      "bac751741ac870b744fdbf3d12ee3373c0b9ac6f67bff21ee941c53c5246fdaf"
+    ],
+    "private_photos": "empty",
+    "state": "synthetic"
+  },
+  "last_run": {
+    "browser": "Chrome/156.0.8078.79",
+    "contexts": 24,
+    "independent_storage": true,
+    "cold_cache": true,
+    "transport": "24 independent SSH SOCKS transports, no compression; same browser origin and server source IP",
+    "public_tls": false,
+    "public_ca": false,
+    "verified_actors": 0,
+    "verified_rooms": 0,
+    "counts": {
+      "cold:asset:200": 140,
+      "cold:other:200": 24,
+      "cold:room-create:transport:net::ERR_ABORTED": 6,
+      "cold:asset:408": 4,
+      "cold:favicon:404": 1
+    },
+    "oracle_failures": [
+      "unexpected release header",
+      "unexpected release header",
+      "unexpected release header",
+      "unexpected release header"
+    ],
+    "highest_client_observed_p95_ms": 229053.6280000233,
+    "request_status_counts": {
+      "200": 393,
+      "404": 230,
+      "201": 3,
+      "408": 4
+    },
+    "metrics": {
+      "pathward_admission_global_limit": 256.0,
+      "pathward_admission_peer_limit": 192.0,
+      "pathward_admission_queue_limit": 252.0,
+      "pathward_admission_global_rate": 512.0,
+      "pathward_admission_peer_rate": 256.0,
+      "pathward_admission_global_burst": 512.0,
+      "pathward_admission_peer_burst": 384.0,
+      "pathward_connections_total": 630.0,
+      "pathward_connections_active": 0.0,
+      "pathward_connections_overloaded_total": 0.0,
+      "pathward_admission_rejected_total": 0.0,
+      "pathward_requests_total": 630.0,
+      "pathward_request_io_errors_total": 0.0,
+      "pathward_body_bytes_total": 88840894.0,
+      "pathward_tls_handshake_errors_total": 0.0,
+      "pathward_reloads_total": 229.0,
+      "pathward_reload_errors_total": 33.0,
+      "pathward_acme_orders_total": 0.0,
+      "pathward_acme_activations_total": 0.0,
+      "pathward_acme_errors_total": 0.0,
+      "pathward_log_dropped_total": 0.0,
+      "pathward_config_generation": 230.0,
+      "pathward_ready": 1.0,
+      "pathward_draining": 0.0,
+      "pathward_tls_enabled": 0.0,
+      "pathward_certificate_present": 0.0,
+      "pathward_certificate_not_before_seconds": 0.0,
+      "pathward_certificate_not_after_seconds": 0.0,
+      "pathward_admission_rejections_total{reason=\"draining\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"global_active\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_active\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"global_rate\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_rate\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"peer_table_full\"}": 0.0,
+      "pathward_admission_rejections_total{reason=\"state_unavailable\"}": 0.0,
+      "pathward_responses_total{class=\"1xx\"}": 0.0,
+      "pathward_responses_total{class=\"2xx\"}": 396.0,
+      "pathward_responses_total{class=\"3xx\"}": 0.0,
+      "pathward_responses_total{class=\"4xx\"}": 234.0,
+      "pathward_responses_total{class=\"5xx\"}": 0.0
+    },
+    "churn": {
+      "switches": 229,
+      "capacity_change_rejected": 33,
+      "failures": [],
+      "duration_seconds": 467.663
+    },
+    "server_resource_peak": {
+      "rss_kib": 14544,
+      "threads": 25,
+      "fds": 25
+    },
+    "browser_resource_peak": {
+      "summed_rss_kib": 8223520,
+      "minimum_system_free_percent": 38,
+      "summed_rss_double_counts_shared_memory": true
+    },
+    "service_child_exit_codes": [
+      0,
+      0,
+      0
+    ]
+  },
+  "retained_comparisons": [
+    {
+      "peer_rate": 64,
+      "global_rate": 128,
+      "peer_slots": 144,
+      "global_slots": 192,
+      "peer_rate_rejections": 1746,
+      "browser_empty_responses": 125,
+      "phase": "synchronized reload; no Fetch interception"
+    },
+    {
+      "peer_rate": 128,
+      "global_rate": 256,
+      "peer_slots": 144,
+      "global_slots": 192,
+      "peer_active_rejections": 17,
+      "browser_empty_responses": 2
+    },
+    {
+      "peer_rate": 128,
+      "global_rate": 256,
+      "peer_slots": 192,
+      "global_slots": 256,
+      "peer_rate_rejections": 18,
+      "browser_empty_responses": 1,
+      "phase": "second reload; first passed"
+    },
+    {
+      "source": "final runtime",
+      "result": "incomplete",
+      "verified_actors": 24,
+      "verified_rooms": 6,
+      "passed_driver_phases": [
+        "steady",
+        "reconnect-1",
+        "between-reconnects"
+      ],
+      "comments_sent": 24,
+      "second_reload": "browser snapshot retained 24 actors, no empty responses or admission rejections; driver aborted on shared-tunnel monitor disconnect",
+      "completed_scenario": false
+    },
+    {
+      "source": "final runtime",
+      "result": "incomplete",
+      "phase": "cold start while fixture transfer overlapped",
+      "driver_ui_wait_seconds": 45
+    },
+    {
+      "source": "final runtime",
+      "result": "interrupted",
+      "phase": "cold start without fixture transfer",
+      "observed_js_response_ms_about": 224000,
+      "driver_ui_wait_seconds": 240
+    },
+    {
+      "source": "final runtime",
+      "result": "failed",
+      "phase": "cold start over compressed shared SSH transport",
+      "observed": "408 responses and aborted room creation; churn interrupted by teardown"
+    }
+  ],
+  "verification": {
+    "lean_statements": 275,
+    "actual_rust_extraction_checked": true,
+    "runtime_dependency_changes": 0,
+    "rustsec_database": "e52a8212cbf9b915380afd9534da050d6f5d9af1",
+    "rustsec_findings": 0,
+    "rustsec_warnings": 0,
+    "graphs_external_packages": {
+      "core": 0,
+      "config": 8,
+      "server": 104,
+      "unused_candidate": 163
+    }
+  },
+  "production_inventory_unchanged": {
+    "fixed": true,
+    "verified": true,
+    "independent": true,
+    "baseline": true,
+    "confirmed": true,
+    "final": true,
+    "compressed": true
+  },
+  "remaining": [
+    "Resolve cold-entry mutation aborts and asset 408 under slow transfer; evaluate bounded response dispatch and queue/header deadlines without removing resource bounds.",
+    "Repeat complete 24-browser cold-entry, six-room, two-reconnect scenario with configuration churn; this report is not a pass.",
+    "Public-link TLS/public CA and dedicated-service-UID runtime validation require administrator operations.",
+    "Measure actual public-link latency and HTTP compression/HTTP2 compatibility before migration."
+  ]
+}

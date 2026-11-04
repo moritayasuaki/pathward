@@ -56,17 +56,17 @@ pub fn dispatch_allowed(running: u64, peer_running: u64, draining: bool) -> bool
 
 /// Explicit startup-only capacity profile; running workers and deadlines are unchanged.
 pub fn capacity_global(shared_nat: bool) -> u64 {
-    if shared_nat { 192 } else { 12 }
+    if shared_nat { 256 } else { 12 }
 }
 pub fn capacity_peer(shared_nat: bool) -> u64 {
-    if shared_nat { 144 } else { 6 }
+    if shared_nat { 192 } else { 6 }
 }
 pub fn capacity_queue(shared_nat: bool) -> u64 {
-    if shared_nat { 188 } else { 8 }
+    if shared_nat { 252 } else { 8 }
 }
 pub fn capacity_rate(shared_nat: bool, peer: bool) -> u64 {
     if shared_nat {
-        if peer { 64 } else { 128 }
+        if peer { 256 } else { 512 }
     } else if peer {
         8
     } else {

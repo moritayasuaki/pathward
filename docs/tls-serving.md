@@ -63,8 +63,9 @@ supported (TLS ALPN `http/1.1`, or absent ALPN for ordinary clients). ACME-only
 `acme-tls/1` connections never reach file serving. TLS 1.2/1.3 use the ring provider;
 TLS 1.0/1.1, session resumption/tickets and 0-RTT are disabled. Handshakes have a
 5-second total deadline including queue time and a 128 KiB input limit. The
-existing four workers/eight queued connections bound handshake and serving
-concurrency; HTTP adds its existing header/write limits. [Admission gates](production-basics.md#admission-limits-and-test-scope) now bound
+four ordinary workers and startup-profile queue bound handshakes and upstream
+work; [staged delivery](delivery.md) collects HTTP heads and sends completed
+responses independently under finite connection and byte budgets. [Admission gates](production-basics.md#admission-limits-and-test-scope) now bound
 per-peer concurrency and rate before TLS, with at most two running jobs per peer
 and bounded queuing for further validation connections. Sustained denial-of-service protection
 still requires deployment controls.

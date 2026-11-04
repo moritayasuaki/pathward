@@ -109,15 +109,16 @@ or implicit units. Overflow, duplicate/unknown settings and inconsistent budgets
 reject the entire candidate. A smaller total may require explicitly reducing
 its phase budgets as well.
 
-Request time runs from socket acceptance through the complete request, including
-queue/TLS/head time. The global five-second initial head/TLS budgets remain in
-force before host selection; increasing a service body budget does not extend
-those unauthenticated stages. A complete prefetched body is checked against the
-request deadline too. The connect budget starts at connect. The response-head
-budget starts after the upstream request write. Every operation is also bounded
-by the total deadline from acceptance; successful reads/writes do not reset it.
-After receiving the head, response-body reads and downstream writes share the
-remaining total budget. An error response has up to one additional second.
+HTTP service request/total budgets include time receiving the HTTP head and
+processing the request, but exclude the separately bounded ready-queue wait.
+TLS handshakes have their own five-second acceptance budget. Header collection
+has five seconds after plaintext acceptance or TLS completion; ready dispatch
+has a separate five-second budget. Increasing a service body budget extends
+neither stage. A complete prefetched body is checked against the request deadline
+too. Connect and upstream-head phase budgets retain their existing start points.
+After receiving the upstream head, response-body validation and downstream output
+share the remaining service total. Successful reads/writes do not reset it.
+An error response has up to one additional second. See [delivery](delivery.md).
 
 Request capacity failure returns 413 before upstream contact. Invalid/oversized
 upstream content returns 502 before success headers; timeout returns 408 for the
@@ -127,13 +128,14 @@ metadata Content-Length on HEAD/304. Ambiguous framing remains forbidden. There
 are no automatic retries. [WebSocket/SSE](streaming.md) has separate explicit
 opt-ins and finite session budgets.
 
-The connection setting counts the whole proxy exchange from request-body
-consumption through downstream output. Exhaustion returns 503 immediately; there
-is no service wait queue or upstream attempt. The existing four-worker/global/
-per-peer limits remain independent upper bounds. Three is a hard service maximum, so a single proxy service cannot hold
-all four workers. Static traffic or multiple busy services can still occupy all
-workers. These settings do not increase worker count or change static file
-limits (1 GiB, a 120-second total transfer deadline and a five-second per-write deadline).
+The connection setting counts the upstream exchange, from request-body consumption
+through complete response validation. Buffered downstream delivery then releases
+that service permit and uses independent connection/byte budgets. Exhaustion
+returns 503 immediately before an upstream attempt. The existing four-worker and
+two-running-jobs-per-peer bounds remain. Three is still the hard service maximum;
+a slow upstream can occupy those ordinary workers, while slow downstream clients
+no longer retain them. Static responses use pinned files and 16 KiB output chunks,
+with the existing 1 GiB size and 120-second total transfer limits.
 
 ## Reload, rollback and resource consequences
 
@@ -156,13 +158,18 @@ It preserves denials, proxy scopes, upstream and every budget, then recompiles t
 complete result. It cannot turn a rootless proxy into a file publication site.
 Managed file preflight and expected generation/digest checks remain unchanged.
 
-Buffering stays finite but increasing limits has a real memory cost. At hard
-limits, four workers can retain approximately 320 MiB of request/response payload
-alone, plus allocator/TLS/runtime overhead. Choose lower limits for the deployed
-memory budget. Longer requests also lengthen graceful drain. If using the full
-120-second total, allow at least 130 seconds in the supervisor on trusted local
-storage, and retain an explicit forced-stop policy for stalled OS/storage calls.
-This is not a guarantee of wall-clock process termination.
+Retained ordinary responses and in-flight response reservations share a 256 MiB
+global / 192 MiB peer byte budget across configuration generations. A proxy request
+reserves twice its response cap plus 256 KiB before contacting the upstream,
+covering response validation and the transition to retained output. The reservation
+shrinks only after releasing unused buffer capacity. Request payloads (up to four
+16 MiB buffers), TLS, metadata, allocator and kernel socket overhead are additional.
+These are logical payload bounds, not a proof of resident memory usage.
+
+Long upstream requests still lengthen graceful drain. With the full 120-second
+total, allow at least 130 seconds in the supervisor on trusted local storage and
+retain a forced-stop policy for stalled OS/storage calls. This is not a guarantee
+of wall-clock process termination.
 
 Readiness still describes the frontend/certificate, not the upstream application.
 Service saturation appears as a 503 in existing aggregate telemetry; per-service
