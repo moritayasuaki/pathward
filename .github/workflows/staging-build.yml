@@ -24,6 +24,7 @@ jobs:
           cp server/target/release/pathward-server bundle/
           cp server/target/release/examples/soak_server bundle/
           cp server/target/release/examples/migration_gate bundle/
+          cp server/target/release/examples/acme_probe bundle/
           cp .tools/pebble/pebble bundle/
           cargo +1.99.1 test --offline --locked --manifest-path server/Cargo.toml --lib --no-run --message-format=json > "$RUNNER_TEMP/test-build.json"
           python3 - "$RUNNER_TEMP/test-build.json" <<'PY'
@@ -35,7 +36,7 @@ jobs:
           PY
           git rev-parse HEAD > bundle/SOURCE_COMMIT
           cd bundle
-          sha256sum pathward-server soak_server migration_gate pebble pathward-server-tests SOURCE_COMMIT > SHA256SUMS
+          sha256sum pathward-server soak_server migration_gate acme_probe pebble pathward-server-tests SOURCE_COMMIT > SHA256SUMS
           cat SHA256SUMS
       # Build-only, exact upload directory, no deployment keys or host access.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

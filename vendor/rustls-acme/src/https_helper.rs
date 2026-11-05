@@ -2,12 +2,115 @@
 use futures_lite::{AsyncRead, AsyncReadExt, AsyncWriteExt, future};
 use futures_rustls::{TlsConnector, pki_types::ServerName, rustls::ClientConfig};
 use http::{Method, Response, Uri};
-use std::{io, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    io,
+    net::SocketAddr,
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
+    task::Poll,
+    time::Duration,
+};
 use thiserror::Error;
 
 pub const MAX_BODY: usize = 1_048_576;
 const MAX_HEAD: usize = 8192;
 const REQUEST_BUDGET: Duration = Duration::from_secs(30);
+const MAX_CONNECT_ATTEMPTS: usize = 8;
+const CONNECT_DELAY: Duration = Duration::from_millis(250);
+
+/// Retain resolver order within each family, alternate families, and cap both
+/// storage and attempts. A long IPv6 prefix must not hide the first IPv4 result.
+fn candidates(addresses: impl IntoIterator<Item = SocketAddr>) -> Vec<SocketAddr> {
+    let mut v4 = Vec::new();
+    let mut v6 = Vec::new();
+    let mut first_v6 = None;
+    for address in addresses {
+        first_v6.get_or_insert(address.is_ipv6());
+        let family = if address.is_ipv6() { &mut v6 } else { &mut v4 };
+        if family.len() < MAX_CONNECT_ATTEMPTS && !family.contains(&address) {
+            family.push(address);
+        }
+    }
+    let (mut first, mut other) = if first_v6 == Some(true) {
+        (v6.into_iter(), v4.into_iter())
+    } else {
+        (v4.into_iter(), v6.into_iter())
+    };
+    let mut result = Vec::new();
+    for index in 0..MAX_CONNECT_ATTEMPTS {
+        let next = if index % 2 == 0 {
+            first.next().or_else(|| other.next())
+        } else {
+            other.next().or_else(|| first.next())
+        };
+        let Some(address) = next else { break };
+        result.push(address);
+    }
+    result
+}
+
+/// No worker is detached. Returning a winner or dropping the enclosing request
+/// drops every losing connect future/socket. The enclosing request owns the
+/// fixed DNS + TCP + TLS + response deadline; new attempts cannot renew it.
+async fn connect_candidates<T, F, Fut>(
+    addresses: Vec<SocketAddr>,
+    delay: Duration,
+    mut connect: F,
+) -> io::Result<T>
+where
+    F: FnMut(SocketAddr) -> Fut,
+    Fut: Future<Output = io::Result<T>>,
+{
+    if addresses.is_empty() || addresses.len() > MAX_CONNECT_ATTEMPTS {
+        return Err(invalid());
+    }
+    let mut remaining = addresses.into_iter();
+    let mut attempts: Vec<Option<Pin<Box<Fut>>>> = Vec::new();
+    let mut timer = Box::pin(async_io::Timer::after(Duration::ZERO));
+    let mut last_error = None;
+    future::poll_fn(|cx| {
+        for attempt in &mut attempts {
+            if let Some(pending) = attempt {
+                match pending.as_mut().poll(cx) {
+                    Poll::Ready(Ok(stream)) => return Poll::Ready(Ok(stream)),
+                    Poll::Ready(Err(error)) => {
+                        last_error = Some(error);
+                        *attempt = None;
+                    }
+                    Poll::Pending => {}
+                }
+            }
+        }
+        if remaining.len() > 0 && timer.as_mut().poll(cx).is_ready() {
+            let Some(address) = remaining.next() else {
+                return Poll::Ready(Err(invalid()));
+            };
+            attempts.push(Some(Box::pin(connect(address))));
+            // Restart only the launch spacing, never the overall request budget.
+            timer.as_mut().get_mut().set_after(delay);
+            cx.waker().wake_by_ref();
+        }
+        if remaining.len() == 0 && attempts.iter().all(Option::is_none) {
+            return Poll::Ready(Err(last_error.take().unwrap_or_else(invalid)));
+        }
+        Poll::Pending
+    })
+    .await
+}
+
+fn phase_name(phase: &AtomicU8) -> &'static str {
+    match phase.load(Ordering::Relaxed) {
+        0 => "dns",
+        1 => "connect",
+        2 => "tls",
+        3 => "write",
+        _ => "response",
+    }
+}
 
 /// The origin is supplied by trusted startup configuration, never a CA response.
 /// Every discovered URL must retain this exact scheme, hostname and port.
@@ -86,8 +189,17 @@ async fn https_budget(
     if body.len() > 65_536 || !matches!(method, Method::HEAD | Method::GET | Method::POST) {
         return Err(invalid().into());
     }
+    let phase = AtomicU8::new(0);
     let operation = async {
-        let tcp = async_net::TcpStream::connect((client.host.as_str(), client.port)).await?;
+        let addresses = async_net::resolve((client.host.as_str(), client.port)).await?;
+        phase.store(1, Ordering::Relaxed);
+        let tcp = connect_candidates(
+            candidates(addresses),
+            CONNECT_DELAY,
+            async_net::TcpStream::connect,
+        )
+        .await?;
+        phase.store(2, Ordering::Relaxed);
         let name = ServerName::try_from(client.host.clone()).map_err(|_| invalid())?;
         let mut stream = TlsConnector::from(client.tls.clone())
             .connect(name, tcp)
@@ -98,18 +210,29 @@ async fn https_budget(
             client.authority,
             body.len()
         );
+        phase.store(3, Ordering::Relaxed);
         stream.write_all(head.as_bytes()).await?;
         stream.write_all(body.as_bytes()).await?;
         stream.flush().await?;
+        phase.store(4, Ordering::Relaxed);
         read_response(&mut stream, method == Method::HEAD).await
     };
-    let response = future::or(operation, async {
-        async_io::Timer::after(budget).await;
-        Err(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "ACME request deadline",
-        ))
-    })
+    let response = future::or(
+        async {
+            operation
+                .await
+                .map_err(|source| HttpsRequestError::Transport {
+                    phase: phase_name(&phase),
+                    source,
+                })
+        },
+        async {
+            async_io::Timer::after(budget).await;
+            Err(HttpsRequestError::Timeout {
+                phase: phase_name(&phase),
+            })
+        },
+    )
     .await?;
     if !response.status().is_success() {
         return Err(HttpsRequestError::Non2xxStatus {
@@ -248,6 +371,14 @@ pub async fn read_response<R: AsyncRead + Unpin>(
 
 #[derive(Error, Debug)]
 pub enum HttpsRequestError {
+    #[error("ACME {phase} request deadline")]
+    Timeout { phase: &'static str },
+    #[error("ACME {phase} transport failure")]
+    Transport {
+        phase: &'static str,
+        #[source]
+        source: io::Error,
+    },
     #[error("ACME transport error: {0}")]
     Io(#[from] io::Error),
     #[error("ACME HTTP status {status_code}")]
@@ -268,6 +399,125 @@ mod tests {
         self, RootCertStore, ServerConfig, ServerConnection, StreamOwned,
     };
     use std::{net::TcpListener, thread, time::Instant};
+
+    #[test]
+    fn candidates_are_bounded_distinct_and_preserve_both_families() {
+        let v4: SocketAddr = "127.0.0.1:443".parse().unwrap();
+        let mut input: Vec<SocketAddr> = (1..=40)
+            .map(|i| format!("[2001:db8::{i:x}]:443").parse().unwrap())
+            .collect();
+        input.push(v4);
+        let selected = candidates(input.clone());
+        assert_eq!(selected.len(), MAX_CONNECT_ATTEMPTS);
+        assert_eq!(selected[0], input[0]);
+        assert_eq!(selected[1], v4);
+        for (i, addr) in selected.iter().enumerate() {
+            assert!(input.contains(addr));
+            assert!(!selected[..i].contains(addr));
+        }
+        input.insert(0, v4);
+        assert_eq!(candidates(input)[..2], [v4, selected[0]]);
+        assert_eq!(candidates([v4; 32]), [v4]);
+        assert!(candidates([]).is_empty());
+    }
+
+    #[test]
+    fn a_stalled_first_address_does_not_block_a_working_address() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let working = listener.local_addr().unwrap();
+        let stalled: SocketAddr = "[2001:db8::1]:443".parse().unwrap();
+        let start = Instant::now();
+        let result = future::block_on(future::or(
+            connect_candidates(vec![stalled, working], CONNECT_DELAY, |addr| async move {
+                if addr == stalled {
+                    future::pending::<()>().await;
+                }
+                async_net::TcpStream::connect(addr).await
+            }),
+            async {
+                async_io::Timer::after(Duration::from_secs(3)).await;
+                Err(invalid())
+            },
+        ))
+        .unwrap();
+        assert_eq!(result.peer_addr().unwrap(), working);
+        assert!(start.elapsed() >= CONNECT_DELAY);
+        assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn early_failure_is_not_a_winner_and_first_success_stops_launching() {
+        use std::cell::Cell;
+        let addresses = (1..=4)
+            .map(|p| SocketAddr::from(([127, 0, 0, 1], p)))
+            .collect::<Vec<_>>();
+        for first_fails in [false, true] {
+            let launched = Cell::new(0);
+            let result = future::block_on(connect_candidates(
+                addresses.clone(),
+                Duration::from_millis(5),
+                |addr| {
+                    launched.set(launched.get() + 1);
+                    async move {
+                        if first_fails && addr.port() == 1 {
+                            Err(io::ErrorKind::ConnectionRefused.into())
+                        } else {
+                            Ok(addr.port())
+                        }
+                    }
+                },
+            ))
+            .unwrap();
+            assert_eq!(result, if first_fails { 2 } else { 1 });
+            assert_eq!(launched.get(), usize::from(result));
+        }
+    }
+
+    #[test]
+    fn deadline_cancels_all_attempts_and_overlimit_never_dials() {
+        use std::{cell::Cell, rc::Rc};
+        struct Held(Rc<Cell<usize>>);
+        impl Drop for Held {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() - 1);
+            }
+        }
+        let live = Rc::new(Cell::new(0));
+        let launched = Cell::new(0);
+        let addresses = (1..=MAX_CONNECT_ATTEMPTS)
+            .map(|p| SocketAddr::from(([127, 0, 0, 1], p as u16)))
+            .collect::<Vec<_>>();
+        let result = future::block_on(future::or(
+            connect_candidates(addresses.clone(), Duration::from_millis(5), |_| {
+                live.set(live.get() + 1);
+                launched.set(launched.get() + 1);
+                assert!(live.get() <= MAX_CONNECT_ATTEMPTS);
+                let held = Held(live.clone());
+                async move {
+                    let _held = held;
+                    future::pending::<io::Result<()>>().await
+                }
+            }),
+            async {
+                async_io::Timer::after(Duration::from_millis(100)).await;
+                Err(io::Error::from(io::ErrorKind::TimedOut))
+            },
+        ));
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(launched.get() > 1 && launched.get() <= MAX_CONNECT_ATTEMPTS);
+        assert_eq!(live.get(), 0);
+        for rejected in [Vec::new(), vec![addresses[0]; MAX_CONNECT_ATTEMPTS + 1]] {
+            assert!(
+                future::block_on(connect_candidates(rejected, CONNECT_DELAY, |_| {
+                    panic!("invalid candidate count must not dial");
+                    #[allow(unreachable_code)]
+                    future::ready(Ok::<(), io::Error>(()))
+                }))
+                .is_err()
+            );
+        }
+    }
+
     #[test]
     fn verified_tls_and_total_deadline_cover_a_slow_response_body() {
         for trust in [false, true] {
@@ -340,9 +590,10 @@ mod tests {
                 Duration::from_millis(300),
             ));
             if trust {
-                assert!(
-                    matches!(result,Err(HttpsRequestError::Io(e)) if e.kind()==io::ErrorKind::TimedOut)
-                );
+                assert!(matches!(
+                    result,
+                    Err(HttpsRequestError::Timeout { phase: "response" })
+                ));
             } else {
                 assert!(result.is_err());
             }

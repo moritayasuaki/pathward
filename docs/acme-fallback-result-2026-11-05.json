@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-05",
+  "baseline_source": "ea6494ff8d6027db6427201b7200860a3e013f80",
+  "observed_failure": {
+    "outbound_ipv6_first": true,
+    "ipv6_connect_seconds": 31.031,
+    "ipv6_result": "timed_out",
+    "ipv4_connect_seconds": 0.005,
+    "ipv4_result": "connected",
+    "prior_acme_attempt_seconds": [
+      30,
+      30
+    ],
+    "guarded_cutover": "rolled_back"
+  },
+  "fix": {
+    "max_candidates": 8,
+    "launch_delay_ms": 250,
+    "request_budget_seconds": 30,
+    "original_tls_hostname_retained": true,
+    "additional_dependencies": 0
+  },
+  "validation": {
+    "fork_regression_tests": 5,
+    "redacted_diagnostic_test": true,
+    "full_local_make_check": true,
+    "public_read_only_probe_local_ms": 994,
+    "native_linux_ci": "pending",
+    "production_host_read_only_probe": "pending"
+  },
+  "proofs": {
+    "named_statements": 397,
+    "axiom_free": 17,
+    "custom_axioms": 0,
+    "new_transport_adapter_formally_proved": false,
+    "roadmap": "ACME-CONNECT"
+  },
+  "public_ca_issuance": "not retried"
+}

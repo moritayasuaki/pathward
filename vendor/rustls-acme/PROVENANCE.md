@@ -14,6 +14,13 @@ The original ACME/JOSE signing and protocol structures are retained. Changes:
   transport. Every discovered URL must match the configured origin, responses
   have an 8 KiB header / 64-field / 1 MiB body cap, and each request has a total
   30-second deadline. No redirects, compression, chunk extensions or trailers.
+- Interleave the resolver's IPv4/IPv6 results, retaining order within each family
+  and trying at most eight distinct endpoints. Start attempts 250 ms apart and
+  cancel losing sockets on success or request cancellation. A blackholed first
+  family cannot consume the entire request budget before another family is tried.
+  This is bounded staggered dialing, not a complete RFC 8305 DNS engine.
+- Categorize transport failures by fixed DNS/connect/TLS/write/response labels.
+  These categories contain no CA response text, nonces, account URLs or keys.
 - Remove response-body debug logging. Return RNG and challenge-key errors rather
   than unwrapping. Reject duplicate identity-bearing response headers.
 - Supply only ring cryptography. The smaller manifest omits upstream high-level

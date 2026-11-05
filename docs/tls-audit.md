@@ -1,5 +1,42 @@
 # TLS/ACME integration audit — 2026-10-31
 
+## 2026-11-05: bounded dual-stack connection fallback
+
+A production-host read-only probe found the first resolved IPv6 address still
+unconnected after 31 seconds, while the following IPv4 address connected in
+5 ms. The previous `async_net::TcpStream::connect(hostname)` tried addresses
+sequentially, so the 30-second request budget expired before IPv4 was attempted.
+The failed cutover made two 30-second ACME attempts and restored the prior server.
+
+The reviewed fork now interleaves address families and starts up to eight distinct
+DNS-provided endpoints, 250 ms apart. It holds at most eight candidate addresses
+per family while selecting and at most eight connect futures. A successful TCP
+connection cancels the losing futures; TLS still authenticates the original
+configured CA hostname before any ACME payload is sent. No redirect or origin
+policy is relaxed. DNS, TCP, TLS, request writing and response reading share the
+same 30-second deadline; starting a candidate does not renew that deadline.
+
+The scheduling follows the staggered-connection principle in
+[RFC 8305 section 5](https://www.rfc-editor.org/rfc/rfc8305.html#section-5), but
+uses the system resolver and does not claim the RFC's full asynchronous DNS or
+NAT64 behavior. A broken host IPv6 route remains an operational issue to repair.
+No external package or dependency feature was added.
+
+Regression tests cover a permanently pending first address followed by a real
+working TCP endpoint, immediate refusal followed by success, cancellation of all
+live attempts at the request deadline, the eight-attempt gate, family diversity,
+duplicate removal, and preservation of verified TLS and slow-response deadlines.
+Failures now log fixed request-stage/transport-stage categories and HTTP status,
+without response bodies, account URLs, nonces, credentials, or raw I/O text.
+
+These async/OS adapters remain outside Lean extraction. The 397 existing theorem
+statements retain their scope; connection scheduling and Drop correspondence are
+tracked as `ACME-CONNECT` in the proof roadmap, not counted as proved.
+`acme_probe production|staging` performs only directory GET and nonce HEAD with
+the same client. It never creates an account, order, cache or certificate.
+
+## Original integration review
+
 The dependency-free extracted Rust core now also checks SNI/Host identity,
 private-file metadata, certificate activation and renewal deadlines. TLS,
 cryptography, ACME, certificate parsers, filesystem operations and time inputs

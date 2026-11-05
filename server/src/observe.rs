@@ -303,6 +303,16 @@ impl Observability {
         };
         self.event(event, 0, retry);
     }
+    pub(crate) fn acme_diagnostic(
+        &self,
+        stage: &'static str,
+        reason: &'static str,
+        transport: &'static str,
+        status: u16,
+    ) {
+        // All labels are fixed internal categories, never values returned by a CA.
+        self.emit(format!("\"event\":\"acme_failure_detail\",\"stage\":\"{stage}\",\"reason\":\"{reason}\",\"transport\":\"{transport}\",\"http_status\":{status}"));
+    }
     pub(crate) fn connection(self: &Arc<Self>) -> Active {
         self.active.fetch_add(1, Ordering::Relaxed);
         Active(self.clone())
