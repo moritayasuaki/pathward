@@ -17,7 +17,8 @@
     "SafetyProofs": "公開縮小・失効・古い設定・制限強化・累積バイト数",
     "CancellationProofs": "キャンセル優先の判断と接続内の保留・実行状態モデル",
     "ConnectionProofs": "ACME接続試行の上限・共通期限と所有権の遷移モデル",
-    "CutoverProofs": "管理者切替の判断・期限・永続世代とプロセス障害モデル"
+    "CutoverProofs": "管理者切替の判断・期限・永続世代とプロセス障害モデル",
+    "RecoveryProofs": "再起動時の旧新選択・起動許可・書込み中断と永続化のモデル"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -37,7 +38,16 @@
     "CutoverProofs.step_preserves_guard_coverage",
     "CutoverProofs.disarm_step_has_commit",
     "CutoverProofs.process_failures_keep_guard",
-    "CutoverProofs.watchdog_cannot_undo_durable_commit"
+    "CutoverProofs.watchdog_cannot_undo_durable_commit",
+    "RecoveryProofs.boot_choice_new_iff",
+    "RecoveryProofs.boot_choice_old_unless_checked_commit",
+    "RecoveryProofs.temporary_never_becomes_recovery_record",
+    "RecoveryProofs.file_sync_alone_never_promotes",
+    "RecoveryProofs.unsynced_temporary_cannot_rename",
+    "RecoveryProofs.no_committed_name_no_promotion",
+    "RecoveryProofs.renamed_commit_recovers_only_verified_target",
+    "RecoveryProofs.directory_sync_agrees_on_committed_record",
+    "RecoveryProofs.torn_record_falls_back_after_any_write"
   ],
   "axioms": {
     "Classical.choice": {
@@ -62,7 +72,8 @@
     "公開マニフェストの内容が機密ではないという運用判断とバックエンドの認証",
     "ホスティング側のPythonスナップショット生成・受領票・systemd連携。Leanで証明済みのRust設定検証とCASを通すが、Python/OS実装全体は未証明。",
     "ACMEアダプターが同じInstantと予算を保持し、試行数を正しく渡すこと。DNS候補の由来・選択とFuture/ソケットのDrop実行は回帰試験・レビュー対象。",
-    "管理者アダプターのcutover-policy呼出し、boot ID・単調時計・systemd状態の観測、ロックとatomic/fsync記録。Rust CLIは判断だけを返し権限や外部検証を付与しない。"
+    "管理者アダプターのcutover-policy呼出し、boot ID・単調時計・systemd状態の観測、ロックとatomic/fsync記録。Rust CLIは判断だけを返し権限や外部検証を付与しない。",
+    "復旧計画と既存旧設定が別々に永続化済みであること、JSONチェックサム・権限検査の正しさ、fsync/renameとsystemd依存・競合制御。媒体全損、root攻撃者、悪意あるマウントは対象外。"
   ],
   "goals": [
     {
@@ -202,11 +213,14 @@
       "priority": "P0",
       "status": "in_progress",
       "title": "設定の永続化・有効化・切り戻しの障害時整合性",
-      "acceptance": "ディスク操作の前提を明示したクラッシュ状態モデルで、各障害点から検証済み旧設定または新設定へ回復し、混合設定を公開しないことを証明する。OS永続化そのものは前提として残す。 原子的記録と独立タイマーを前提とした管理者プロセス障害のガード保存は証明済み。ホスト再起動、破損・部分書込、起動時のサービス順序、Python/OS実装全体との対応はP0として残す。",
+      "acceptance": "ディスク操作の前提を明示したクラッシュ状態モデルで、各障害点から検証済み旧設定または新設定へ回復し、混合設定を公開しないことを証明する。OS永続化そのものは前提として残す。 原子的記録と独立タイマーを前提とした管理者プロセス障害のガード保存は証明済み。ホスト再起動、破損・部分書込、起動時のサービス順序、Python/OS実装全体との対応はP0として残す。 再起動選択・部分書込みの復旧ゲートと保存モデルを追加。実ディスク・systemd・Pythonの全対応証明、既存復旧ガード自身の更新手順、媒体全損からの復旧は未完了。",
       "theorems": [
         "SafetyProofs.stale_after_success",
         "CutoverProofs.process_failures_keep_guard",
-        "CutoverProofs.disarm_step_has_commit"
+        "CutoverProofs.disarm_step_has_commit",
+        "RecoveryProofs.no_committed_name_no_promotion",
+        "RecoveryProofs.directory_sync_agrees_on_committed_record",
+        "RecoveryProofs.torn_record_falls_back_after_any_write"
       ]
     },
     {
@@ -353,6 +367,53 @@
         "CutoverProofs.disarm_step_has_commit",
         "CutoverProofs.watchdog_cannot_undo_durable_commit"
       ]
+    },
+    {
+      "id": "BOOT-SELECTION",
+      "priority": "P0",
+      "status": "proved",
+      "title": "欠落・破損・未確定の記録で新サービスを起動しない",
+      "acceptance": "実Rustの起動判断から、新選択には有効な計画・記録・同一取引の確定・新候補検査が全て必要。旧構成が検証済みなら記録不正時は旧へ戻り、どちらも不正なら保留。Pythonでの観測とチェックサム判定は信頼境界。",
+      "theorems": [
+        "RecoveryProofs.new_requires_bound_commit",
+        "RecoveryProofs.torn_record_uses_old",
+        "RecoveryProofs.pending_record_uses_old",
+        "RecoveryProofs.neither_verified_holds"
+      ]
+    },
+    {
+      "id": "BOOT-PERMIT",
+      "priority": "P0",
+      "status": "proved",
+      "title": "再起動前の許可を再利用せず旧新を同時に許可しない",
+      "acceptance": "同じ計画・同じboot IDの許可で指定した片方のみ開始可能。試運転は再起動後・15分以上で拒否。実systemdの起動順序は隔離実機試験対象で、進行性は証明しない。",
+      "theorems": [
+        "RecoveryProofs.start_iff",
+        "RecoveryProofs.mutually_exclusive_start",
+        "RecoveryProofs.previous_boot_permit_denied",
+        "RecoveryProofs.trial_cannot_survive_reboot"
+      ]
+    },
+    {
+      "id": "JOURNAL-CRASH-MODEL",
+      "priority": "P0",
+      "status": "proved",
+      "title": "同期前の一時ファイルを確定として採用しない",
+      "acceptance": "独立計画とrename/fsyncの記憶モデルで、作成・途中書込み・ファイル同期だけでは復旧候補が変わらない。同期済み名前の旧新いずれか、または壊れた記録の旧構成への退避を扱う。OS永続化やJSON実装自体の証明ではない。",
+      "theorems": [
+        "RecoveryProofs.temporary_never_becomes_recovery_record",
+        "RecoveryProofs.file_sync_alone_never_promotes",
+        "RecoveryProofs.no_committed_name_no_promotion",
+        "RecoveryProofs.renamed_commit_recovers_only_verified_target"
+      ]
+    },
+    {
+      "id": "RECOVERY-UPGRADE",
+      "priority": "P1",
+      "status": "planned",
+      "title": "既存復旧ガード自身の更新と再試行の可用性",
+      "acceptance": "初回導入とは別に、既存の計画・unit・実行ファイルを更新中に中断しても旧復旧ガードか新復旧ガードが起動できる配布プロトコルを検証する。現在は異なる既存ガードの上書きを拒否し、専用移行を要求する。",
+      "theorems": []
     }
   ]
 }

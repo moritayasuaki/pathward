@@ -138,4 +138,5 @@ pub mod connection;
 pub mod content;
 pub mod cutover;
 pub mod delivery;
+pub mod recovery;
 pub mod upstream;

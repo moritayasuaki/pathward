@@ -126,7 +126,12 @@ def main():
                         "--start-from", "pathward::cutover::commit_allowed",
                         "--start-from", "pathward::cutover::disarm_allowed",
                         "--start-from", "pathward::cutover::watchdog_required",
-                        "--dest-file", str(llbc)],
+                        "--start-from", "pathward::recovery::select",
+                        "--start-from", "pathward::recovery::start_allowed",
+                        "--start-from", "pathward::recovery::stop_old_allowed",
+                        "--start-from", "pathward::recovery::trial_allowed",
+                        "--start-from", "pathward::recovery::fallback_allowed",
+                        "--dest-file", str(llbc), "--", "--lib"],
                        cwd=ROOT, check=True)
         subprocess.run([str(AENEAS), "-backend", "lean", "-loops-to-rec", "-no-progress-bar",
                         "-abort-on-error", "-warnings-as-errors", "-dest", str(output), str(llbc)],

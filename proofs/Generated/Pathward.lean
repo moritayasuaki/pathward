@@ -1270,6 +1270,143 @@ def proxy.response_header
     else ok false
   else ok false
 
+/-- [pathward::recovery::Selection]
+    Source: 'src/recovery.rs', lines 5:0-9:1
+    Visibility: public -/
+@[discriminant isize]
+inductive recovery.Selection where
+| Hold : recovery.Selection
+| Old : recovery.Selection
+| New : recovery.Selection
+
+/-- [pathward::recovery::{impl core::cmp::PartialEq<pathward::recovery::Selection> for pathward::recovery::Selection}::eq]:
+    Source: 'src/recovery.rs', lines 4:29-4:38
+    Visibility: public -/
+def recovery.Selection.Insts.CoreCmpPartialEqSelection.eq
+  (self : recovery.Selection) (other : recovery.Selection) : RustM Bool := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- Trait implementation: [pathward::recovery::{impl core::cmp::PartialEq<pathward::recovery::Selection> for pathward::recovery::Selection}]
+    Source: 'src/recovery.rs', lines 4:29-4:38 -/
+@[reducible]
+impl_def recovery.Selection.Insts.CoreCmpPartialEqSelection :
+  core.cmp.PartialEq recovery.Selection recovery.Selection := {
+  eq := recovery.Selection.Insts.CoreCmpPartialEqSelection.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    recovery.Selection.Insts.CoreCmpPartialEqSelection
+}
+
+/-- [pathward::recovery::select]:
+    Source: 'src/recovery.rs', lines 11:0-28:1
+    Visibility: public -/
+def recovery.select
+  (plan_valid : Bool) (record_valid : Bool) (committed : Bool)
+  (same_transaction : Bool) (new_valid : Bool) (old_valid : Bool) :
+  RustM recovery.Selection
+  := do
+  if plan_valid
+  then
+    if record_valid
+    then
+      if committed
+      then
+        if same_transaction
+        then
+          if new_valid
+          then ok recovery.Selection.New
+          else
+            if old_valid
+            then ok recovery.Selection.Old
+            else ok recovery.Selection.Hold
+        else
+          if old_valid
+          then ok recovery.Selection.Old
+          else ok recovery.Selection.Hold
+      else
+        if old_valid
+        then ok recovery.Selection.Old
+        else ok recovery.Selection.Hold
+    else
+      if old_valid
+      then ok recovery.Selection.Old
+      else ok recovery.Selection.Hold
+  else ok recovery.Selection.Hold
+
+/-- [pathward::recovery::start_allowed]:
+    Source: 'src/recovery.rs', lines 30:0-37:1
+    Visibility: public -/
+def recovery.start_allowed
+  (chosen : recovery.Selection) (requested : recovery.Selection)
+  (same_boot : Bool) (same_plan : Bool) :
+  RustM Bool
+  := do
+  if same_boot
+  then
+    if same_plan
+    then
+      let b ←
+        core.cmp.PartialEq.ne.trait_default
+          recovery.Selection.Insts.CoreCmpPartialEqSelection chosen
+          recovery.Selection.Hold
+      if b
+      then
+        recovery.Selection.Insts.CoreCmpPartialEqSelection.eq chosen requested
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::recovery::stop_old_allowed]:
+    Source: 'src/recovery.rs', lines 39:0-41:1
+    Visibility: public -/
+def recovery.stop_old_allowed
+  (plan_durable : Bool) (boot_guard_durable : Bool) (old_valid : Bool) :
+  RustM Bool
+  := do
+  if plan_durable
+  then if boot_guard_durable
+       then ok old_valid
+       else ok false
+  else ok false
+
+/-- [pathward::recovery::trial_allowed]:
+    Source: 'src/recovery.rs', lines 43:0-45:1
+    Visibility: public -/
+def recovery.trial_allowed
+  (same_boot : Bool) (same_plan : Bool) (timer_armed : Bool)
+  (elapsed_ns : Std.U64) :
+  RustM Bool
+  := do
+  if same_boot
+  then
+    if same_plan
+    then if timer_armed
+         then ok (elapsed_ns < 900000000000#u64)
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::recovery::fallback_allowed]:
+    Source: 'src/recovery.rs', lines 47:0-55:1
+    Visibility: public -/
+def recovery.fallback_allowed
+  (selected_new : Bool) (same_boot : Bool) (same_plan : Bool) (failed : Bool)
+  (old_valid : Bool) :
+  RustM Bool
+  := do
+  if selected_new
+  then
+    if same_boot
+    then
+      if same_plan
+      then if failed
+           then ok old_valid
+           else ok false
+      else ok false
+    else ok false
+  else ok false
+
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/

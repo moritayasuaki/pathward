@@ -20,7 +20,12 @@ proof-check:
 	cd proofs && lake build
 	python3 scripts/audit.py
 
-check: rust-check config-check server-check proof-check soak-check
+check: rust-check config-check server-check proof-check soak-check recovery-check
+
+.PHONY: recovery-check
+recovery-check:
+	cargo build --offline --locked --release --bin pathward-recovery
+	python3 -m unittest discover -s scripts -p 'test_recovery.py'
 
 .PHONY: config-setup config-check
 
