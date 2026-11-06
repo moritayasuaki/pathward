@@ -15,14 +15,29 @@
     "UpstreamProofs": "認証情報なしの部屋探索・転送先選択",
     "DeliveryProofs": "バイト予算・接続再利用・圧縮・多重化・0-RTTのゲート",
     "SafetyProofs": "公開縮小・失効・古い設定・制限強化・累積バイト数",
-    "CancellationProofs": "キャンセル優先の判断と接続内の保留・実行状態モデル"
+    "CancellationProofs": "キャンセル優先の判断と接続内の保留・実行状態モデル",
+    "ConnectionProofs": "ACME接続試行の上限・共通期限と所有権の遷移モデル",
+    "CutoverProofs": "管理者切替の判断・期限・永続世代とプロセス障害モデル"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
     "SafetyProofs.wire_run_bounded",
     "CancellationProofs.step_preserves_bound",
     "CancellationProofs.every_interleaving_bounded",
-    "CancellationProofs.cancellation_releases_held_slot"
+    "CancellationProofs.cancellation_releases_held_slot",
+    "ConnectionProofs.initial_valid",
+    "ConnectionProofs.step_preserves_ownership",
+    "ConnectionProofs.step_keeps_request_clock",
+    "ConnectionProofs.terminal_does_not_launch",
+    "ConnectionProofs.every_interleaving_bounded",
+    "ConnectionProofs.attempts_cannot_extend_deadline",
+    "ConnectionProofs.terminal_run_cannot_redial",
+    "ConnectionProofs.terminal_releases_pending",
+    "CutoverProofs.prepared_is_safe",
+    "CutoverProofs.step_preserves_guard_coverage",
+    "CutoverProofs.disarm_step_has_commit",
+    "CutoverProofs.process_failures_keep_guard",
+    "CutoverProofs.watchdog_cannot_undo_durable_commit"
   ],
   "axioms": {
     "Classical.choice": {
@@ -45,7 +60,9 @@
     "Atomic・Arc・ロック・FutureのpollとDropの実行・実行器の公平性",
     "OSのファイルオープン・ディスク永続化・時計・ソケット・systemd",
     "公開マニフェストの内容が機密ではないという運用判断とバックエンドの認証",
-    "ホスティング側のPythonスナップショット生成・受領票・systemd連携。Leanで証明済みのRust設定検証とCASを通すが、Python/OS実装全体は未証明。"
+    "ホスティング側のPythonスナップショット生成・受領票・systemd連携。Leanで証明済みのRust設定検証とCASを通すが、Python/OS実装全体は未証明。",
+    "ACMEアダプターが同じInstantと予算を保持し、試行数を正しく渡すこと。DNS候補の由来・選択とFuture/ソケットのDrop実行は回帰試験・レビュー対象。",
+    "管理者アダプターのcutover-policy呼出し、boot ID・単調時計・systemd状態の観測、ロックとatomic/fsync記録。Rust CLIは判断だけを返し権限や外部検証を付与しない。"
   ],
   "goals": [
     {
@@ -183,11 +200,13 @@
     {
       "id": "DEPLOY-CRASH",
       "priority": "P0",
-      "status": "planned",
+      "status": "in_progress",
       "title": "設定の永続化・有効化・切り戻しの障害時整合性",
-      "acceptance": "ディスク操作の前提を明示したクラッシュ状態モデルで、各障害点から検証済み旧設定または新設定へ回復し、混合設定を公開しないことを証明する。OS永続化そのものは前提として残す。",
+      "acceptance": "ディスク操作の前提を明示したクラッシュ状態モデルで、各障害点から検証済み旧設定または新設定へ回復し、混合設定を公開しないことを証明する。OS永続化そのものは前提として残す。 原子的記録と独立タイマーを前提とした管理者プロセス障害のガード保存は証明済み。ホスト再起動、破損・部分書込、起動時のサービス順序、Python/OS実装全体との対応はP0として残す。",
       "theorems": [
-        "SafetyProofs.stale_after_success"
+        "SafetyProofs.stale_after_success",
+        "CutoverProofs.process_failures_keep_guard",
+        "CutoverProofs.disarm_step_has_commit"
       ]
     },
     {
@@ -271,10 +290,69 @@
     {
       "id": "ACME-CONNECT",
       "priority": "P1",
-      "status": "planned",
+      "status": "in_progress",
       "title": "CA接続の候補数・期限・取消時の解放を実装へ対応付ける",
-      "acceptance": "DNS由来候補だけを最大8件試し、新しい試行で30秒の要求期限を延長せず、成功・取消時に残りの接続資源を解放する性質を実装に対応する抽出または遷移モデルで証明する。現在は候補選択・保留接続・失敗後成功・Drop・実TCP/TLSの回帰試験で検証し、OSのネットワーク到達性は証明対象外。",
-      "theorems": []
+      "acceptance": "DNS由来候補だけを最大8件試し、新しい試行で30秒の要求期限を延長せず、成功・取消時に残りの接続資源を解放する性質を実装に対応する抽出または遷移モデルで証明する。現在は候補選択・保留接続・失敗後成功・Drop・実TCP/TLSの回帰試験で検証し、OSのネットワーク到達性は証明対象外。 試行数・期限のRustゲートと所有権遷移モデルは証明済み。DNS候補の由来・重複排除・実Future/Dropとモデルの全対応は未完了。",
+      "theorems": [
+        "ConnectionProofs.launch_bounded",
+        "ConnectionProofs.deadline_wins_over_success",
+        "ConnectionProofs.attempts_cannot_extend_deadline",
+        "ConnectionProofs.terminal_releases_pending"
+      ]
+    },
+    {
+      "id": "CONNECT-GATES",
+      "priority": "P0",
+      "status": "proved",
+      "title": "9回目の接続と期限後の成功を許可しない",
+      "acceptance": "実際に接続アダプターが呼ぶRustゲートから抽出。候補・試行数は8以下、要求予算は30秒以下、経過が予算以上なら開始も成功も拒否。pollが期限を越えてから成功しても再検査する。実時間でのpoll完了そのものは保証しない。",
+      "theorems": [
+        "ConnectionProofs.launch_bounded",
+        "ConnectionProofs.ninth_attempt_denied",
+        "ConnectionProofs.deadline_wins_over_success",
+        "ConnectionProofs.expired_never_reopens"
+      ]
+    },
+    {
+      "id": "CONNECT-OWNERSHIP-MODEL",
+      "priority": "P0",
+      "status": "proved",
+      "title": "接続の競争・取消の任意の順序で所有数を保存",
+      "acceptance": "Rustゲートに従う遷移モデルで、保持＋解放＋受渡済み接続＝開始数≤8。勝者は最大1、終了後は再接続せず保留を残さない。実行器・Dropとモデルの全対応証明ではない。",
+      "theorems": [
+        "ConnectionProofs.every_interleaving_bounded",
+        "ConnectionProofs.attempts_cannot_extend_deadline",
+        "ConnectionProofs.terminal_run_cannot_redial",
+        "ConnectionProofs.terminal_releases_pending"
+      ]
+    },
+    {
+      "id": "CUTOVER-GATES",
+      "priority": "P0",
+      "status": "proved",
+      "title": "切替・確定・自動復旧解除を必要条件で制限",
+      "acceptance": "管理者用読取専用CLIが呼ぶRustを抽出。復旧ガードなしの旧サービス停止、異なるboot・時計逆行・開始から900秒以上の確定、未検証の確定、異なる／ゼロ世代のガード解除を拒否する。観測値の真正性とCLIの利用・管理権限は呼出側の責務。",
+      "theorems": [
+        "CutoverProofs.cannot_stop_without_guard",
+        "CutoverProofs.deadline_and_boot_required",
+        "CutoverProofs.reboot_cannot_commit",
+        "CutoverProofs.expired_cannot_commit",
+        "CutoverProofs.backwards_clock_denied",
+        "CutoverProofs.commit_requires_all_checks",
+        "CutoverProofs.disarm_requires_same_durable_epoch"
+      ]
+    },
+    {
+      "id": "CUTOVER-PROCESS-MODEL",
+      "priority": "P0",
+      "status": "proved",
+      "title": "確定前のプロセス障害で復旧ガードを失わない",
+      "acceptance": "独立ガードと原子的記録を前提に、旧サービス停止中かつ未確定ならガードを保つ。解除には同じ世代の永続確定が必要で、遅れた自動watchdogは確定を取り消さない。ホスト再起動・手動切り戻し・systemdとPythonの全対応は含まない。",
+      "theorems": [
+        "CutoverProofs.process_failures_keep_guard",
+        "CutoverProofs.disarm_step_has_commit",
+        "CutoverProofs.watchdog_cannot_undo_durable_commit"
+      ]
     }
   ]
 }

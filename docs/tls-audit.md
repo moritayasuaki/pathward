@@ -105,7 +105,7 @@ is dated evidence, not a security guarantee. std/compiler/OS are outside RustSec
 
 The actual Rust decisions are freshly extracted through Charon/Aeneas and checked
 in [TlsProofs.lean](../proofs/TlsProofs.lean), alongside existing path/rule/serving
-proofs. The 70-statement audit permits only standard Lean axioms, with no holes.
+proofs. The generated theorem registry and axiom audit permit only standard Lean axioms, with no holes.
 Proofs establish exact identity/metadata/activation contracts, no unpersisted or
 expired activation, total renewal arithmetic and retry at expiration. They do
 not prove cryptography, that OS fsync reached stable media, parser correctness,
@@ -148,3 +148,28 @@ Primary references: [rustls source](https://github.com/rustls/rustls),
 [openat2](https://man7.org/linux/man-pages/man2/openat2.2.html),
 [fsync](https://man7.org/linux/man-pages/man2/fsync.2.html),
 [Pebble](https://github.com/letsencrypt/pebble/tree/v2.10.1).
+
+
+## Connection deadline follow-up (2026-11-06)
+
+The fork now calls the zero-dependency local core for candidate slots, launches,
+and accepted-success deadlines; this adds no external package or feature.
+One `RequestClock` is retained through DNS, TCP, TLS, and response. New launches
+cannot reset it. A late ready connection and final HTTPS response are rechecked
+against the same deadline, including when one poll overruns the timer. The
+elapsed conversion fails closed on overflow. Review checked that attempted
+slots are retained in the vector even after failure, so failures cannot reset
+the count. The new core gates are extracted and proved in `ConnectionProofs`.
+
+The ownership transition model proves conservation, at most eight launches,
+at most one winner, no pending ownership after termination, and no new launch
+after termination. This is not a proof of Rust Future/Drop or all DNS selection.
+Seven fork tests include delayed first-family dialing, failure then success,
+loser/cancellation Drop, rejection of late success, and real TCP. The server
+suite separately covers certificate verification and total slow-body timeout.
+The reviewed graph retains the same external package versions/features; local
+fork source hashes and the lockfile's local-core edge are explicitly refreshed.
+
+The [dated audit record](connection-cutover-audit.json) records the exact lockfile,
+fork hashes, and RustSec database revision for this follow-up (zero findings or
+warnings, no ignored advisories or platform/severity filters).

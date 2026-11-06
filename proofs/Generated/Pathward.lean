@@ -17,6 +17,52 @@ set_option maxRecDepth 2048
 
 namespace pathward
 
+/-- [pathward::connection::candidate_slot]:
+    Source: 'src/connection.rs', lines 5:0-7:1
+    Visibility: public -/
+def connection.candidate_slot (used : Std.U64) : RustM Bool := do
+  ok (used < 8#u64)
+
+/-- [pathward::connection::request_live]:
+    Source: 'src/connection.rs', lines 9:0-11:1
+    Visibility: public -/
+def connection.request_live
+  (elapsed_ns : Std.U64) (budget_ns : Std.U64) : RustM Bool := do
+  if budget_ns > 0#u64
+  then
+    if budget_ns <= 30000000000#u64
+    then ok (elapsed_ns < budget_ns)
+    else ok false
+  else ok false
+
+/-- [pathward::connection::launch_allowed]:
+    Source: 'src/connection.rs', lines 13:0-21:1
+    Visibility: public -/
+def connection.launch_allowed
+  (total : Std.U64) (launched : Std.U64) (elapsed_ns : Std.U64)
+  (budget_ns : Std.U64) (spaced : Bool) :
+  RustM Bool
+  := do
+  if total > 0#u64
+  then
+    if total <= 8#u64
+    then
+      if launched < total
+      then
+        if spaced
+        then connection.request_live elapsed_ns budget_ns
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::connection::success_allowed]:
+    Source: 'src/connection.rs', lines 24:0-26:1
+    Visibility: public -/
+def connection.success_allowed
+  (elapsed_ns : Std.U64) (budget_ns : Std.U64) : RustM Bool := do
+  connection.request_live elapsed_ns budget_ns
+
 /-- [pathward::serving::MAX_FILE_BYTES]
     Source: 'src/serving.rs', lines 5:0-5:51
     Visibility: public -/
@@ -90,6 +136,76 @@ def content.shared_cache_allowed
              else ok (status = 304#u16)
       else ok false
   else ok false
+
+/-- [pathward::cutover::stop_old_allowed]:
+    Source: 'src/cutover.rs', lines 5:0-7:1
+    Visibility: public -/
+def cutover.stop_old_allowed
+  (pending : Bool) (armed : Bool) (preflight : Bool) (unchanged : Bool) :
+  RustM Bool
+  := do
+  if pending
+  then if armed
+       then if preflight
+            then ok unchanged
+            else ok false
+       else ok false
+  else ok false
+
+/-- [pathward::cutover::window_allowed]:
+    Source: 'src/cutover.rs', lines 9:0-11:1
+    Visibility: public -/
+def cutover.window_allowed
+  (same_boot : Bool) (started_ns : Std.U64) (now_ns : Std.U64) :
+  RustM Bool
+  := do
+  if same_boot
+  then
+    if now_ns >= started_ns
+    then let i ← now_ns - started_ns
+         ok (i < 900000000000#u64)
+    else ok false
+  else ok false
+
+/-- [pathward::cutover::commit_allowed]:
+    Source: 'src/cutover.rs', lines 13:0-15:1
+    Visibility: public -/
+def cutover.commit_allowed
+  (awaiting : Bool) (verified : Bool) (in_window : Bool) (armed : Bool) :
+  RustM Bool
+  := do
+  if awaiting
+  then if verified
+       then if in_window
+            then ok armed
+            else ok false
+       else ok false
+  else ok false
+
+/-- [pathward::cutover::disarm_allowed]:
+    Source: 'src/cutover.rs', lines 17:0-19:1
+    Visibility: public -/
+def cutover.disarm_allowed
+  (committed : Bool) (persisted_epoch : Std.U64) (current_epoch : Std.U64) :
+  RustM Bool
+  := do
+  if committed
+  then
+    if current_epoch > 0#u64
+    then ok (persisted_epoch = current_epoch)
+    else ok false
+  else ok false
+
+/-- [pathward::cutover::watchdog_required]:
+    Source: 'src/cutover.rs', lines 23:0-25:1
+    Visibility: public -/
+def cutover.watchdog_required
+  (committed : Bool) (prepared : Bool) (restored : Bool) : RustM Bool := do
+  if committed
+  then ok false
+  else if prepared
+       then ok false
+       else ok (¬ restored)
 
 /-- [pathward::delivery::reserve_allowed]:
     Source: 'src/delivery.rs', lines 2:0-9:1

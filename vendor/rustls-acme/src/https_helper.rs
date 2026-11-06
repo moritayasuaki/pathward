@@ -2,6 +2,7 @@
 use futures_lite::{AsyncRead, AsyncReadExt, AsyncWriteExt, future};
 use futures_rustls::{TlsConnector, pki_types::ServerName, rustls::ClientConfig};
 use http::{Method, Response, Uri};
+use pathward::connection;
 use std::{
     future::Future,
     io,
@@ -12,7 +13,7 @@ use std::{
         atomic::{AtomicU8, Ordering},
     },
     task::Poll,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use thiserror::Error;
 
@@ -21,6 +22,41 @@ const MAX_HEAD: usize = 8192;
 const REQUEST_BUDGET: Duration = Duration::from_secs(30);
 const MAX_CONNECT_ATTEMPTS: usize = 8;
 const CONNECT_DELAY: Duration = Duration::from_millis(250);
+
+#[derive(Clone, Copy)]
+struct RequestClock {
+    started: Instant,
+    deadline: Instant,
+    budget_ns: u64,
+}
+
+impl RequestClock {
+    fn new(budget: Duration) -> io::Result<Self> {
+        let budget_ns = u64::try_from(budget.as_nanos()).map_err(|_| invalid())?;
+        if !connection::request_live(0, budget_ns) {
+            return Err(invalid());
+        }
+        let started = Instant::now();
+        let deadline = started.checked_add(budget).ok_or_else(invalid)?;
+        Ok(Self {
+            started,
+            deadline,
+            budget_ns,
+        })
+    }
+
+    fn elapsed_ns(self) -> u64 {
+        u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX)
+    }
+
+    fn live(self) -> bool {
+        connection::request_live(self.elapsed_ns(), self.budget_ns)
+    }
+
+    fn success(self) -> bool {
+        connection::success_allowed(self.elapsed_ns(), self.budget_ns)
+    }
+}
 
 /// Retain resolver order within each family, alternate families, and cap both
 /// storage and attempts. A long IPv6 prefix must not hide the first IPv4 result.
@@ -31,7 +67,7 @@ fn candidates(addresses: impl IntoIterator<Item = SocketAddr>) -> Vec<SocketAddr
     for address in addresses {
         first_v6.get_or_insert(address.is_ipv6());
         let family = if address.is_ipv6() { &mut v6 } else { &mut v4 };
-        if family.len() < MAX_CONNECT_ATTEMPTS && !family.contains(&address) {
+        if connection::candidate_slot(family.len() as u64) && !family.contains(&address) {
             family.push(address);
         }
     }
@@ -59,6 +95,7 @@ fn candidates(addresses: impl IntoIterator<Item = SocketAddr>) -> Vec<SocketAddr
 async fn connect_candidates<T, F, Fut>(
     addresses: Vec<SocketAddr>,
     delay: Duration,
+    clock: RequestClock,
     mut connect: F,
 ) -> io::Result<T>
 where
@@ -68,15 +105,28 @@ where
     if addresses.is_empty() || addresses.len() > MAX_CONNECT_ATTEMPTS {
         return Err(invalid());
     }
+    let total = addresses.len() as u64;
     let mut remaining = addresses.into_iter();
     let mut attempts: Vec<Option<Pin<Box<Fut>>>> = Vec::new();
     let mut timer = Box::pin(async_io::Timer::after(Duration::ZERO));
+    let mut expiry = Box::pin(async_io::Timer::at(clock.deadline));
     let mut last_error = None;
     future::poll_fn(|cx| {
+        if !clock.live() || expiry.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(Err(io::ErrorKind::TimedOut.into()));
+        }
         for attempt in &mut attempts {
             if let Some(pending) = attempt {
                 match pending.as_mut().poll(cx) {
-                    Poll::Ready(Ok(stream)) => return Poll::Ready(Ok(stream)),
+                    Poll::Ready(Ok(stream)) => {
+                        // A Future may monopolize a poll until after the deadline.
+                        // Even then, a late ready value must not beat the timer.
+                        return Poll::Ready(if clock.success() {
+                            Ok(stream)
+                        } else {
+                            Err(io::ErrorKind::TimedOut.into())
+                        });
+                    }
                     Poll::Ready(Err(error)) => {
                         last_error = Some(error);
                         *attempt = None;
@@ -85,7 +135,13 @@ where
                 }
             }
         }
-        if remaining.len() > 0 && timer.as_mut().poll(cx).is_ready() {
+        if connection::launch_allowed(
+            total,
+            attempts.len() as u64,
+            clock.elapsed_ns(),
+            clock.budget_ns,
+            timer.as_mut().poll(cx).is_ready(),
+        ) {
             let Some(address) = remaining.next() else {
                 return Poll::Ready(Err(invalid()));
             };
@@ -190,12 +246,14 @@ async fn https_budget(
         return Err(invalid().into());
     }
     let phase = AtomicU8::new(0);
+    let clock = RequestClock::new(budget)?;
     let operation = async {
         let addresses = async_net::resolve((client.host.as_str(), client.port)).await?;
         phase.store(1, Ordering::Relaxed);
         let tcp = connect_candidates(
             candidates(addresses),
             CONNECT_DELAY,
+            clock,
             async_net::TcpStream::connect,
         )
         .await?;
@@ -219,21 +277,32 @@ async fn https_budget(
     };
     let response = future::or(
         async {
-            operation
-                .await
-                .map_err(|source| HttpsRequestError::Transport {
-                    phase: phase_name(&phase),
-                    source,
-                })
+            operation.await.map_err(|source| {
+                if source.kind() == io::ErrorKind::TimedOut {
+                    HttpsRequestError::Timeout {
+                        phase: phase_name(&phase),
+                    }
+                } else {
+                    HttpsRequestError::Transport {
+                        phase: phase_name(&phase),
+                        source,
+                    }
+                }
+            })
         },
         async {
-            async_io::Timer::after(budget).await;
+            async_io::Timer::at(clock.deadline).await;
             Err(HttpsRequestError::Timeout {
                 phase: phase_name(&phase),
             })
         },
     )
     .await?;
+    if !clock.success() {
+        return Err(HttpsRequestError::Timeout {
+            phase: phase_name(&phase),
+        });
+    }
     if !response.status().is_success() {
         return Err(HttpsRequestError::Non2xxStatus {
             status_code: response.status().as_u16(),
@@ -428,12 +497,17 @@ mod tests {
         let stalled: SocketAddr = "[2001:db8::1]:443".parse().unwrap();
         let start = Instant::now();
         let result = future::block_on(future::or(
-            connect_candidates(vec![stalled, working], CONNECT_DELAY, |addr| async move {
-                if addr == stalled {
-                    future::pending::<()>().await;
-                }
-                async_net::TcpStream::connect(addr).await
-            }),
+            connect_candidates(
+                vec![stalled, working],
+                CONNECT_DELAY,
+                RequestClock::new(REQUEST_BUDGET).unwrap(),
+                |addr| async move {
+                    if addr == stalled {
+                        future::pending::<()>().await;
+                    }
+                    async_net::TcpStream::connect(addr).await
+                },
+            ),
             async {
                 async_io::Timer::after(Duration::from_secs(3)).await;
                 Err(invalid())
@@ -456,6 +530,7 @@ mod tests {
             let result = future::block_on(connect_candidates(
                 addresses.clone(),
                 Duration::from_millis(5),
+                RequestClock::new(REQUEST_BUDGET).unwrap(),
                 |addr| {
                     launched.set(launched.get() + 1);
                     async move {
@@ -488,16 +563,21 @@ mod tests {
             .map(|p| SocketAddr::from(([127, 0, 0, 1], p as u16)))
             .collect::<Vec<_>>();
         let result = future::block_on(future::or(
-            connect_candidates(addresses.clone(), Duration::from_millis(5), |_| {
-                live.set(live.get() + 1);
-                launched.set(launched.get() + 1);
-                assert!(live.get() <= MAX_CONNECT_ATTEMPTS);
-                let held = Held(live.clone());
-                async move {
-                    let _held = held;
-                    future::pending::<io::Result<()>>().await
-                }
-            }),
+            connect_candidates(
+                addresses.clone(),
+                Duration::from_millis(5),
+                RequestClock::new(REQUEST_BUDGET).unwrap(),
+                |_| {
+                    live.set(live.get() + 1);
+                    launched.set(launched.get() + 1);
+                    assert!(live.get() <= MAX_CONNECT_ATTEMPTS);
+                    let held = Held(live.clone());
+                    async move {
+                        let _held = held;
+                        future::pending::<io::Result<()>>().await
+                    }
+                },
+            ),
             async {
                 async_io::Timer::after(Duration::from_millis(100)).await;
                 Err(io::Error::from(io::ErrorKind::TimedOut))
@@ -508,14 +588,83 @@ mod tests {
         assert_eq!(live.get(), 0);
         for rejected in [Vec::new(), vec![addresses[0]; MAX_CONNECT_ATTEMPTS + 1]] {
             assert!(
-                future::block_on(connect_candidates(rejected, CONNECT_DELAY, |_| {
-                    panic!("invalid candidate count must not dial");
-                    #[allow(unreachable_code)]
-                    future::ready(Ok::<(), io::Error>(()))
-                }))
+                future::block_on(connect_candidates(
+                    rejected,
+                    CONNECT_DELAY,
+                    RequestClock::new(REQUEST_BUDGET).unwrap(),
+                    |_| {
+                        panic!("invalid candidate count must not dial");
+                        #[allow(unreachable_code)]
+                        future::ready(Ok::<(), io::Error>(()))
+                    }
+                ))
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn deadline_wins_over_a_late_ready_value_and_prevents_new_dials() {
+        use std::cell::Cell;
+        let addresses = vec![SocketAddr::from(([127, 0, 0, 1], 1)); 2];
+        let launched = Cell::new(0);
+        let clock = RequestClock::new(Duration::from_millis(10)).unwrap();
+        let result = future::block_on(connect_candidates(
+            addresses.clone(),
+            Duration::ZERO,
+            clock,
+            |_| {
+                launched.set(launched.get() + 1);
+                async {
+                    thread::sleep(Duration::from_millis(30));
+                    Ok(())
+                }
+            },
+        ));
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert_eq!(launched.get(), 1);
+        let result = future::block_on(connect_candidates(addresses, Duration::ZERO, clock, |_| {
+            panic!("expired request cannot dial");
+            #[allow(unreachable_code)]
+            future::ready(Ok::<(), io::Error>(()))
+        }));
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(RequestClock::new(Duration::ZERO).is_err());
+        assert!(RequestClock::new(Duration::from_secs(31)).is_err());
+    }
+
+    #[test]
+    fn success_drops_all_losing_futures_before_returning() {
+        use std::{cell::Cell, rc::Rc};
+        struct Held(Rc<Cell<usize>>);
+        impl Drop for Held {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() - 1);
+            }
+        }
+        let live = Rc::new(Cell::new(0));
+        let addresses = (1..=4)
+            .map(|p| SocketAddr::from(([127, 0, 0, 1], p)))
+            .collect();
+        let result = future::block_on(connect_candidates(
+            addresses,
+            Duration::from_millis(5),
+            RequestClock::new(REQUEST_BUDGET).unwrap(),
+            |addr| {
+                live.set(live.get() + 1);
+                let held = Held(live.clone());
+                async move {
+                    let _held = held;
+                    if addr.port() < 3 {
+                        future::pending::<()>().await;
+                    }
+                    Ok(addr.port())
+                }
+            },
+        ))
+        .unwrap();
+        assert_eq!(result, 3);
+        assert_eq!(live.get(), 0);
     }
 
     #[test]

@@ -35,6 +35,7 @@ jobs:
       - name: Build production HTTP binary and smoke-test the CLI
         run: |
           make server-build
+          python3 scripts/cutover_policy_smoke.py
           python3 scripts/http_smoke.py
           python3 scripts/runtime_smoke.py
           python3 scripts/deployment_smoke.py
