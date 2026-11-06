@@ -85,6 +85,7 @@ fn run() -> Result<()> {
             "--zip-report",
         ],
         "check-package" => vec!["--source", "--offline-report", "--zip-report"],
+        "route" => vec!["--remote", "--binary", "--config", "--profile"],
         "mode" | "describe" | "receive" => vec!["--config", "--profile"],
         "apply" => vec!["--config", "--profile", "--stage"],
         "recover" => vec!["--config", "--profile", "--operation"],
@@ -105,6 +106,22 @@ fn run() -> Result<()> {
     }
     let id = get("--profile")?;
     let config = get("--config")?;
+    if mode == "route" {
+        require(
+            f::absolute(Path::new(get("--binary")?)) && f::absolute(Path::new(config)),
+            "installed remote paths required",
+        )?;
+        let value = codec::parse(
+            remote(get("--remote")?, get("--binary")?, config, id, "mode", &[])?.as_bytes(),
+        )?;
+        let selected = codec::string(&value, "mode")?;
+        require(
+            ["legacy", "native"].contains(&selected),
+            "unknown publication mode",
+        )?;
+        println!("{selected}");
+        return Ok(());
+    }
     if mode == "upload" {
         require(
             !opts.contains_key("--stage-only") || opts.get("--stage-only") == Some(&"yes"),

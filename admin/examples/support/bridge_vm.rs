@@ -11,7 +11,9 @@ fn json_file(p: &Path, v: &Value) -> Result<()> {
 fn user(args: &[&str]) -> Result<String> {
     let mut a = words(&["/usr/sbin/runuser", "-u", "pathward", "--"]);
     a.extend(words(args));
-    Real.checked(&a, 180)
+    let (ok, out) = Real.run(&a, 180)?;
+    require(ok, &format!("fixture service command {args:?}: {out}"))?;
+    Ok(out)
 }
 fn service(name: &str, text: &str) -> Result<()> {
     put(&Path::new(UNITS).join(name), text.as_bytes(), 0o644)
@@ -75,7 +77,7 @@ pub fn initialize() -> Result<()> {
         .parse::<u32>()?;
     dir(Path::new("/etc/pathward"), true)?;
     for d in ["legacy-state", "service", "publisher"] {
-        dir(&path(d), true)?;
+        dir(&path(d), d == "publisher")?;
     }
     run(&[
         "/usr/bin/chown",
@@ -157,6 +159,7 @@ pub fn initialize() -> Result<()> {
     }
     json_file(&path("native-policy.json"), &native_policy)?;
     let server = path("reference-server");
+    emit("PW_BRIDGE_STAGE legacy snapshot build")?;
     let built = codec::parse(
         user(&[
             "/usr/bin/python3",
@@ -235,6 +238,7 @@ pub fn initialize() -> Result<()> {
     let config = json!({"schema":1,"hosting_policy":path("native-policy.json"),"receipt":RECEIPT,"receipt_owner":uid,"profiles":profiles,"health":checks,"rollout":{"lock":fence["lock"],"legacy_unit":OLD,"native_unit":NEW,"legacy_policy_sha256":codec::hash(&publication::encoded(&policy)),"native_policy_sha256":codec::hash(&publication::encoded(&native_policy))}});
     json_file(&path("publisher.json"), &config)?;
     ready(&config, "legacy")?;
+    emit("PW_BRIDGE_STAGE legacy ready on nine hosts")?;
     let python = Path::new("/usr/bin/python3").canonicalize()?;
     let mut files = filemap(&[
         &server,
@@ -323,6 +327,7 @@ pub fn cases() -> Result<()> {
             bridge_rollout::prepare(&mut e, &input, &path("pathward-admin"), &mut |_| Ok(()))?;
         }
         unchanged(&before)?;
+        emit("PW_BRIDGE_STAGE preparation retained application processes")?;
         require(mode()?["mode"] == "legacy", "preparation switched bridge")?;
         legacy_begin()?;
         require(
@@ -348,6 +353,7 @@ pub fn cases() -> Result<()> {
         unchanged(&before)?;
         switch(&input, "native")?;
         ready(&config, "native")?;
+        emit("PW_BRIDGE_STAGE native bridge ready")?;
         unchanged(&before)?;
         require(
             legacy_begin().is_err(),
@@ -357,6 +363,7 @@ pub fn cases() -> Result<()> {
             let id = format!("site{i}");
             let stage = stage(&id, &format!("NATIVE {i}"))?;
             native("apply", &id, &["--stage", stage.to_str().unwrap()])?;
+            emit(&format!("PW_BRIDGE_STAGE publication {id}"))?;
         }
         let stale = stage("site0", "STALE")?;
         record("stale-stage.json", &json!({"stage":stale}))?;

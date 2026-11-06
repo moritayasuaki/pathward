@@ -20,7 +20,26 @@ fn lock(path: &Path, owner: u32, shared: bool) -> Result<File> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or("lock name")?;
-    let file = confined::leaf(&parent, name)?;
+    // Legacy locks may use a leading dot; this does not relax public asset paths.
+    require(storage::absolute(path), "noncanonical publication lock")?;
+    let flags = rustix::fs::OFlags::RDONLY
+        | rustix::fs::OFlags::NOFOLLOW
+        | rustix::fs::OFlags::NONBLOCK
+        | rustix::fs::OFlags::CLOEXEC;
+    #[cfg(target_os = "linux")]
+    let fd = rustix::fs::openat2(
+        &parent,
+        name,
+        flags,
+        rustix::fs::Mode::empty(),
+        rustix::fs::ResolveFlags::BENEATH
+            | rustix::fs::ResolveFlags::NO_SYMLINKS
+            | rustix::fs::ResolveFlags::NO_MAGICLINKS
+            | rustix::fs::ResolveFlags::NO_XDEV,
+    )?;
+    #[cfg(not(target_os = "linux"))]
+    let fd = rustix::fs::openat(&parent, name, flags, rustix::fs::Mode::empty())?;
+    let file = File::from(fd);
     let m = file.metadata()?;
     require(
         m.is_file() && m.uid() == owner && m.nlink() == 1 && m.mode() & 0o002 == 0 && m.len() == 0,
@@ -199,7 +218,7 @@ mod tests {
             .canonicalize()?
             .join(format!("pathward-fence-{}", crate::publisher::nonce()?));
         storage::directory(&dir)?;
-        let path = dir.join("lease");
+        let path = dir.join(".legacy-lease");
         storage::replace(&path, b"", 0o600, "lock", &mut |_| Ok(()))?;
         let owner = rustix::process::geteuid().as_raw();
         let a = lock(&path, owner, true)?;

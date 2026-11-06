@@ -965,18 +965,16 @@ pub fn apply<S: System, V: Verify>(
     let src = io::absolute(&stage.join("public"))?;
     for (name, hash) in files.as_object().ok_or("files")? {
         require(permitted_asset(v, name), "public file name")?;
-        if v["kind"] == "backend" {
-            let old = &expected["files"][name];
-            require(
-                pathward::bootstrap::asset_allowed(
-                    !old.is_null(),
-                    additive(v, name),
-                    immutable(v, name),
-                    old == hash,
-                ),
-                "new backend route or immutable asset collision",
-            )?;
-        }
+        let old = &expected["files"][name];
+        require(
+            pathward::bootstrap::asset_allowed(
+                !old.is_null(),
+                v["kind"] == "release" || additive(v, name),
+                immutable(v, name),
+                old == hash,
+            ),
+            "unreviewed route or immutable asset collision",
+        )?;
         directories(&incoming, name, 0o755)?;
         require(
             copy(&src, name, &incoming.join(name), 0o644, cp)?
