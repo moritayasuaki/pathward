@@ -64,6 +64,21 @@ class Fixture:
 
 
 class GuardUpgradeTests(unittest.TestCase):
+    def test_writable_ancestor_cannot_supply_privileged_helper(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent=Path(temp).resolve()/'untrusted';parent.mkdir();parent.chmod(0o777)
+            helper=parent/'helper.py';helper.write_text('raise Exception("must not execute")')
+            with patch.object(u.sys,'platform','linux'):
+                with self.assertRaisesRegex(RuntimeError,'Untrusted guard ancestor'):
+                    u.checked_module(helper,r.digest_file(helper))
+
+    def test_separate_and_bind_mounts_cannot_hold_boot_units(self):
+        with patch.object(u.sys,'platform','linux'),patch.object(Path,'resolve',lambda p:p),patch.object(u,'trusted_path'):
+            for entry in ['1 0 1:1 / / rw - ext4 root rw\n2 1 1:1 /bind /opt/guards rw - ext4 root rw\n',
+                          '1 0 1:1 / / rw - ext4 root rw\n2 1 2:2 / /opt rw - ext4 other rw\n']:
+                with patch.object(Path,'read_text',return_value=entry):
+                    with self.assertRaisesRegex(RuntimeError,'root mount'):u.boot_storage(Path('/opt/guards/store'))
+
     def test_killed_at_every_persistence_boundary_can_retry_without_changing_application(self):
         with tempfile.TemporaryDirectory() as temp:
             f=Fixture(Path(temp));boot,command=f.contexts();points=[]

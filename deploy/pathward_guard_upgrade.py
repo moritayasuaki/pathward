@@ -12,11 +12,38 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
+import sys
 import tempfile
 
 spec = importlib.util.spec_from_file_location('recovery', Path(__file__).with_name('pathward_recovery.py'))
 r = importlib.util.module_from_spec(spec); spec.loader.exec_module(r)
 MAX = (1 << 64) - 1
+
+
+def trusted_path(path):
+    """Root (or the test uid) controls every component used by executable paths."""
+    if sys.platform != 'linux': return
+    path = Path(path)
+    r.require(path.resolve() == path, 'Symlink ancestor in guard path')
+    for parent in path.parents:
+        meta = parent.lstat()
+        r.require(stat.S_ISDIR(meta.st_mode) and meta.st_uid in {0,os.geteuid()}
+                  and (not meta.st_mode & 0o022 or meta.st_mode & stat.S_ISVTX),
+                  'Untrusted guard ancestor')
+
+
+def boot_storage(path):
+    # Linked unit definitions must exist before systemd can construct boot jobs.
+    # A separate or bind-mounted store may be unavailable then, even on the
+    # same st_dev. Native deployment is Linux; other platforms run file tests.
+    if sys.platform != 'linux': return
+    trusted_path(path)
+    r.require(path.resolve() == path, 'Guard store has a symlink ancestor')
+    for line in Path('/proc/self/mountinfo').read_text().splitlines():
+        point = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1],8)), line.split()[4])
+        if point != '/':
+            r.require(not path.is_relative_to(Path(point)), 'Guard store must be on the root mount')
 
 
 def identity(value):
@@ -34,6 +61,7 @@ def directory(path):
 
 
 def checked_module(path, digest):
+    trusted_path(path)
     r.require(r.digest_file(path) == digest, 'Helper digest mismatch')
     spec = importlib.util.spec_from_file_location('checked_helper', path)
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -63,8 +91,10 @@ def validate_generation(value):
               value['old_unit'], value['new_unit']), 'Unsupported guard contract')
     r.require(value['parent'] == '' if value['epoch'] == 0 else
               bool(re.fullmatch('[0-9a-f]{64}', value['parent'])), 'Invalid parent generation')
+    trusted_path(value['helper']); trusted_path(value['plan'])
     r.require(r.digest_file(value['helper']) == value['helper_sha256'], 'Guard helper changed')
     plan = r.load_plan(Path(value['plan']), value['plan_sha256'])
+    trusted_path(plan['kernel'])
     r.require(plan['old']['units'][0] == value['old_unit'] and
               plan['new']['units'][0] == value['new_unit'], 'Guard unit/plan mismatch')
     return plan
@@ -165,6 +195,9 @@ def prepare(store, units, plan_path, plan_sha, legacy_helper, legacy_sha,
     """Stage only; caller owns the administrator lock. No service changes."""
     r.require(all(r.absolute(str(p)) for p in [store,units,plan_path,legacy_helper,candidate,kernel,request]),
               'Unsafe directory/path spelling')
+    for path in [units,plan_path,legacy_helper,candidate,kernel,request]: trusted_path(path)
+    boot_storage(store)
+    directory(units)
     for path in [store, store/'blobs', store/'generations']: directory(path)
     r.require(r.digest_file(kernel) == kernel_sha, 'Upgrade decision binary changed')
     plan = r.load_plan(plan_path, plan_sha)
@@ -220,6 +253,9 @@ def apply(request, expected, checkpoint=lambda _: None):
     r.require(value is not None and set(value) == {'schema','store','units','base','target','kernel','kernel_sha256'}
               and value['schema'] == 1, 'Invalid upgrade request')
     store, units = Path(value['store']), Path(value['units'])
+    trusted_path(units); trusted_path(value['kernel'])
+    boot_storage(store)
+    directory(units)
     directory(store)
     base, target = value['base'], value['target']
     r.require(r.digest_file(value['kernel']) == value['kernel_sha256'], 'Upgrade decision binary changed')
@@ -265,7 +301,7 @@ def main():
     for name in ['plan-sha','legacy-sha','candidate-sha','kernel-sha']:
         prep.add_argument('--'+name, required=True)
     use = sub.add_parser('apply'); use.add_argument('--request',type=Path,required=True); use.add_argument('--sha256',required=True)
-    args = parser.parse_args(); r.require(os.geteuid() == 0,'Administrator required'); os.umask(0o077)
+    args = parser.parse_args(); r.require(sys.platform == 'linux' and os.geteuid() == 0,'Linux administrator required'); os.umask(0o077)
     with r.LOCK.open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.mode == 'prepare':

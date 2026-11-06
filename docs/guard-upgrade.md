@@ -53,6 +53,12 @@ paths and hashes. The store and service directory must be root-controlled;
 all supplied paths must be absolute. The decision binary must include the
 `upgrade` operation; this can be separate from the unchanged kernel in the
 existing recovery plan. Preserve the existing helper and its parent release.
+The store must be on the root mount with no symlink ancestors; separate and
+bind mounts are rejected because linked unit definitions must be readable while
+systemd constructs boot jobs. This follows the [systemd linked-unit rules](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html).
+Executable and plan paths also require administrator-controlled ancestors.
+Writable non-sticky ancestors and symlink ancestors are rejected before helper
+import or execution; retaining a file hash alone would not prevent path replacement.
 
 `prepare` takes `--store`, `--units`, `--plan`, `--plan-sha`, `--legacy-helper`,
 `--legacy-sha`, `--candidate`, `--candidate-sha`, `--kernel`, `--kernel-sha` and
