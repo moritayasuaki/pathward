@@ -4,6 +4,7 @@ import importlib.util
 import itertools
 import os
 from pathlib import Path
+import py_compile
 import signal
 import subprocess
 import tempfile
@@ -65,7 +66,7 @@ class Fixture:
 
 
 class GuardUpgradeTests(unittest.TestCase):
-    def test_writable_ancestor_cannot_supply_privileged_helper(self):
+    def test_privileged_helper_uses_trusted_source_and_ancestors(self):
         with tempfile.TemporaryDirectory() as temp:
             parent=Path(temp).resolve()/'untrusted';parent.mkdir();parent.chmod(0o777)
             helper=parent/'helper.py';helper.write_text('raise Exception("must not execute")')
@@ -74,6 +75,13 @@ class GuardUpgradeTests(unittest.TestCase):
                     u.checked_module(helper,r.digest_file(helper))
                 with self.assertRaisesRegex(RuntimeError,'Untrusted guard ancestor'):
                     u.apply(parent/'request','0'*64)
+        with tempfile.TemporaryDirectory() as temp:
+            helper=Path(temp).resolve()/'candidate.py'
+            helper.write_text("value = 'unreviewed'\n")
+            stamp=helper.stat();py_compile.compile(str(helper),doraise=True)
+            helper.write_text("value = 'reviewed__'\n")
+            os.utime(helper,ns=(stamp.st_atime_ns,stamp.st_mtime_ns))
+            self.assertEqual(u.checked_module(helper,r.digest_file(helper)).value,'reviewed__')
 
     def test_separate_and_bind_mounts_cannot_hold_boot_units(self):
         with patch.object(u.sys,'platform','linux'),patch.object(Path,'resolve',lambda p:p),patch.object(u,'trusted_path'):

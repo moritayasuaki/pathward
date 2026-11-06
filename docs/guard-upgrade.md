@@ -10,6 +10,8 @@ retained SHA-256 digests. A hash pins reviewed code; it does not prove arbitrary
 Python code safe. The plan, its decision kernel, service names and generated
 unit contract must remain the same. Upgrades to a different plan/contract are
 refused. Use a separate migration for those changes.
+Candidate source is compiled directly from verified bytes: timestamp/size-matching
+Python bytecode caches cannot substitute different code for the pinned source.
 
 ## Durable layout and ordering
 

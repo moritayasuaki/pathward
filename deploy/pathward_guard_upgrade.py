@@ -63,8 +63,13 @@ def directory(path):
 def checked_module(path, digest):
     trusted_path(path)
     r.require(r.digest_file(path) == digest, 'Helper digest mismatch')
+    source = Path(path).read_bytes()
+    r.require(hashlib.sha256(source).hexdigest() == digest, 'Helper changed before import')
     spec = importlib.util.spec_from_file_location('checked_helper', path)
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    module = importlib.util.module_from_spec(spec)
+    # A timestamp/size-matching .pyc can hold code other than the pinned source.
+    # Compile exactly the bytes hashed above; never consult candidate bytecode.
+    exec(compile(source, str(path), 'exec', dont_inherit=True), module.__dict__)
     return module
 
 
