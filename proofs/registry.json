@@ -1,18 +1,20 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 397,
-  "axiom_free_count": 17,
+  "theorem_count": 435,
+  "axiom_free_count": 21,
   "axiom_counts": {
-    "Classical.choice": 357,
-    "Quot.sound": 357,
-    "propext": 380
+    "Classical.choice": 387,
+    "Quot.sound": 387,
+    "propext": 414
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
+    "proofs/ConnectionProofs.lean": "733b4ef54040445d2748b6e1cecc08c2c8066bc2eee6ac7358f27315d7dc9973",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
+    "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "867f956487cfc25420b3778d8786c560de100530427dbf984c595d03bed1271e",
+    "proofs/Generated/Pathward.lean": "74990baaf2d8b57bfbb7847b6f30c0c603ed86e180f8eea2980433a7a1dc0344",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -25,10 +27,12 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "064c688bdc9fcfb35a6eafc7e3cf3072b60a86ab256fea0db1f15a1328c16024",
+    "scripts/extract.py": "3ae5b2225be285e9fbc848dbf63dea7a7b901bb29cb47cbea7aa288c0e808268",
+    "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
+    "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
-    "src/lib.rs": "4db18d5f16824c9a07ebf6d9a0641bd8aa6214f0e980fa776ad4682969eb3314",
+    "src/lib.rs": "be8a885bbf3192ae5ab25b0c98585f3d1a45f446ca538ec4b0c01ea29756ba57",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
@@ -340,6 +344,220 @@
       "scope": "rust_contract_or_lemma"
     },
     {
+      "name": "ConnectionProofs.candidate_slot_eq",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 5,
+      "statement": "theorem candidate_slot_eq (n : U64) :\n    connection.candidate_slot n = ok (decide (n.val < 8))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.request_live_eq",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 9,
+      "statement": "theorem request_live_eq (elapsed budget : U64) :\n    connection.request_live elapsed budget = ok (decide\n      (0 < budget.val ∧ budget.val ≤ 30000000000 ∧ elapsed.val < budget.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.launch_eq",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 15,
+      "statement": "theorem launch_eq (total launched elapsed budget : U64) (spaced : Bool) :\n    connection.launch_allowed total launched elapsed budget spaced = ok (decide\n      (0 < total.val ∧ total.val ≤ 8 ∧ launched.val < total.val ∧ spaced = true ∧\n       0 < budget.val ∧ budget.val ≤ 30000000000 ∧ elapsed.val < budget.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.launch_bounded",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 22,
+      "statement": "theorem launch_bounded (total launched elapsed budget : U64) (spaced : Bool)\n    (h : connection.launch_allowed total launched elapsed budget spaced = ok true) :\n    launched.val + 1 ≤ total.val ∧ total.val ≤ 8 ∧ elapsed.val < budget.val ∧\n      budget.val ≤ 30000000000 ∧ spaced = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.ninth_attempt_denied",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 30,
+      "statement": "theorem ninth_attempt_denied (total elapsed budget : U64) (spaced : Bool) :\n    connection.launch_allowed total 8#u64 elapsed budget spaced = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.expired_launch_denied",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 35,
+      "statement": "theorem expired_launch_denied (total launched elapsed budget : U64) (spaced : Bool)\n    (h : budget.val ≤ elapsed.val) :\n    connection.launch_allowed total launched elapsed budget spaced = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.success_eq",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 41,
+      "statement": "theorem success_eq (elapsed budget : U64) :\n    connection.success_allowed elapsed budget = ok (decide\n      (0 < budget.val ∧ budget.val ≤ 30000000000 ∧ elapsed.val < budget.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.deadline_wins_over_success",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 46,
+      "statement": "theorem deadline_wins_over_success (elapsed budget : U64) (h : budget.val ≤ elapsed.val) :\n    connection.success_allowed elapsed budget = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.expired_never_reopens",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 51,
+      "statement": "theorem expired_never_reopens (first later budget : U64)\n    (time : first.val ≤ later.val) (expired : budget.val ≤ first.val) :\n    connection.request_live later budget = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.gates_total",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 57,
+      "statement": "theorem gates_total (total launched elapsed budget : U64) (spaced : Bool) :\n    (∃ b, connection.launch_allowed total launched elapsed budget spaced = ok b) ∧\n    (∃ b, connection.success_allowed elapsed budget = ok b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ConnectionProofs.initial_valid",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 78,
+      "statement": "theorem initial_valid (started budget : Nat) :\n    Valid ⟨0, 0, 0, 0, false, started, budget, 0⟩",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.step_preserves_ownership",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 98,
+      "statement": "theorem step_preserves_ownership (before after : Window) (step : Step before after)\n    (valid : Valid before) : Valid after",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.step_keeps_request_clock",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 116,
+      "statement": "theorem step_keeps_request_clock (before after : Window) (step : Step before after) :\n    after.started = before.started ∧ after.budget = before.budget ∧ before.elapsed ≤ after.elapsed",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.terminal_does_not_launch",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 120,
+      "statement": "theorem terminal_does_not_launch (before after : Window) (step : Step before after)\n    (closed : before.closed = true) : after.closed = true ∧ after.launched = before.launched",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.every_interleaving_bounded",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 128,
+      "statement": "theorem every_interleaving_bounded (first last : Window) (run : Run first last)\n    (valid : Valid first) : Valid last",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.attempts_cannot_extend_deadline",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 134,
+      "statement": "theorem attempts_cannot_extend_deadline (first last : Window) (run : Run first last) :\n    last.started = first.started ∧ last.budget = first.budget ∧ first.elapsed ≤ last.elapsed",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.terminal_run_cannot_redial",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 142,
+      "statement": "theorem terminal_run_cannot_redial (first last : Window) (run : Run first last)\n    (closed : first.closed = true) : last.closed = true ∧ last.launched = first.launched",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ConnectionProofs.terminal_releases_pending",
+      "source": "proofs/ConnectionProofs.lean",
+      "line": 151,
+      "statement": "theorem terminal_releases_pending (first last : Window) (run : Run first last)\n    (valid : Valid first) (closed : last.closed = true) :\n    last.held = 0 ∧ last.released + last.winner = last.launched ∧ last.winner ≤ 1",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
       "name": "ContentProofs.span_eq",
       "source": "proofs/ContentProofs.lean",
       "line": 5,
@@ -470,6 +688,224 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.stop_old_eq",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 5,
+      "statement": "theorem stop_old_eq (pending armed preflight unchanged : Bool) :\n    cutover.stop_old_allowed pending armed preflight unchanged = ok\n      (decide (pending = true ∧ armed = true ∧ preflight = true ∧ unchanged = true))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.cannot_stop_without_guard",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 10,
+      "statement": "theorem cannot_stop_without_guard (pending preflight unchanged : Bool) :\n    cutover.stop_old_allowed pending false preflight unchanged = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.window_eq",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 14,
+      "statement": "theorem window_eq (boot : Bool) (started now : U64) :\n    cutover.window_allowed boot started now = ok (decide\n      (boot = true ∧ started.val ≤ now.val ∧ now.val < started.val + 900000000000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.deadline_and_boot_required",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 25,
+      "statement": "theorem deadline_and_boot_required (boot : Bool) (started now : U64)\n    (h : cutover.window_allowed boot started now = ok true) :\n    boot = true ∧ started.val ≤ now.val ∧ now.val - started.val < 900000000000",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.reboot_cannot_commit",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 31,
+      "statement": "theorem reboot_cannot_commit (started now : U64) :\n    cutover.window_allowed false started now = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.expired_cannot_commit",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 34,
+      "statement": "theorem expired_cannot_commit (boot : Bool) (started now : U64)\n    (h : started.val + 900000000000 ≤ now.val) :\n    cutover.window_allowed boot started now = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.backwards_clock_denied",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 40,
+      "statement": "theorem backwards_clock_denied (boot : Bool) (started now : U64) (h : now.val < started.val) :\n    cutover.window_allowed boot started now = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.commit_eq",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 45,
+      "statement": "theorem commit_eq (awaiting verified window armed : Bool) :\n    cutover.commit_allowed awaiting verified window armed = ok\n      (decide (awaiting = true ∧ verified = true ∧ window = true ∧ armed = true))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.commit_requires_all_checks",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 50,
+      "statement": "theorem commit_requires_all_checks (awaiting verified window armed : Bool)\n    (h : cutover.commit_allowed awaiting verified window armed = ok true) :\n    awaiting = true ∧ verified = true ∧ window = true ∧ armed = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.disarm_eq",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 55,
+      "statement": "theorem disarm_eq (committed : Bool) (persisted current : U64) :\n    cutover.disarm_allowed committed persisted current = ok\n      (decide (committed = true ∧ 0 < current.val ∧ persisted = current))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.disarm_requires_same_durable_epoch",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 61,
+      "statement": "theorem disarm_requires_same_durable_epoch (committed : Bool) (persisted current : U64)\n    (h : cutover.disarm_allowed committed persisted current = ok true) :\n    committed = true ∧ 0 < current.val ∧ persisted = current",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.stale_commit_cannot_disarm",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 66,
+      "statement": "theorem stale_commit_cannot_disarm (committed : Bool) (persisted current : U64)\n    (stale : persisted ≠ current) : cutover.disarm_allowed committed persisted current = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.watchdog_eq",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 70,
+      "statement": "theorem watchdog_eq (committed prepared restored : Bool) :\n    cutover.watchdog_required committed prepared restored = ok\n      (decide (committed = false ∧ prepared = false ∧ restored = false))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.watchdog_preserves_commit",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 75,
+      "statement": "theorem watchdog_preserves_commit (prepared restored : Bool) :\n    cutover.watchdog_required true prepared restored = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.gates_total",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 78,
+      "statement": "theorem gates_total (boot : Bool) (started now : U64) :\n    ∃ b, cutover.window_allowed boot started now = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CutoverProofs.prepared_is_safe",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 99,
+      "statement": "theorem prepared_is_safe (epoch : U64) :\n    Safe ⟨.prepared, false, false, false, epoch, 0#u64⟩",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CutoverProofs.step_preserves_guard_coverage",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 123,
+      "statement": "theorem step_preserves_guard_coverage (before after : State) (step : Step before after)\n    (safe : Safe before) : Safe after",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CutoverProofs.disarm_step_has_commit",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 141,
+      "statement": "theorem disarm_step_has_commit (before after : State) (step : Step before after)\n    (stopped : after.oldStopped = true) (unguarded : after.guard = false)\n    (safe : Safe before) : after.phase = .committed ∧ after.durableEpoch = after.epoch",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CutoverProofs.process_failures_keep_guard",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 155,
+      "statement": "theorem process_failures_keep_guard (first last : State) (run : Run first last)\n    (safe : Safe first) : Safe last",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CutoverProofs.watchdog_cannot_undo_durable_commit",
+      "source": "proofs/CutoverProofs.lean",
+      "line": 161,
+      "statement": "theorem watchdog_cannot_undo_durable_commit (s : State) (committed : s.phase = .committed) :\n    cutover.watchdog_required (decide (s.phase = .committed))\n      (decide (s.phase = .prepared)) (decide (s.phase = .restored)) = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
     },
     {
       "name": "DeliveryProofs.reserve_eq",

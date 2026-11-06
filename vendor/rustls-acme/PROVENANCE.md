@@ -19,6 +19,11 @@ The original ACME/JOSE signing and protocol structures are retained. Changes:
   cancel losing sockets on success or request cancellation. A blackholed first
   family cannot consume the entire request budget before another family is tried.
   This is bounded staggered dialing, not a complete RFC 8305 DNS engine.
+- Call the dependency-free local PathWard core for candidate/attempt limits and
+  request deadlines. One clock covers DNS through response; launch spacing cannot
+  reset it. Recheck the clock after a ready connection and before returning the
+  HTTPS response, so a poll that overruns its deadline cannot return late success.
+  This adds only a local dependency already present in the server graph.
 - Categorize transport failures by fixed DNS/connect/TLS/write/response labels.
   These categories contain no CA response text, nonces, account URLs or keys.
 - Remove response-body debug logging. Return RNG and challenge-key errors rather
@@ -28,7 +33,9 @@ The original ACME/JOSE signing and protocol structures are retained. Changes:
 
 PathWard owns the descriptor-based private cache, certificate validation and
 persist-before-activation renewal state in its server crate. Neither this fork
-nor cryptography/TLS/parsers are formally verified. The root audit inventories
+nor cryptography/TLS/parsers are formally verified as a whole. The extracted
+core gates have Lean contracts; connection ownership has a separate transition
+model, without a proof of the executor or socket Drop implementation. The root audit inventories
 all transitive dependencies and hashes **every file** in this directory. Any
 source change requires an explicit reviewed inventory refresh. The isolated
 unmodified upstream candidate is also scanned for RustSec advisories by name and

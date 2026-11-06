@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+mod cutover_policy;
 use pathward_server::{Server, acme, control, deployment, tls};
 use std::{
     env,
@@ -8,7 +9,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread,
 };
-const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--http-listen 0.0.0.0:80] [--experimental-http3] [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\npathward-server check CONFIG [--cache DIR]\npathward-server generate BASE SITE ROOT MANIFEST [--index FILE]\npathward-server init CONTROL_DIR CONFIG\npathward-server status --control-dir DIR\npathward-server activate --control-dir DIR --expect GENERATION:SHA256 CONFIG\npathward-server rollback --control-dir DIR --expect GENERATION:SHA256\nServing modes accept --control-dir DIR with CONFIG=DIR/.config.\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
+const HELP: &str = "pathward-server serve-http CONFIG [127.0.0.1:8080] [--monitor 127.0.0.1:9090]\npathward-server serve-tls CONFIG CACHE_DIRECTORY --accept-terms [--http-listen 0.0.0.0:80] [--experimental-http3] [--acme staging|production] [--listen 0.0.0.0:443] [--contact mailto:admin@example.com] [--monitor 127.0.0.1:9090]\npathward-server check CONFIG [--cache DIR]\npathward-server generate BASE SITE ROOT MANIFEST [--index FILE]\npathward-server init CONTROL_DIR CONFIG\npathward-server status --control-dir DIR\npathward-server activate --control-dir DIR --expect GENERATION:SHA256 CONFIG\npathward-server rollback --control-dir DIR --expect GENERATION:SHA256\npathward-server cutover-policy OP ARGS... (read-only; see docs/cutover-policy.md)\nServing modes accept --control-dir DIR with CONFIG=DIR/.config.\nSIGHUP reloads roots/publications; SIGTERM/SIGINT drain active connections. Monitor is opt-in and loopback-only.\nLinux 5.6+ and trusted procfs required. TLS-ALPN-01 requires public TCP/443 forwarding.\nACME defaults to staging. --accept-terms accepts the selected CA's subscriber terms.";
 #[derive(Default)]
 struct ServiceOptions {
     monitor: Option<SocketAddr>,
@@ -24,6 +25,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let command = args.first().and_then(|s| s.to_str()).ok_or(HELP)?;
     match command {
+        "cutover-policy" => {
+            let allowed = cutover_policy::evaluate(&args[1..])?;
+            println!("{}", if allowed { "ALLOW" } else { "DENY" });
+        }
         "check" => {
             if args.len() != 2 && args.len() != 4 {
                 return Err(HELP.into());
