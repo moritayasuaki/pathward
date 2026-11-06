@@ -5,20 +5,20 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 const args=Object.fromEntries(process.argv.slice(2).reduce((a,v,i,all)=>i%2?a:[...a,[v,all[i+1]]],[]));
-const base=args['--base-image'],bundle=args['--bundle'],out=args['--output'];
-if(!base||!bundle||!out||Object.keys(args).length!==3)throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
+const base=args['--base-image'],bundle=args['--bundle'],out=args['--output'],scenario=args['--scenario']??'publication';
+if(!base||!bundle||!out||!['publication','bootstrap'].includes(scenario)||Object.keys(args).some(k=>!['--base-image','--bundle','--output','--scenario'].includes(k)))throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const baseSha='406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0';
 if(sha(fs.readFileSync(base))!==baseSha)throw Error('Base image checksum');
 const root=path.resolve(import.meta.dirname,'..');
-const names=['pathward-admin','pathward-hosting','pathward-server','pathward-recovery','role_vm_guest','role_fixture'];
+const names=['pathward-admin','pathward-hosting','pathward-server','pathward-recovery','role_vm_guest','role_fixture',...(scenario==='bootstrap'?['pathward-publish','bootstrap_vm_guest']:[])];
 const sums=new Map(fs.readFileSync(path.join(bundle,'SHA256SUMS'),'utf8').trim().split('\n').map(s=>{const m=/^([0-9a-f]{64})  ([A-Za-z0-9_-]+)$/.exec(s);if(!m)throw Error('Checksum line');return [m[2],m[1]];}));
 const source=fs.readFileSync(path.join(bundle,'SOURCE_COMMIT'),'utf8').trim();
 if(!/^[0-9a-f]{40}$/.test(source))throw Error('Source commit');
 const files=names.map(name=>{const content=fs.readFileSync(path.join(bundle,name));if(sha(content)!==sums.get(name)||content.subarray(0,4).toString('hex')!=='7f454c46')throw Error(`Artifact mismatch ${name}`);return {name,mode:'0755',content};});
 // Only the initial historical guard fixture is Python. It is tombstoned before
 // exercising publication, collection or any subsequent reboot.
-files.push({name:'pathward_recovery.py',mode:'0600',content:fs.readFileSync(path.join(root,'deploy/pathward_recovery.py'))});
+if(scenario==='publication')files.push({name:'pathward_recovery.py',mode:'0600',content:fs.readFileSync(path.join(root,'deploy/pathward_recovery.py'))});
 fs.mkdirSync(out,{mode:0o700});const seed=path.join(out,'seed');fs.mkdirSync(seed);
 // Copy raw verified files from read-only media. Embedding entire ELF binaries
 // in cloud-init YAML needlessly makes its parser emulate megabytes of text.
@@ -26,7 +26,7 @@ fs.mkdirSync(path.join(seed,'artifacts'));
 for(const file of files)fs.writeFileSync(path.join(seed,'artifacts',file.name),file.content);
 const guestRoot='/opt/pathward-reboot-test',media='/mnt/pathward-seed';
 const commands=[['/usr/bin/install','-d','-m','0755',guestRoot,media],['/usr/bin/mount','-t','iso9660','-o','ro,nodev,nosuid,noexec','/dev/sr0',media],
- ...files.map(f=>['/usr/bin/install','-m',f.mode,`${media}/artifacts/${f.name}`,`${guestRoot}/${f.name}`]),['/usr/bin/umount',media],[`${guestRoot}/role_vm_guest`,'--publication-initialize']];
+ ...files.map(f=>['/usr/bin/install','-m',f.mode,`${media}/artifacts/${f.name}`,`${guestRoot}/${f.name}`]),['/usr/bin/umount',media],[`${guestRoot}/${scenario==='bootstrap'?'bootstrap_vm_guest':'role_vm_guest'}`,scenario==='bootstrap'?'--initialize':'--publication-initialize']];
 fs.writeFileSync(path.join(seed,'user-data'),'#cloud-config\n'+JSON.stringify({package_update:false,package_upgrade:false,ssh_deletekeys:false,runcmd:commands}));
 fs.writeFileSync(path.join(seed,'meta-data'),'instance-id: pathward-native-publication\nlocal-hostname: publication-test\n');fs.writeFileSync(path.join(seed,'network-config'),'version: 2\nethernets: {}\n');
 function cmd(bin,a){const r=spawnSync(bin,a,{stdio:['ignore','ignore','inherit']});if(r.status!==0)throw Error(`${bin} failed`);}

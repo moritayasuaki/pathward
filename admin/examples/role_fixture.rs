@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Err("fixture health mismatch".into());
     }
-    if a[0] != "serve" {
+    if a[0] != "serve" && a[0] != "files" {
         return Err("invalid fixture mode".into());
     }
     if label == "TARGET" && std::path::Path::new("/run/pathward-role-fail-primary").exists() {
@@ -58,12 +58,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for mut stream in listener.incoming().flatten() {
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
         let mut buf = [0; 1024];
-        let _ = stream.read(&mut buf);
+        let n = stream.read(&mut buf).unwrap_or(0);
+        let body = if a[0] == "files" {
+            let request = String::from_utf8_lossy(&buf[..n]);
+            let name = request.split_whitespace().nth(1).unwrap_or("/");
+            let name = if name == "/" {
+                "index.html"
+            } else {
+                name.trim_start_matches('/')
+            };
+            if !pathward_admin::publisher::safe_asset(name) {
+                continue;
+            }
+            std::fs::read(std::path::Path::new(label).join(name)).unwrap_or_default()
+        } else {
+            label.as_bytes().to_vec()
+        };
         let _ = write!(
             stream,
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{label}",
-            label.len()
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
         );
+        let _ = stream.write_all(&body);
     }
     Ok(())
 }

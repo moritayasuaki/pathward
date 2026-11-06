@@ -91,6 +91,12 @@ impl System for Mock {
                     }
                     .into(),
                     "Names" => name.clone(),
+                    "UnitFileState" => if s["active"][name] == "active" {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                    .into(),
                     "FragmentPath" => s["loaded"][name]["fragment"].as_str().unwrap_or("").into(),
                     "DropInPaths" => s["loaded"][name]["drops"].as_str().unwrap_or("").into(),
                     "ExecStartPre" => s["loaded"][name]["drop"]
@@ -269,6 +275,94 @@ fn template_input(base: &Path, exe: &Path, label: &str, kind: &str) -> Result<Va
     let path = base.join(format!("{label}.service"));
     file(&path, &unit(exe, label, kind))?;
     Ok(json!({"path":path,"sha256":codec::hash(&f::bytes(&path,false)?)}))
+}
+
+fn fresh_fixture() -> Result<Fixture> {
+    let mut f = Fixture::new()?;
+    for name in [
+        "pathward-recovery.service",
+        "pathward-recovery-fallback.service",
+        "old.service",
+    ] {
+        fs::remove_file(f.base.join("units").join(name))?;
+    }
+    for name in ["old.service.d", "new.service.d"] {
+        fs::remove_dir_all(f.base.join("units").join(name))?;
+    }
+    let text = f::bytes(
+        Path::new(
+            f.input["target"]["old"]["units"]["new.service"]["path"]
+                .as_str()
+                .unwrap(),
+        ),
+        false,
+    )?;
+    f::replace(
+        &f.base.join("units/new.service"),
+        &text,
+        0o644,
+        "fixture",
+        &mut |_| Ok(()),
+    )?;
+    let mut source = f.input["target"].clone();
+    source["selected"] = "old".into();
+    f.input = json!({"source_fresh":source,"target":f.input["target"]});
+    let mut sys = engine(&f.base).sys;
+    let mut s = sys.state()?;
+    s["active"] = json!({"new.service":"active"});
+    sys.update(&s)?;
+    sys.run(&words(&["/usr/bin/systemctl", "daemon-reload"]), 45)?;
+    Ok(f)
+}
+#[test]
+fn initial_preparation_keeps_source_and_never_starts_candidate() -> Result<()> {
+    let f = fresh_fixture()?;
+    let mut e = engine(&f.base);
+    let id = e.initialize(&f.input, &f.exe, &mut |_| Ok(()))?;
+    assert!(e.gate("new.service")?);
+    assert!(!e.gate("old.service")?);
+    assert_eq!(e.sys.state()?["active"]["new.service"], "active");
+    assert!(e.sys.state()?["starts"]["new.service"].is_null());
+    assert_eq!(id, e.initialize(&f.input, &f.exe, &mut |_| Ok(()))?);
+    let mut changed = f.input.clone();
+    changed["unexpected"] = true.into();
+    assert!(e.initialize(&changed, &f.exe, &mut |_| Ok(())).is_err());
+    f.reboot()?;
+    assert!(e.gate("new.service")?);
+    assert!(!e.gate("old.service")?);
+    e.apply(&id, &mut |_| Ok(()))?;
+    assert_eq!(e.status()?["state"]["phase"], "committed");
+    Ok(())
+}
+#[test]
+fn initial_preparation_retries_each_durable_write() -> Result<()> {
+    let f = fresh_fixture()?;
+    let mut labels = Vec::new();
+    engine(&f.base).initialize(&f.input, &f.exe, &mut |s| {
+        labels.push(s.to_owned());
+        Ok(())
+    })?;
+    for (point, label) in labels.iter().enumerate() {
+        let f = fresh_fixture()?;
+        let mut e = engine(&f.base);
+        let mut n = 0;
+        let r = e.initialize(&f.input, &f.exe, &mut |_| {
+            let hit = n == point;
+            n += 1;
+            if hit {
+                Err("interrupted".into())
+            } else {
+                Ok(())
+            }
+        });
+        assert!(r.is_err(), "{}", label);
+        assert_eq!(e.sys.state()?["active"]["new.service"], "active");
+        let id = e.initialize(&f.input, &f.exe, &mut |_| Ok(()))?;
+        assert_eq!(e.current()?, Some(id));
+        assert!(!e.gate("old.service")?);
+    }
+    println!("INITIAL_WRITE_BOUNDARIES {}", labels.len());
+    Ok(())
 }
 
 fn collection_fixture() -> Result<(Fixture, Vec<String>, String)> {

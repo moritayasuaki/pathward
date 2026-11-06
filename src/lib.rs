@@ -4,6 +4,7 @@
 //! Strict, byte-preserving URL path validation and exact allowlist authorization.
 //! This crate performs no decoding, normalization, allocation, or filesystem I/O.
 
+pub mod bootstrap;
 pub mod publication;
 pub mod rules;
 

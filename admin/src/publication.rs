@@ -779,6 +779,34 @@ pub fn publish<S: System>(
     sys: &mut S,
     cp: Checkpoint<'_>,
 ) -> Result<String> {
+    publish_checked(
+        p,
+        receipt,
+        owner,
+        profile,
+        expected,
+        next,
+        manifest,
+        sys,
+        cp,
+        &mut || Ok(()),
+    )
+}
+
+/// Public HTTP verification remains inside the source lock and rollback scope.
+#[allow(clippy::too_many_arguments)]
+pub fn publish_checked<S: System>(
+    p: &Value,
+    receipt: &Path,
+    owner: u32,
+    profile: &str,
+    expected: &str,
+    next: &str,
+    manifest: &Value,
+    sys: &mut S,
+    cp: Checkpoint<'_>,
+    verify: &mut dyn FnMut() -> Result<()>,
+) -> Result<String> {
     require(
         io::release(expected) && io::release(next) && expected != next,
         "invalid release transition",
@@ -880,6 +908,11 @@ pub fn publish<S: System>(
                 && after["policy_sha256"] == stamp["policy_sha256"]
                 && after["boot"] == stamp["boot"],
             "routing changed during publication",
+        )?;
+        verify()?;
+        require(
+            io::reference(&base_fd)? == next,
+            "publication changed during public verification",
         )?;
         Ok(active)
     })();
