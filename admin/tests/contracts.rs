@@ -464,6 +464,23 @@ fn process_exit_watchdog_restores_source_without_reboot() -> Result<()> {
 }
 
 #[test]
+fn legacy_resource_pins_cannot_be_replaced_by_target_review() -> Result<()> {
+    let f = Fixture::new()?;
+    file(&f.exe, "changed executable")?;
+    let mut input = f.input.clone();
+    let sha = codec::hash(&f::bytes(&f.exe, false)?);
+    for role in ["old", "new"] {
+        input["target"][role]["files"][f.exe.to_str().unwrap()] = sha.clone().into();
+    }
+    assert!(
+        engine(&f.base)
+            .prepare(&input, &f.exe, &mut |_| Ok(()))
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
 fn shared_lock_contention_is_distinct_from_invalid_state() -> Result<()> {
     let f = Fixture::new()?;
     let e = engine(&f.base);

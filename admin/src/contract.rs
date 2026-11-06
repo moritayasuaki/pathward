@@ -251,6 +251,18 @@ pub fn legacy_role<S: System>(
     unit_dir: &Path,
     expected_dropins: &[String],
 ) -> Result<Value> {
+    // Preserve the independently reviewed legacy digests, including live unit
+    // files before replacing their paths by captured immutable templates.
+    for (path, digest) in item["files"]
+        .as_object()
+        .ok_or("legacy resources required")?
+    {
+        storage::verified(
+            Path::new(path),
+            digest.as_str().ok_or("legacy digest")?,
+            true,
+        )?;
+    }
     let mut units = serde_json::Map::new();
     for name in item["units"].as_array().ok_or("legacy units required")? {
         let name = name.as_str().ok_or("legacy unit name")?;
@@ -291,19 +303,22 @@ pub fn legacy_role<S: System>(
     // The explicit health executable is sealed during preparation like the
     // legacy configuration checker; callers review the sealed request hash.
     for args in [health_args, command(&item["check"])?] {
-        files[&args[0]] = codec::hash(&storage::bytes(Path::new(&args[0]), false)?).into();
+        if files.get(&args[0]).is_none() {
+            files[&args[0]] = codec::hash(&storage::bytes(Path::new(&args[0]), false)?).into();
+        }
     }
     for text in units.values().filter_map(Value::as_str) {
-        for line in text
-            .lines()
-            .map(str::trim)
-            .filter(|l| l.starts_with("ExecStart="))
-        {
-            let exe = line[10..]
+        for value in text.lines().filter_map(|line| {
+            let (key, value) = line.trim().split_once('=')?;
+            (key.trim() == "ExecStart").then_some(value.trim())
+        }) {
+            let exe = value
                 .split_whitespace()
                 .next()
                 .ok_or("missing executable")?;
-            files[exe] = codec::hash(&storage::bytes(Path::new(exe), false)?).into();
+            if files.get(exe).is_none() {
+                files[exe] = codec::hash(&storage::bytes(Path::new(exe), false)?).into();
+            }
         }
     }
     Ok(json!({"units":units,"files":files,"check":item["check"],"health":health}))
