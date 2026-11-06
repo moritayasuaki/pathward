@@ -77,9 +77,10 @@ acknowledgement. `.nojekyll` manifest metadata is ignored and never published.
 Do not run the Python and Rust bridges together. Receipt schema 2 intentionally
 rejects the old Python reader/receipt combination. A service-contract migration
 must update the bridge, publisher entry points, policy and recovery resources
-together. Initial administrative preparation, legacy migration fixtures and
-site-specific build/verification wrappers remain separate Python users. This PR
-does not deploy a new bridge to existing hosts or replace their running engine.
+together. [Native initial preparation and publication wrappers](native-bootstrap.md)
+also cover the former initial preparation and upload/HTTP-verification runtime.
+Legacy migration fixtures and build/proof tooling remain separate Python users.
+These changes do not deploy a new bridge to existing hosts or replace their running engine.
 
 ## Collecting retired generations
 

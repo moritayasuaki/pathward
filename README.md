@@ -264,7 +264,7 @@ selection and memory allocation remain outside the extracted Rust model.
 The [serving proofs](proofs/ServingProofs.lean) extend the extracted model to
 literal raw-path/query splitting, GET/HEAD and host gating, HEAD's no-body grant,
 and file metadata admission (regular, single-link, bounded size, identical
-pinned/reopened inode). The axiom audit covers all 568 named statements and helper lemmas. Linux resolution,
+pinned/reopened inode). The axiom audit covers all 590 named statements and helper lemmas. Linux resolution,
 procfs reopening, HTTP/KDL parsing and actual writes to the socket remain trusted
 integration code, with focused reviews and Linux tests.
 
@@ -323,3 +323,5 @@ Native administrator support for service-role and startup-contract changes is de
 
 The Rust publication bridge, boot-bound acknowledgement and reboot-fenced
 generation collection are described in [native publication](docs/native-publication.md).
+
+Native initial preparation and site publication wrappers: [operation, migration and proof limits](docs/native-bootstrap.md).

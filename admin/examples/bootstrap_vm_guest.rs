@@ -189,7 +189,7 @@ fn initialize() -> Result<()> {
     let new = json!({"units":{"pathward.service":template("server.service",&servertext)?,"pathward-hosting.service":template("hosting.service",&hostingtext)?},"files":files,"check":[fixture,"check"],"health":["/usr/bin/curl","--disable","--fail","--silent","--noproxy","*","--max-time","5","--header","Host: example.test","http://127.0.0.1:18081/"]});
     record(
         "input.json",
-        &json!({"schema":1,"installation":INSTALL,"account":"pwservice","members":members,"contract":{"selected":"new","old":old,"new":new}}),
+        &json!({"schema":1,"network":"isolated","minimum_free_bytes":134217728,"installation":INSTALL,"account":"pwservice","members":members,"contract":{"selected":"new","old":old,"new":new}}),
     )?;
     record("report.json", &json!({"boots":[],"no_python":true}))?;
     put(&path("case"), b"0", 0o600)?;
@@ -234,11 +234,15 @@ fn configure_publisher() -> Result<Value> {
     let uid = run(&["/usr/bin/id", "-u", "pwservice"])?
         .trim()
         .parse::<u32>()?;
-    let config = json!({"schema":1,"hosting_policy":format!("{INSTALL}/hosting.json"),"receipt":format!("{INSTALL}/receipts/receipt.json"),"receipt_owner":uid,"profiles":{
+    let mut config = json!({"schema":1,"hosting_policy":format!("{INSTALL}/hosting.json"),"receipt":format!("{INSTALL}/receipts/receipt.json"),"receipt_owner":uid,"profiles":{
         "portal":{"kind":"release","host":"example.test","origin":"http://127.0.0.1:18081","work":path("publisher/portal"),"checks":{}},
         "backend":{"kind":"backend","host":"backend.test","origin":"http://127.0.0.1:18081","work":path("publisher/backend"),"checks":{},"root":path("backend-release/public"),"unit":"backend.service","upstream":"127.0.0.1:18089","executable":path("role_fixture"),"properties":props,"sealed_files":filemap(&[&path("role_fixture"),&Path::new(UNITS).join("backend.service")])?,"immutable_prefixes":["avatars/"],"additive_prefixes":["avatars/v6/"]}
     }});
     put(&path("publisher.json"), &codec::canonical(&config), 0o644)?;
+    native("describe", "backend", &[])?;
+    config["profiles"]["backend"]["executable_observation"] = "systemd".into();
+    put(&path("publisher.json"), &codec::canonical(&config), 0o644)?;
+    native("describe", "backend", &[])?;
     Ok(config)
 }
 fn cut_child() -> Result<()> {
@@ -394,6 +398,7 @@ fn cases() -> Result<()> {
         report["static_http_failure_rollback"] = true.into();
         report["backend_process_kill_recovery"] = true.into();
         report["native_runtime_no_python"] = true.into();
+        report["proc_and_systemd_executable_observation"] = true.into();
         record("report.json", &report)?;
         put(&path("case"), b"2", 0o600)?;
         emit("PW_COLD_REBOOT initial-and-publication")?;

@@ -84,6 +84,26 @@ impl Fixture {
     }
 }
 struct Pass;
+
+#[test]
+fn loaded_executable_observation_requires_explicit_single_match() -> Result<()> {
+    let mut x = Fixture::new()?;
+    x.config["profiles"]["site"]["executable_observation"] = "systemd".into();
+    let executable = x.config["profiles"]["site"]["executable"].as_str().unwrap();
+    x.sys.properties["ExecStart"] =
+        format!("{{ path={executable} ; argv[]={executable} ; }}").into();
+    describe(&x.config, "site", &mut x.sys)?;
+    for text in [
+        "{ path=/bin/other ; }",
+        &format!("{{ path={executable} ; }} {{ path=/bin/other ; }}"),
+    ] {
+        x.sys.properties["ExecStart"] = text.into();
+        assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    }
+    x.config["profiles"]["site"]["executable_observation"] = "skip".into();
+    assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    Ok(())
+}
 impl Verify for Pass {
     fn check(&mut self, _: &Value, _: &Value, _: &Path) -> Result<()> {
         Ok(())

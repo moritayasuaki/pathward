@@ -155,7 +155,8 @@ fn run() -> Result<()> {
         let incoming = remote(host, exe, config, id, "receive", &[])?;
         let incoming = incoming.trim();
         require(
-            f::absolute(Path::new(incoming))
+            safe(incoming)
+                && f::absolute(Path::new(incoming))
                 && Path::new(incoming).parent()
                     == Some(
                         Path::new(codec::string(&expected, "work")?)
@@ -236,4 +237,23 @@ fn run() -> Result<()> {
     };
     println!("{}", result);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn remote_words_reject_shell_and_transport_syntax() {
+        for word in [
+            "/tmp/a b",
+            "/tmp/a;id",
+            "/tmp/$(id)",
+            "-oProxyCommand=id",
+            "a\nb",
+            "",
+        ] {
+            assert!(!super::safe(word));
+        }
+        assert!(super::safe("deploy@example.test"));
+        assert!(super::safe("/opt/publisher/uploads/0123456789abcdef"));
+    }
 }

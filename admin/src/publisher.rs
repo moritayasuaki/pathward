@@ -264,12 +264,26 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
             "backend sealed file changed",
         )?;
     }
-    #[cfg(target_os = "linux")]
+    let observation = v["executable_observation"].as_str().unwrap_or("proc");
     require(
-        fs::read_link(format!("/proc/{}/exe", string(&out, "MainPID")?))?
-            == Path::new(string(v, "executable")?),
-        "running backend executable differs",
+        ["proc", "systemd"].contains(&observation),
+        "executable observation mode",
     )?;
+    if observation == "systemd" {
+        let start = property("ExecStart")?;
+        let expected = format!("{{ path={} ;", string(v, "executable")?);
+        require(
+            start.starts_with(&expected) && start.matches("{ path=").count() == 1,
+            "loaded backend executable differs",
+        )?;
+    } else {
+        #[cfg(target_os = "linux")]
+        require(
+            fs::read_link(format!("/proc/{}/exe", string(&out, "MainPID")?))?
+                == Path::new(string(v, "executable")?),
+            "running backend executable differs",
+        )?;
+    }
     let root = Path::new(string(v, "root")?);
     let subdir = v["public_subdir"].as_str().unwrap_or("public");
     require(

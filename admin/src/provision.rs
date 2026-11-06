@@ -113,6 +113,55 @@ pub fn preflight(text: &str, command: &[String]) -> Result<String> {
         command.join(" ")
     ))
 }
+fn validate_network<S: System>(sys: &mut S, input: &Value, policy: &Value) -> Result<()> {
+    let network = string(input, "network")?;
+    require(
+        ["public", "isolated"].contains(&network),
+        "explicit provisioning network scope required",
+    )?;
+    if network == "isolated" {
+        require(
+            fs::read_dir("/sys/class/net")?.all(|e| e.is_ok_and(|e| e.file_name() == "lo")),
+            "isolated preparation requires a host with no network interfaces",
+        )?;
+    }
+    if network == "public" {
+        let addresses = input["expected_addresses"]
+            .as_object()
+            .ok_or("reviewed DNS addresses required")?;
+        let sites = policy["sites"].as_array().ok_or("sites")?;
+        require(
+            addresses.len() == sites.len(),
+            "DNS scope differs from hosting policy",
+        )?;
+        for site in sites {
+            let host = string(site, "host")?;
+            let expected = addresses[host]
+                .as_array()
+                .ok_or("missing reviewed host addresses")?
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .ok_or("address")
+                        .and_then(|s| s.parse::<std::net::IpAddr>().map_err(|_| "address"))
+                })
+                .collect::<std::result::Result<std::collections::BTreeSet<_>, _>>()?;
+            require(!expected.is_empty(), "empty DNS address scope")?;
+            let answer = sys.checked(&words(&["/usr/bin/getent", "ahosts", host]), 45)?;
+            let observed = answer
+                .lines()
+                .map(|line| {
+                    line.split_whitespace()
+                        .next()
+                        .ok_or("DNS response")
+                        .and_then(|s| s.parse::<std::net::IpAddr>().map_err(|_| "DNS response"))
+                })
+                .collect::<std::result::Result<std::collections::BTreeSet<_>, _>>()?;
+            require(expected == observed, "DNS differs from reviewed addresses")?;
+        }
+    }
+    Ok(())
+}
 pub fn prepare<S: System>(
     e: &mut Engine<S>,
     input: &Value,
@@ -161,7 +210,18 @@ pub fn prepare<S: System>(
         )?;
         contents.insert(name.clone(), data);
     }
-    publication::validate(&codec::parse(&contents["hosting.json"])?)?;
+    let policy = codec::parse(&contents["hosting.json"])?;
+    publication::validate(&policy)?;
+    validate_network(&mut e.sys, input, &policy)?;
+    let minimum = input["minimum_free_bytes"]
+        .as_u64()
+        .ok_or("storage reserve required")?;
+    require(minimum >= 128 << 20, "storage reserve is too small")?;
+    let disk = rustix::fs::statvfs(base.parent().ok_or("installation parent")?)?;
+    require(
+        u128::from(disk.f_bavail) * u128::from(disk.f_frsize) >= u128::from(minimum),
+        "insufficient installation reserve",
+    )?;
     let identity = codec::hash(&codec::canonical(input));
     for name in input["contract"]["old"]["units"]
         .as_object()
@@ -382,4 +442,45 @@ pub fn prepare<S: System>(
         cp,
     )?;
     Ok(id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    struct Resolver(&'static str);
+    impl System for Resolver {
+        fn run(&mut self, args: &[String], _: u64) -> Result<(bool, String)> {
+            require(
+                args == words(&["/usr/bin/getent", "ahosts", "example.test"]),
+                "unexpected DNS command",
+            )?;
+            Ok((true, self.0.into()))
+        }
+    }
+    #[test]
+    fn public_preparation_rejects_missing_changed_and_extra_dns_scope() -> Result<()> {
+        let policy = json!({"sites":[{"host":"example.test"}]});
+        let mut input =
+            json!({"network":"public","expected_addresses":{"example.test":["192.0.2.1"]}});
+        validate_network(
+            &mut Resolver("192.0.2.1 STREAM example.test\n192.0.2.1 DGRAM"),
+            &input,
+            &policy,
+        )?;
+        for answer in [
+            "",
+            "192.0.2.2 STREAM example.test",
+            "bad address",
+            "192.0.2.1 STREAM\n192.0.2.2 STREAM",
+        ] {
+            assert!(validate_network(&mut Resolver(answer), &input, &policy).is_err());
+        }
+        input["expected_addresses"]["example.test"] = json!([]);
+        assert!(validate_network(&mut Resolver("192.0.2.1 STREAM"), &input, &policy).is_err());
+        input["expected_addresses"]["unrelated.test"] = json!(["192.0.2.1"]);
+        assert!(validate_network(&mut Resolver("192.0.2.1 STREAM"), &input, &policy).is_err());
+        input["network"] = "skip".into();
+        assert!(validate_network(&mut Resolver("192.0.2.1 STREAM"), &input, &policy).is_err());
+        Ok(())
+    }
 }
