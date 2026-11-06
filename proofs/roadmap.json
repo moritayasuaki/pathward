@@ -55,7 +55,7 @@
     "GuardUpgradeProofs.step_never_decreases_epoch",
     "GuardUpgradeProofs.run_never_decreases_epoch",
     "GuardUpgradeProofs.retries_are_idempotent",
-    "GuardUpgradeProofs.installed_generation_has_durable_bundle",
+    "GuardUpgradeProofs.interrupted_activation_preserves_safe",
     "GuardUpgradeProofs.upgrade_preserves_application"
   ],
   "axioms": {

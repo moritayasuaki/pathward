@@ -157,7 +157,7 @@ import UpstreamProofs
 #print axioms GuardUpgradeProofs.step_never_decreases_epoch
 #print axioms GuardUpgradeProofs.run_never_decreases_epoch
 #print axioms GuardUpgradeProofs.retries_are_idempotent
-#print axioms GuardUpgradeProofs.installed_generation_has_durable_bundle
+#print axioms GuardUpgradeProofs.interrupted_activation_preserves_safe
 #print axioms GuardUpgradeProofs.upgrade_preserves_application
 #print axioms PathwardProofs.name_byte_eq
 #print axioms PathwardProofs.step_eq

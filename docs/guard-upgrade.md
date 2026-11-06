@@ -82,6 +82,11 @@ repository supplies the generic protocol, not a production installation step.
 transition-model statements: readiness, exact successor, overflow rejection,
 identity conflict/stale rejection, finish-only retry, monotonic epochs, and
 application-state preservation across finite interrupted prefixes. The model
+counts epochs at durable/acknowledged boundaries. An unsynced pointer observation
+is not an acknowledgement: a power cut after rename may recover the base or
+target. A separate model theorem checks that either result uses a complete
+bundle and preserves application state; receipt writes never decide selection.
+The model
 assumes durable immutable bundles and atomic pointer replacement; Python/OS/
 systemd refinement is still `DEPLOY-CRASH` work. SHA-256 collision resistance,
 root-controlled ancestors, trusted code and cooperative administrator locking
@@ -96,7 +101,8 @@ requests, missing receipts, stale retries, corrupt members and pending trials.
 image and a verified CI Linux decision binary. It checks actual systemd,
 unprivileged loopback listeners, five hard-power-cut boundaries, retry after
 reboot, stale/corrupt candidate rejection, and retry after a reload failure.
-Service PID and application files must remain unchanged during a live update.
+It covers stable OLD and committed NEW, including a clean reboot in NEW.
+Service PID and application files must remain unchanged during each live update.
 Host packages are not installed and host/production services are not changed.
 
 No Rust/Python dependency was added. New subprocesses use fixed argv without a

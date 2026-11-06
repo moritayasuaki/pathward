@@ -16,6 +16,7 @@ spec = importlib.util.spec_from_file_location('upgrade', ROOT/'deploy/pathward_g
 u = importlib.util.module_from_spec(spec); spec.loader.exec_module(u)
 r = u.r
 KERNEL = Path(os.environ.get('PATHWARD_RECOVERY_BINARY', Path(os.environ.get('CARGO_TARGET_DIR', ROOT/'target'))/'release/pathward-recovery')).resolve()
+LEGACY_KERNEL = Path(os.environ.get('PATHWARD_LEGACY_RECOVERY_BINARY', KERNEL)).resolve()
 
 
 class Fixture:
@@ -26,8 +27,8 @@ class Fixture:
         self.candidate = root/'candidate.py'; self.candidate.write_bytes(self.legacy.read_bytes()+b'\n# Reviewed fixture revision 2\n')
         self.boot = root/'boot'; self.boot.write_text('test-boot')
         self.plan_data = {'schema':1,'transaction':'a'*32,'journal':str(root/'journal'),
-                         'permit':str(root/'run/permit'),'kernel':str(KERNEL),
-                         'kernel_sha256':r.digest_file(KERNEL),'state_seed':{'phase':'prepared','transaction':'a'*32}}
+                         'permit':str(root/'run/permit'),'kernel':str(LEGACY_KERNEL),
+                         'kernel_sha256':r.digest_file(LEGACY_KERNEL),'state_seed':{'phase':'prepared','transaction':'a'*32}}
         for side in ['old','new']:
             self.plan_data[side] = {'units':[side+'.service'],'files':{str(self.legacy):r.digest_file(self.legacy)},'check':['/usr/bin/true']}
         r.write_record(self.plan,self.plan_data); self.plan_sha = r.digest_file(self.plan)

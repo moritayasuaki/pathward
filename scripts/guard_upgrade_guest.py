@@ -60,6 +60,18 @@ def run():
     case=int(b.COUNTER.read_text());report=json.loads(b.STATE.read_text())
     boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     assert boot not in report['boots'];report['boots'].append(boot)
+    if case==6:
+        assert b.selected_body({'NEW'})=='NEW'
+        assert 'PW_FIXTURE_BOUND_OLD' not in b.command('journalctl','-b','-u','test-old.service','--no-pager')
+        pid=b.command('systemctl','show','test-new.service','--property=MainPID','--value')
+        with r.LOCK.open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            assert apply(8)['epoch']==7
+        assert b.command('systemctl','show','test-new.service','--property=MainPID','--value')==pid
+        report['results'].append({'case':6,'epoch':7,'selected':'NEW','retry':True})
+        report['committed_reboot_retry_passed']=True
+        b.emit('PW_VM_RECOVERY_PASS '+json.dumps(report,sort_keys=True))
+        b.command('systemctl','poweroff');return
     assert b.selected_body({'OLD'})=='OLD'
     assert 'PW_FIXTURE_BOUND_NEW' not in b.command('journalctl','-b','-u','test-new.service','--no-pager')
     pid=b.command('systemctl','show','test-old.service','--property=MainPID','--value')
@@ -107,13 +119,28 @@ def run():
             assert apply(7)['epoch']==6
             assert b.command('systemctl','show','test-old.service','--property=MainPID','--value')==pid
             for path,digest in before.items():assert r.digest_file(path)==digest
-            report.update(final_epoch=6,stale_retry_rejected=True,corrupt_candidate_rejected=True,
+            # The fixture now establishes a committed NEW state, separately
+            # from the updater, then checks a live upgrade and a clean reboot.
+            b.command('systemctl','stop','test-old.service')
+            r.write_record(b.JOURNAL,{'phase':'committed','transaction':'a'*32})
+            plan=r.load_plan(b.PLAN,r.digest_file(b.PLAN));r.publish(plan,r.digest_file(b.PLAN),'NEW')
+            b.command('systemctl','reset-failed','test-new.service')
+            b.command('systemctl','start','test-new.service')
+            assert b.selected_body({'NEW'})=='NEW'
+            new_pid=b.command('systemctl','show','test-new.service','--property=MainPID','--value')
+            committed={str(p):r.digest_file(p) for p in [b.PLAN,b.JOURNAL,Path('/run/pathward-recovery/permit.json')]}
+            prepare(8);assert apply(8)['epoch']==7
+            assert b.command('systemctl','show','test-new.service','--property=MainPID','--value')==new_pid
+            for path,digest in committed.items():assert r.digest_file(path)==digest
+            report.update(final_epoch=7,stale_retry_rejected=True,corrupt_candidate_rejected=True,
                           reload_failure_retry_passed=True,application_files_unchanged=True,
-                          live_service_pid_unchanged=True,kernel_sha256=r.digest_file(ROOT/'pathward-recovery'),
+                          live_service_pid_unchanged=True,committed_live_upgrade_passed=True,
+                          kernel_sha256=r.digest_file(ROOT/'pathward-recovery'),
                           versions={'systemd':b.command('systemd','--version').splitlines()[0],
                                     'kernel':b.command('uname','-r'),'python':sys.version.split()[0]})
-            b.emit('PW_VM_RECOVERY_PASS '+json.dumps(report,sort_keys=True))
-    b.command('systemctl','poweroff')
+            b.file(b.STATE,json.dumps(report),0o600);b.advance(6)
+            b.emit('PW_COLD_REBOOT 5')
+    b.command('systemctl','reboot')
 
 
 if __name__=='__main__':

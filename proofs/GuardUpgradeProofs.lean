@@ -83,6 +83,7 @@ theorem install_strictly_increases_epoch (base target : U64) (a b r c s : Bool)
 /-- Durable immutable bundles, atomic pointer replacement, and compatible unit
 adoption are assumptions of this transition model, not filesystem theorems. -/
 structure State where
+  /-- A generation at a durable/acknowledged boundary, not an unsynced observation. -/
   current : Nat
   ready : Bool
   linked : Bool
@@ -132,8 +133,16 @@ theorem run_never_decreases_epoch (base : Nat) (a b : State) (h : Run base a b) 
 
 theorem retries_are_idempotent (s : State) : complete (complete s) = complete s := rfl
 
-theorem installed_generation_has_durable_bundle (base app : Nat) (s : State)
-    (h : safe base app s) (new : s.current = base + 1) : s.ready = true ∧ s.linked = true := h.2.1 new
+/-- Before directory fsync a power cut may retain either complete pointer.
+Both bundles and all adoption links were durable before activation began. -/
+def recoveredActivation (base app : Nat) (targetSurvived : Bool) : State :=
+  ⟨if targetSurvived then base + 1 else base, true, true, false, app⟩
+
+theorem interrupted_activation_preserves_safe (base app : Nat) (targetSurvived : Bool) :
+    safe base app (recoveredActivation base app targetSurvived) := by
+  cases targetSurvived
+  · exact ⟨Or.inl rfl, fun _ => ⟨rfl, rfl⟩, rfl⟩
+  · exact ⟨Or.inr rfl, fun _ => ⟨rfl, rfl⟩, rfl⟩
 
 theorem upgrade_preserves_application (base app : Nat) (a b : State)
     (h : safe base app a) (run : Run base a b) : b.application = app :=
