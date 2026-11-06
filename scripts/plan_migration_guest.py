@@ -62,6 +62,7 @@ def save(report,next_case):b.file(b.STATE,json.dumps(report),0o600);b.advance(ne
 def run():
     case=int(b.COUNTER.read_text());report=json.loads(b.STATE.read_text())
     boot=r.BOOT_ID.read_text().strip();assert boot not in report['boots'];report['boots'].append(boot)
+    for name,digest in report.get('previous_source',{}).items():assert r.digest_file(name)==digest
     side='OLD' if case<5 else 'NEW';assert b.selected_body({side})==side
     wrong='NEW' if side=='OLD' else 'OLD'
     assert 'PW_FIXTURE_BOUND_'+wrong not in b.command('journalctl','-b','-u','test-'+wrong.lower()+'.service','--no-pager')
@@ -78,7 +79,7 @@ def run():
         report['results'].append({'case':case,'selected':side,'epoch':u.current(STORE)['epoch']})
         if case<4:
             n=case+2;prepare(n);current=u.current(STORE);plan=u.validate_generation(current)
-            before={str(p):r.digest_file(p) for p in [current['plan'],plan['journal'],plan['permit']]}
+            report['previous_source']={str(p):r.digest_file(p) for p in [current['plan'],plan['journal']]}
             save(report,case+1)
             apply(n,cut(['journal:partial','migrate:renamed','migrate:synced','receipt:partial'][case]))
             raise RuntimeError('Missing cut boundary')
@@ -97,6 +98,7 @@ def run():
             assert b.command('systemctl','show','test-old.service','--property=MainPID','--value')==pid
             # The fixture performs the application transition separately.
             current=u.current(STORE);plan=u.validate_generation(current)
+            report.pop('previous_source',None)
             b.command('systemctl','stop','test-old.service')
             r.write_record(plan['journal'],dict(r.journal(plan),phase='committed'))
             r.publish(plan,current['plan_sha256'],'NEW')

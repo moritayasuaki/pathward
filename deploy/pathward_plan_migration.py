@@ -67,7 +67,9 @@ def plan_pair(base,target,store,units):
         r.require(not path.is_relative_to(store) and not path.is_relative_to(units),'Records overlap managed guards')
         if name==new['permit'] and not path.parent.exists():
             u.trusted_path(path.parent.parent);u.directory(path.parent)
-        u.trusted_path(path)
+        # A previous plan's /run directory legitimately vanishes on cold boot.
+        # Its permit is not used after the target became authoritative.
+        u.trusted_path(path.parent if name==old['permit'] and not path.parent.exists() else path)
     r.require(type(new.get('state_seed')) is dict,'Missing target state seed')
     return old,new
 
@@ -205,7 +207,7 @@ def prepare_gc(store,units,kernel,kernel_sha,request,keep=(),limit=8):
     for name in sorted(remove_blobs):
         path=Path(name)
         if path.parent!=store/'blobs':continue # Never delete original releases or external resources.
-        r.require(re.fullmatch('[0-9a-f]{64}\.py',path.name),'Invalid blob name')
+        r.require(re.fullmatch(r'[0-9a-f]{64}\.py',path.name),'Invalid blob name')
         digest=r.digest_file(path);r.require(path.stem==digest,'Invalid helper blob')
         value['blobs'][path.name]=digest
     return save_request(request,value)

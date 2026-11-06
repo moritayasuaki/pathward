@@ -17,7 +17,7 @@
     "proofs/Generated/Pathward.lean": "fcc6219847379ab5e880e033dc5189fe5ed5f646fa984b75b719ed0f9b3948fb",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
-    "proofs/PlanMigrationProofs.lean": "6cc34f8e4deb6bceea29b56d385e3c688678c210d6cdc9bd889bc3166e2c2f3c",
+    "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/RecoveryProofs.lean": "cfd7a898f0bfc7315ca17620f002b0b2ef98d04eab4e61df32bdcf89d0e4f8d6",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -2220,7 +2220,7 @@
     {
       "name": "PlanMigrationProofs.initial_safe",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 69,
+      "line": 70,
       "statement": "theorem initial_safe (service : Nat) : safe service ⟨false,some service,none,false,true⟩",
       "axioms": [
         "propext"
@@ -2230,7 +2230,7 @@
     {
       "name": "PlanMigrationProofs.step_preserves_safe",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 70,
+      "line": 71,
       "statement": "theorem step_preserves_safe (service : Nat) (a b : Handoff) (h : safe service a) (step : Step service a b) :\n    safe service b",
       "axioms": [
         "propext"
@@ -2240,7 +2240,7 @@
     {
       "name": "PlanMigrationProofs.interrupted_prefix_safe",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 72,
+      "line": 73,
       "statement": "theorem interrupted_prefix_safe (service : Nat) (a b : Handoff) (h : safe service a) (run : Run service a b) :\n    safe service b",
       "axioms": [
         "propext"
@@ -2250,7 +2250,7 @@
     {
       "name": "PlanMigrationProofs.source_retained",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 77,
+      "line": 78,
       "statement": "theorem source_retained (service : Nat) (a b : Handoff) (h : safe service a) (run : Run service a b) :\n    b.sourceKept = true",
       "axioms": [
         "propext"
@@ -2260,15 +2260,15 @@
     {
       "name": "PlanMigrationProofs.target_selection_agrees",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 79,
-      "statement": "theorem target_selection_agrees (service : Nat) (s : Handoff) (h : safe service s) (active : s.target = true) :\n    s.targetPermit = s.sourcePermit",
+      "line": 80,
+      "statement": "theorem target_selection_agrees (service : Nat) (s : Handoff) (h : safe service s) (active : s.target = true) :\n    s.targetChoice = s.sourceChoice",
       "axioms": [],
       "scope": "transition_model"
     },
     {
       "name": "PlanMigrationProofs.either_durable_pointer_safe",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 82,
+      "line": 83,
       "statement": "theorem either_durable_pointer_safe (service : Nat) (survived : Bool) :\n    safe service ⟨survived,some service,some service,true,true⟩",
       "axioms": [
         "propext"
@@ -2278,7 +2278,7 @@
     {
       "name": "PlanMigrationProofs.remove_preserves_roots",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 90,
+      "line": 91,
       "statement": "theorem remove_preserves_roots (roots live : Nat → Bool) (id : Nat)\n    (h : preserves roots live) (unpinned : roots id = false) : preserves roots (remove live id)",
       "axioms": [
         "propext"
@@ -2288,7 +2288,7 @@
     {
       "name": "PlanMigrationProofs.remove_retry_idempotent",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 95,
+      "line": 96,
       "statement": "theorem remove_retry_idempotent (live : Nat → Bool) (id x : Nat) :\n    remove (remove live id) id x = remove live id x",
       "axioms": [
         "propext"
@@ -2298,7 +2298,7 @@
     {
       "name": "PlanMigrationProofs.interrupted_collection_preserves_roots",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 103,
+      "line": 104,
       "statement": "theorem interrupted_collection_preserves_roots (roots a b : Nat → Bool)\n    (h : preserves roots a) (run : Collection roots a b) : preserves roots b",
       "axioms": [
         "propext"
@@ -2308,7 +2308,7 @@
     {
       "name": "PlanMigrationProofs.current_and_parent_survive",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 108,
+      "line": 109,
       "statement": "theorem current_and_parent_survive (roots a b : Nat → Bool) (current parent : Nat)\n    (hc : roots current = true) (hp : roots parent = true) (h : preserves roots a)\n    (run : Collection roots a b) : b current = true ∧ b parent = true",
       "axioms": [
         "propext"
@@ -2318,7 +2318,7 @@
     {
       "name": "PlanMigrationProofs.reachable_is_marked",
       "source": "proofs/PlanMigrationProofs.lean",
-      "line": 118,
+      "line": 119,
       "statement": "theorem reachable_is_marked (root : Nat → Prop) (edge : Nat → Nat → Prop) (marked : Nat → Bool)\n    (start : ∀ x, root x → marked x = true)\n    (closed : ∀ a b, marked a = true → edge a b → marked b = true)\n    (x : Nat) (h : Reachable root edge x) : marked x = true",
       "axioms": [],
       "scope": "transition_model"

@@ -4,10 +4,12 @@ import itertools
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 def module(name,path):
@@ -30,8 +32,8 @@ class Fixture(b.Fixture):
         return super().command(args,**kw)
 
     def next_plan(self,n,edit=lambda _:None):
-        plan=dict(self.plan_data,transaction=f'{n:032x}',journal=str(self.root/f'journal{n}'),permit=str(self.root/f'run/permit{n}'),
-                  state_seed={'phase':'prepared'})
+        plan=dict(self.plan_data,transaction=f'{n:032x}',journal=str(self.root/f'journal{n}'),permit=str(self.root/f'run{n}/permit'),
+                  state_seed={'phase':'prepared'},kernel=str(b.KERNEL),kernel_sha256=r.digest_file(b.KERNEL))
         plan['old']=dict(plan['old'],files=dict(plan['old']['files']))
         plan['new']=dict(plan['new'],files=dict(plan['new']['files']))
         edit(plan);path=self.root/f'plan{n}';r.write_record(path,plan)
@@ -47,6 +49,8 @@ class Fixture(b.Fixture):
 
     def reboot(self,n=2):
         self.boot.write_text(f'{n:08x}-1111-1111-1111-111111111111')
+        for path in self.root.glob('run*'):
+            if path.is_dir():shutil.rmtree(path)
         active=u.current(self.store);r.publish(u.validate_generation(active),active['plan_sha256'],'OLD')
 
     def chain(self):
@@ -164,6 +168,31 @@ class PlanMigrationTests(unittest.TestCase):
             for operation,want in [('migrate',all(bits)),('collect',all(bits[:3]) and not bits[3] and all(bits[4:]))]:
                 out=subprocess.run([str(b.KERNEL),operation,*map(lambda x:str(int(x)),bits)],check=True,capture_output=True,text=True).stdout
                 self.assertEqual(out,'ALLOW\n' if want else 'DENY\n')
+
+    def test_busy_units_linked_generations_and_foreign_trash_refuse_collection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f=Fixture(Path(tmp));boot,command=f.contexts()
+            with boot,command:
+                f.chain();request,digest=f.gc();value=r.read_record(request)
+                real=r.command
+                def busy(args,**kw):
+                    if list(args)[:2]==['systemctl','list-jobs']:
+                        return SimpleNamespace(stdout='42 old.service start running\n')
+                    return real(args,**kw)
+                with patch.object(r,'command',side_effect=busy):
+                    with self.assertRaisesRegex(RuntimeError,'quiescent'):m.apply_gc(request,digest)
+                key=next(iter(value['generations']));path=f.store/'generations'/key
+                backup=f.root/'outside-store';path.rename(backup);path.symlink_to(backup)
+                with self.assertRaisesRegex(RuntimeError,'Unexpected generation'):m.apply_gc(request,digest)
+                self.assertTrue((backup/'manifest.json').exists());path.unlink();backup.rename(path)
+                def stop(point):
+                    if point=='gc:moved:generations':raise InterruptedError('simulated interruption')
+                with self.assertRaises(InterruptedError):m.apply_gc(request,digest,stop)
+                retired=next((f.store/'trash'/digest).glob('generations-*'))
+                foreign=retired/'unexpected';foreign.write_text('retain unknown data')
+                with self.assertRaisesRegex(RuntimeError,'Foreign trash'):m.apply_gc(request,digest)
+                self.assertEqual(foreign.read_text(),'retain unknown data')
+                self.assertEqual(u.identity(u.current(f.store)),value['current'])
 
 
 if __name__=='__main__':unittest.main()

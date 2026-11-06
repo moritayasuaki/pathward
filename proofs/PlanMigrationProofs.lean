@@ -43,22 +43,23 @@ theorem external_collection_denied (a b c d e : Bool) :
     recovery.collection_allowed a b c d e false = ok false := by
   cases a <;> cases b <;> cases c <;> cases d <;> cases e <;> rfl
 
-/-- Model of a same-service handoff. Durable records, verified selection and
+/-- Model of durable plan selections, not volatile /run permits (which expire
+on reboot). A same-service handoff assumes durable records, verified selection and
 atomic pointer replacement are explicit adapter assumptions. -/
 structure Handoff where
   target : Bool
-  sourcePermit : Option Nat
-  targetPermit : Option Nat
+  sourceChoice : Option Nat
+  targetChoice : Option Nat
   staged : Bool
   sourceKept : Bool
 
 def safe (service : Nat) (s : Handoff) : Prop :=
-  s.sourcePermit = some service ∧ (s.targetPermit = none ∨ s.targetPermit = some service) ∧
-  (s.target = true → s.targetPermit = some service ∧ s.staged = true) ∧ s.sourceKept = true
+  s.sourceChoice = some service ∧ (s.targetChoice = none ∨ s.targetChoice = some service) ∧
+  (s.target = true → s.targetChoice = some service ∧ s.staged = true) ∧ s.sourceKept = true
 
 inductive Step (service : Nat) : Handoff → Handoff → Prop
-  | prepare (s) : Step service s {s with targetPermit := some service, staged := true}
-  | activate (s) (ready : s.targetPermit = some service ∧ s.staged = true) :
+  | prepare (s) : Step service s {s with targetChoice := some service, staged := true}
+  | activate (s) (ready : s.targetChoice = some service ∧ s.staged = true) :
       Step service s {s with target := true}
   | interrupt (s) : Step service s s
 
@@ -77,7 +78,7 @@ theorem interrupted_prefix_safe (service : Nat) (a b : Handoff) (h : safe servic
 theorem source_retained (service : Nat) (a b : Handoff) (h : safe service a) (run : Run service a b) :
     b.sourceKept = true := (interrupted_prefix_safe _ _ _ h run).2.2.2
 theorem target_selection_agrees (service : Nat) (s : Handoff) (h : safe service s) (active : s.target = true) :
-    s.targetPermit = s.sourcePermit := by
+    s.targetChoice = s.sourceChoice := by
   rw [h.1]; exact (h.2.2.1 active).1
 theorem either_durable_pointer_safe (service : Nat) (survived : Bool) :
     safe service ⟨survived,some service,some service,true,true⟩ := by simp [safe]
