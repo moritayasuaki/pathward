@@ -17,6 +17,68 @@ set_option maxRecDepth 2048
 
 namespace pathward
 
+/-- [pathward::bootstrap::preparation_allowed]:
+    Source: 'src/bootstrap.rs', lines 2:0-4:1
+    Visibility: public -/
+def bootstrap.preparation_allowed
+  (rescue : Bool) (current : Bool) (source_only : Bool) (no_jobs : Bool) :
+  RustM Bool
+  := do
+  if rescue
+  then
+    if current
+    then if source_only
+         then ok no_jobs
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::bootstrap::package_allowed]:
+    Source: 'src/bootstrap.rs', lines 5:0-7:1
+    Visibility: public -/
+def bootstrap.package_allowed
+  (sealed : Bool) (exact : Bool) («private» : Bool) (unchanged : Bool) :
+  RustM Bool
+  := do
+  if sealed
+  then
+    if exact
+    then if «private»
+         then ok unchanged
+         else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::bootstrap::asset_allowed]:
+    Source: 'src/bootstrap.rs', lines 8:0-10:1
+    Visibility: public -/
+def bootstrap.asset_allowed
+  (known : Bool) (additive : Bool) (immutable : Bool) (equal : Bool) :
+  RustM Bool
+  := do
+  if known
+  then if immutable
+       then ok equal
+       else ok true
+  else if additive
+       then if immutable
+            then ok true
+            else ok true
+       else ok false
+
+/-- [pathward::bootstrap::restore_allowed]:
+    Source: 'src/bootstrap.rs', lines 11:0-13:1
+    Visibility: public -/
+def bootstrap.restore_allowed
+  (same_backend : Bool) (ours : Bool) (backup_verified : Bool) :
+  RustM Bool
+  := do
+  if same_backend
+  then if ours
+       then ok backup_verified
+       else ok false
+  else ok false
+
 /-- [pathward::connection::candidate_slot]:
     Source: 'src/connection.rs', lines 5:0-7:1
     Visibility: public -/
@@ -516,7 +578,7 @@ def delivery.wire_fits
   else ok false
 
 /-- [pathward::State]
-    Source: 'src/lib.rs', lines 12:0-19:1
+    Source: 'src/lib.rs', lines 13:0-20:1
     Visibility: public -/
 @[discriminant isize]
 inductive State where
@@ -528,7 +590,7 @@ inductive State where
 | Reject : State
 
 /-- [pathward::{impl core::cmp::PartialEq<pathward::State> for pathward::State}::eq]:
-    Source: 'src/lib.rs', lines 11:29-11:38
+    Source: 'src/lib.rs', lines 12:29-12:38
     Visibility: public -/
 def State.Insts.CoreCmpPartialEqState.eq
   (self : State) (other : State) : RustM Bool := do
@@ -537,7 +599,7 @@ def State.Insts.CoreCmpPartialEqState.eq
   ok (self1 = other1)
 
 /-- [pathward::name_byte]:
-    Source: 'src/lib.rs', lines 24:0-31:1
+    Source: 'src/lib.rs', lines 25:0-32:1
     Visibility: public -/
 def name_byte (byte : Std.U8) : RustM Bool := do
   if byte >= 97#u8
@@ -624,7 +686,7 @@ def name_byte (byte : Std.U8) : RustM Bool := do
              else ok (byte = 43#u8)
 
 /-- [pathward::step]:
-    Source: 'src/lib.rs', lines 34:0-63:1
+    Source: 'src/lib.rs', lines 35:0-64:1
     Visibility: public -/
 def step (state : State) (byte : Std.U8) : RustM State := do
   match state with
@@ -676,7 +738,7 @@ def step (state : State) (byte : Std.U8) : RustM State := do
   | State.Reject => ok State.Reject
 
 /-- [pathward::accepting]:
-    Source: 'src/lib.rs', lines 66:0-68:1
+    Source: 'src/lib.rs', lines 67:0-69:1
     Visibility: public -/
 def accepting (state : State) : RustM Bool := do
   match state with
@@ -688,7 +750,7 @@ def accepting (state : State) : RustM Bool := do
   | State.Reject => ok false
 
 /-- [pathward::valid_path]: loop 0:
-    Source: 'src/lib.rs', lines 78:4-81:5
+    Source: 'src/lib.rs', lines 79:4-82:5
     Visibility: public -/
 @[rust_loop]
 def valid_path_loop
@@ -704,7 +766,7 @@ def valid_path_loop
 partial_fixpoint
 
 /-- [pathward::valid_path]:
-    Source: 'src/lib.rs', lines 72:0-83:1
+    Source: 'src/lib.rs', lines 73:0-84:1
     Visibility: public -/
 def valid_path (path : Slice Std.U8) : RustM Bool := do
   let i := Slice.len path
@@ -714,7 +776,7 @@ def valid_path (path : Slice Std.U8) : RustM Bool := do
        accepting state
 
 /-- [pathward::same_path]: loop 0:
-    Source: 'src/lib.rs', lines 91:4-98:1
+    Source: 'src/lib.rs', lines 92:4-99:1
     Visibility: public -/
 @[rust_loop]
 def same_path_loop
@@ -734,7 +796,7 @@ def same_path_loop
 partial_fixpoint
 
 /-- [pathward::same_path]:
-    Source: 'src/lib.rs', lines 86:0-98:1
+    Source: 'src/lib.rs', lines 87:0-99:1
     Visibility: public -/
 def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   let i := Slice.len left
@@ -744,7 +806,7 @@ def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   else same_path_loop left right 0#usize
 
 /-- [pathward::listed]:
-    Source: 'src/lib.rs', lines 110:0-120:1 -/
+    Source: 'src/lib.rs', lines 111:0-121:1 -/
 def listed
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) (index : Std.Usize)
   :
@@ -763,7 +825,7 @@ def listed
 partial_fixpoint
 
 /-- [pathward::is_public]:
-    Source: 'src/lib.rs', lines 101:0-106:1
+    Source: 'src/lib.rs', lines 102:0-107:1
     Visibility: public -/
 def is_public
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) : RustM Bool := do

@@ -59,6 +59,33 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
     match a[2].as_str() {
+        "provision" => {
+            require(a.len() == 5, "provision INPUT SHA256")?;
+            let raw = storage::bytes(Path::new(&a[3]), true)?;
+            require(
+                codec::hash(&raw) == a[4],
+                "reviewed provisioning input hash mismatch",
+            )?;
+            let id = pathward_admin::provision::prepare(
+                &mut e,
+                &codec::parse(&raw)?,
+                &std::env::current_exe()?,
+                &mut |_| Ok(()),
+            )?;
+            println!("PREPARED_ONLY {id}: native installation checked; source remains active");
+        }
+        "initialize" => {
+            require(a.len() == 5, "initialize INPUT SHA256")?;
+            let raw = storage::bytes(Path::new(&a[3]), true)?;
+            require(
+                codec::hash(&raw) == a[4],
+                "reviewed initial input hash mismatch",
+            )?;
+            let id = e.initialize(&codec::parse(&raw)?, &std::env::current_exe()?, &mut |_| {
+                Ok(())
+            })?;
+            println!("PREPARED_ONLY {id}: source remains active; candidate never started");
+        }
         "gc-observe" => {
             require(a.len() == 3, "gc-observe arguments")?;
             let value = e.observe_collection(&mut |_| Ok(()))?;

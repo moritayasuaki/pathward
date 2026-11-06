@@ -1,21 +1,22 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 568,
-  "axiom_free_count": 76,
+  "theorem_count": 590,
+  "axiom_free_count": 84,
   "axiom_counts": {
     "Classical.choice": 411,
     "Quot.sound": 411,
-    "propext": 492
+    "propext": 506
   },
   "source_sha256": {
+    "proofs/BootstrapProofs.lean": "3b5f8b09ceb9ba65c39dea7f422e39ee89452d8b4f4549ceac86311be2abbed8",
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
     "proofs/ConnectionProofs.lean": "733b4ef54040445d2748b6e1cecc08c2c8066bc2eee6ac7358f27315d7dc9973",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/ContractMigrationProofs.lean": "90b90df4b459e7f9d7ac7fb25098b17024c0457a98ffef8204501f347df67c69",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "3ce3403bdfdef7563a31a5f34534aa90880fbaaaf4b368a7e39b85d04c7e9244",
+    "proofs/Generated/Pathward.lean": "02df49929bf5bb3ec392bd3d12c688ae5f99170a39fc84a455ecea65c4da8a73",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
@@ -32,12 +33,13 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "83b9fd7405ca443c8b72f0b4f3dd5d581ab5eba94bf1a74e0708b2f8e80a2af7",
+    "scripts/extract.py": "ee92d42feb7e349c9a3953eaea9c48dfe8090f99aaa3a0eaa7dffdfa009cfde7",
+    "src/bootstrap.rs": "667e2b59e9797875cb4b09a8c5397cffd03167d695dbac441fa1ca2618d183ae",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
-    "src/lib.rs": "3d07f6e9a3694227bd2576fdf2760abc479904d0b57c5fe492549fe957145702",
+    "src/lib.rs": "5d8f761beed40f3ccbac0a77272a22c3f9b7284cfe894d4521e9a93569aa92d0",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
     "src/publication.rs": "016a30064cb274c8e89263cdb4d2f80f849cb9305fd6a70d1df28ad9170d82ce",
     "src/recovery.rs": "54b03d1cf25d4b795eaf6aa0233630d7d0aac9b703fc59e181e93d7cdde74f99",
@@ -52,6 +54,210 @@
     "src/upstream.rs": "06cea2a344756e15d6d80a164f46ffa3d7a7b80ff7f2e2d22cce958a292df003"
   },
   "theorems": [
+    {
+      "name": "BootstrapProofs.preparation_iff",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 5,
+      "statement": "theorem preparation_iff (r c s j : Bool) :\n    bootstrap.preparation_allowed r c s j = ok true ↔ r = true ∧ c = true ∧ s = true ∧ j = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.no_rescue_no_install",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 8,
+      "statement": "theorem no_rescue_no_install (c s j : Bool) :\n    bootstrap.preparation_allowed false c s j = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.changed_initial_request_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 10,
+      "statement": "theorem changed_initial_request_denied (r s j : Bool) :\n    bootstrap.preparation_allowed r false s j ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.candidate_running_denies_prepare",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 12,
+      "statement": "theorem candidate_running_denies_prepare (r c j : Bool) :\n    bootstrap.preparation_allowed r c false j ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.pending_jobs_deny_prepare",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 14,
+      "statement": "theorem pending_jobs_deny_prepare (r c s : Bool) :\n    bootstrap.preparation_allowed r c s false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.package_iff",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 17,
+      "statement": "theorem package_iff (s e p u : Bool) :\n    bootstrap.package_allowed s e p u = ok true ↔ s = true ∧ e = true ∧ p = true ∧ u = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.tampered_upload_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 20,
+      "statement": "theorem tampered_upload_denied (e p u : Bool) :\n    bootstrap.package_allowed false e p u = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.stale_upload_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 22,
+      "statement": "theorem stale_upload_denied (s e p : Bool) :\n    bootstrap.package_allowed s e p false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.wrong_profile_configuration_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 24,
+      "statement": "theorem wrong_profile_configuration_denied (s p u : Bool) :\n    bootstrap.package_allowed s false p u ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.asset_iff",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 27,
+      "statement": "theorem asset_iff (k a i e : Bool) :\n    bootstrap.asset_allowed k a i e = ok true ↔\n    (k = true ∨ a = true) ∧ (i = false ∨ k = false ∨ e = true)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.unknown_route_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 31,
+      "statement": "theorem unknown_route_denied (i e : Bool) :\n    bootstrap.asset_allowed false false i e = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.immutable_collision_denied",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 33,
+      "statement": "theorem immutable_collision_denied (a : Bool) :\n    bootstrap.asset_allowed true a true false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.identical_immutable_asset_allowed",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 35,
+      "statement": "theorem identical_immutable_asset_allowed (a : Bool) :\n    bootstrap.asset_allowed true a true true = ok true",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.restore_iff",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 37,
+      "statement": "theorem restore_iff (s o v : Bool) :\n    bootstrap.restore_allowed s o v = ok true ↔ s = true ∧ o = true ∧ v = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.newer_edit_not_replaced",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 40,
+      "statement": "theorem newer_edit_not_replaced (s v : Bool) :\n    bootstrap.restore_allowed s false v ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.changed_backend_not_restored",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 42,
+      "statement": "theorem changed_backend_not_restored (o v : Bool) :\n    bootstrap.restore_allowed false o v = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.unverified_backup_not_restored",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 44,
+      "statement": "theorem unverified_backup_not_restored (s o : Bool) :\n    bootstrap.restore_allowed s o false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "BootstrapProofs.preparation_step_preserves_source",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 58,
+      "statement": "theorem preparation_step_preserves_source (a b : Preparation) (h : Step a b) :\n    b.sourceRunning = a.sourceRunning",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "BootstrapProofs.preparation_step_does_not_grant_candidate",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 60,
+      "statement": "theorem preparation_step_does_not_grant_candidate (a b : Preparation) (h : Step a b) :\n    b.candidatePermit = a.candidatePermit",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "BootstrapProofs.every_interrupted_preparation_keeps_source",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 65,
+      "statement": "theorem every_interrupted_preparation_keeps_source (a b : Preparation) (h : Run a b) :\n    b.sourceRunning = a.sourceRunning ∧ b.candidatePermit = a.candidatePermit",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "BootstrapProofs.restore_keeps_newer_file",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 74,
+      "statement": "theorem restore_keeps_newer_file (c w p : Nat) (h : c ≠ w) : restoreFile c w p = c",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "BootstrapProofs.repeated_restore_is_idempotent",
+      "source": "proofs/BootstrapProofs.lean",
+      "line": 76,
+      "statement": "theorem repeated_restore_is_idempotent (c w p : Nat) :\n    restoreFile (restoreFile c w p) w p = restoreFile c w p",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
     {
       "name": "CancellationProofs.head_slot_eq",
       "source": "proofs/CancellationProofs.lean",

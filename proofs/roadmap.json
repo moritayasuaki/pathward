@@ -22,7 +22,8 @@
     "GuardUpgradeProofs": "復旧ガード更新の世代照合・再試行判断と中断可能な更新の状態モデル",
     "PlanMigrationProofs": "別の復旧計画への同一サービス移行、再起動後の世代回収と保護参照",
     "ContractMigrationProofs": "Rust管理処理の異なるサービス役割・起動契約への移行判断、停止・起動許可と途中書換えの状態モデル",
-    "PublicationProofs": "Rust公開更新の選択・起動識別子付き受領票・世代整理の判断と中断可能な削除の状態モデル"
+    "PublicationProofs": "Rust公開更新の選択・起動識別子付き受領票・世代整理の判断と中断可能な削除の状態モデル",
+    "BootstrapProofs": "初回準備・公開アップロード・不変アセット・条件付き復元のRust判断と、準備中断・再試行の状態モデル"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -85,7 +86,12 @@
     "PublicationProofs.collection_step_preserves_live_roots",
     "PublicationProofs.every_interrupted_prefix_preserves_roots",
     "PublicationProofs.transitive_dependencies_survive",
-    "PublicationProofs.partial_unlink_retry_idempotent"
+    "PublicationProofs.partial_unlink_retry_idempotent",
+    "BootstrapProofs.preparation_step_preserves_source",
+    "BootstrapProofs.preparation_step_does_not_grant_candidate",
+    "BootstrapProofs.every_interrupted_preparation_keeps_source",
+    "BootstrapProofs.restore_keeps_newer_file",
+    "BootstrapProofs.repeated_restore_is_idempotent"
   ],
   "axioms": {
     "Classical.choice": {
@@ -532,11 +538,42 @@
       "priority": "P1",
       "status": "in_progress",
       "title": "残るPython運用処理と世代整理をRustへ移す",
-      "acceptance": "公開スナップショット生成、設定CAS、受領票、公開リンク切替と失敗時の条件付き復旧をRust化。廃止済み旧Pythonガードの世代とRust取引記録を、再起動・安定状態・完全一致一覧で制限してRustから回収する。外部の元計画・鍵・helper・リリースと公開スナップショットは削除しない。既存の初回管理者準備・サイト別ビルド/公開ラッパー・旧互換移行・試験道具のPython置換、公開スナップショットの自動保持量制御、稼働中のnative engine自身の更新は残課題。",
+      "acceptance": "初回の封印済み配布物設置、専用アカウントと権限、私有ネットワークでの検査、候補を開始しない復旧ガード設置をRust化。サイト別の不変リリース・既存バックエンドの公開更新、SSH転送、HTTP内容検証、オフライン検証報告照合、部分更新の条件付き復元もRust化。既存稼働環境への協調移行と各プロジェクトの既存エントリーポイント置換、旧互換移行/試験道具、公開スナップショットの自動保持量制御、native engine自身の更新は別途残る。",
       "theorems": [
         "PublicationProofs.collection_iff",
         "PublicationProofs.every_interrupted_prefix_preserves_roots",
-        "PublicationProofs.transitive_dependencies_survive"
+        "PublicationProofs.transitive_dependencies_survive",
+        "BootstrapProofs.preparation_iff",
+        "BootstrapProofs.package_iff",
+        "BootstrapProofs.asset_iff",
+        "BootstrapProofs.restore_iff"
+      ]
+    },
+    {
+      "id": "INITIAL-PREPARATION",
+      "priority": "P0",
+      "status": "proved",
+      "title": "初回準備は候補の開始権限を発行しない",
+      "acceptance": "抽出した判断で永続復旧・現在の要求・元サービスのみの稼働・ジョブなしを要求。状態モデルで任意の中断接頭辞が元サービスと候補許可を維持する。systemdと全ファイル操作への対応はNATIVE-ADMIN-REFINEMENTに残す。",
+      "theorems": [
+        "BootstrapProofs.preparation_iff",
+        "BootstrapProofs.no_rescue_no_install",
+        "BootstrapProofs.candidate_running_denies_prepare",
+        "BootstrapProofs.every_interrupted_preparation_keeps_source"
+      ]
+    },
+    {
+      "id": "PUBLISHER-RESTORE",
+      "priority": "P0",
+      "status": "proved",
+      "title": "公開ラッパーは未許可URL・不変資産の衝突・新しい編集の上書きを拒否する",
+      "acceptance": "抽出したRustで未知URLと不変ハッシュの衝突を拒否し、同じバックエンド・自分の書込み・検証済みバックアップが揃う時だけ復元する。ファイル単位モデルの再試行は冪等。稼働プロセスが変わった時の自動復元は行わず、個別確認が必要。",
+      "theorems": [
+        "BootstrapProofs.immutable_collision_denied",
+        "BootstrapProofs.unknown_route_denied",
+        "BootstrapProofs.newer_edit_not_replaced",
+        "BootstrapProofs.changed_backend_not_restored",
+        "BootstrapProofs.repeated_restore_is_idempotent"
       ]
     }
   ]

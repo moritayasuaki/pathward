@@ -12,8 +12,10 @@ units are masked and its generation pointer becomes an unsupported-schema
 tombstone so old administrator/update/GC commands fail closed.
 [Native publication and retention](native-publication.md) now supplies the Rust
 bridge, publisher and bounded collection of retired native/legacy generations.
-Existing installations need a reviewed service/publisher migration; initial
-provisioning and historical verification/tooling still use Python. Do not delete
+Existing installations need a reviewed service/publisher migration.
+[Native initial preparation and wrappers](native-bootstrap.md) also cover fresh
+installations and local/remote publication; historical verification/tooling still
+uses Python. Do not delete
 preserved source plans, resources, engines or transactions manually.
 
 ## Reviewed inputs and commands

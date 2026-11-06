@@ -25,6 +25,9 @@ const LEGACY: [&str; 2] = [
 #[path = "collection.rs"]
 mod collection;
 
+#[path = "bootstrap.rs"]
+mod initial;
+
 #[derive(Clone)]
 pub struct Environment {
     pub units: PathBuf,
@@ -577,6 +580,11 @@ impl<S: System> Engine<S> {
                 prior["bootstrap"].clone(),
                 Self::universe(&prior)?,
             )
+        } else if !input["source_fresh"].is_null() {
+            let source = c::materialize(&input["source_fresh"])?;
+            self.fresh_source(&source)?;
+            let names = c::names(&source)?;
+            (source, Value::Null, json!(names), names)
         } else {
             self.capture_legacy(input)?
         };
@@ -763,7 +771,7 @@ impl<S: System> Engine<S> {
             self.current()?.map(Value::String).unwrap_or(Value::Null) == p["parent"],
             "stale request",
         )?;
-        if p["parent"].is_null() {
+        if p["parent"].is_null() && !p["legacy"].is_null() {
             let l = &p["legacy"];
             let store = Path::new(string(l, "store")?);
             require(
@@ -776,6 +784,8 @@ impl<S: System> Engine<S> {
                     == l["journal_sha256"],
                 "source application changed",
             )?;
+        } else if p["parent"].is_null() {
+            self.fresh_source(&p["source"])?;
         }
         let universe = Self::universe(p)?;
         require(
