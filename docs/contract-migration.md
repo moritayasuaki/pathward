@@ -95,6 +95,12 @@ while armed. It can recover an incomplete operation after the administrator
 process exits. It cannot undo a committed transaction. The shared lock prevents
 it racing a live administrator; OS scheduling and real-time restoration bounds
 are not formally proved. A boot does not reuse volatile permits from `/run`.
+Failure callbacks retry shared-lock contention after two seconds; malformed
+records or a deliberately held recovery do not request that retry. The callback
+uses `Type=exec` and a bounded runtime because systemd 255 refuses forced exit
+status retries for oneshot services. Native engine replacement is intentionally
+refused by this migration: upgrading that pinned executable needs a separate
+reviewed handoff.
 
 ## Evidence and trust boundaries
 

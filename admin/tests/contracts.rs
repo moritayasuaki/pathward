@@ -464,6 +464,19 @@ fn process_exit_watchdog_restores_source_without_reboot() -> Result<()> {
 }
 
 #[test]
+fn shared_lock_contention_is_distinct_from_invalid_state() -> Result<()> {
+    let f = Fixture::new()?;
+    let e = engine(&f.base);
+    let _guard = e.lock()?;
+    let error = e.lock().unwrap_err();
+    assert!(matches!(
+        error.downcast_ref::<std::fs::TryLockError>(),
+        Some(std::fs::TryLockError::WouldBlock)
+    ));
+    Ok(())
+}
+
+#[test]
 fn crash_child() -> Result<()> {
     let Ok(base) = std::env::var("PATHWARD_ROLE_CHILD") else {
         return Ok(());

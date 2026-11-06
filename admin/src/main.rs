@@ -42,7 +42,22 @@ fn run() -> Result<()> {
     if a[2] == "boot" && e.boot_fast_path().unwrap_or(false) {
         return Ok(());
     }
-    let _lock = e.lock()?;
+    let _lock = match e.lock() {
+        Ok(lock) => lock,
+        Err(error)
+            if a[2] == "fallback"
+                && matches!(
+                    error.downcast_ref::<std::fs::TryLockError>(),
+                    Some(std::fs::TryLockError::WouldBlock)
+                ) =>
+        {
+            // OnFailure may race a live administrator. Retry only contention;
+            // invalid records/held recovery must still stop without a loop.
+            eprintln!("PathWard fallback waits for the active administrator");
+            std::process::exit(75);
+        }
+        Err(error) => return Err(error),
+    };
     match a[2].as_str() {
         "prepare" => {
             require(a.len() == 5, "prepare INPUT SHA256")?;

@@ -297,7 +297,7 @@ impl<S: System> Engine<S> {
     }
     fn fallback_text(&self, p: &Value) -> Result<String> {
         Ok(format!(
-            "[Unit]\nDescription=PathWard native contract fallback\nAfter={BOOT}\n\n[Service]\nType=oneshot\nExecStart={} --root {} fallback\nTimeoutStartSec=600\nUMask=0077\nNoNewPrivileges=yes\n",
+            "[Unit]\nDescription=PathWard native contract fallback\nAfter={BOOT}\nStartLimitIntervalSec=0\n\n[Service]\nType=exec\nExecStart={} --root {} fallback\nRuntimeMaxSec=600\nTimeoutStopSec=15\nRestartForceExitStatus=75\nRestartSec=2\nUMask=0077\nNoNewPrivileges=yes\n",
             string(p, "engine")?,
             self.root.display()
         ))

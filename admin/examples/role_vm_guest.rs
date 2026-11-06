@@ -362,6 +362,47 @@ fn run() -> Result<()> {
         }
         report["stale_request_rejected"] = true.into();
         report["retired_start_rejected"] = true.into();
+        // A failure callback must not disappear just because an administrator
+        // owns the shared lock. Only lock contention requests a systemd retry.
+        let _ = Real.run(
+            &words(&[
+                "/usr/bin/systemctl",
+                "start",
+                "pathward-role-fallback.service",
+            ]),
+            45,
+        );
+        let until = std::time::Instant::now() + Duration::from_secs(20);
+        loop {
+            if Real
+                .property("pathward-role-fallback.service", "NRestarts")?
+                .parse::<u64>()?
+                > 0
+            {
+                break;
+            }
+            require(
+                std::time::Instant::now() < until,
+                "fallback contention not retried",
+            )?;
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        drop(_lock);
+        let until = std::time::Instant::now() + Duration::from_secs(20);
+        loop {
+            if Real.property("pathward-role-fallback.service", "ActiveState")? == "inactive"
+                && Real.property("pathward-role-fallback.service", "ExecMainStatus")? == "0"
+            {
+                break;
+            }
+            require(
+                std::time::Instant::now() < until,
+                "fallback did not finish after lock release",
+            )?;
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        probe("THIRD")?;
+        report["fallback_lock_contention_retried"] = true.into();
         report["role_rename_and_notify_primary"] = true.into();
         report["native_runtime_has_no_python"] = true.into();
         report["final_request"] = active.into();
@@ -387,7 +428,6 @@ fn main() {
         run()
     };
     if let Err(error) = result {
-        let _ = emit(&format!("PW_VM_FAILURE {error}"));
         for name in [
             "test-role-case.service",
             "pathward-role-recovery.service",
@@ -408,6 +448,7 @@ fn main() {
                 let _ = emit(&out);
             }
         }
+        let _ = emit(&format!("PW_VM_FAILURE {error}"));
         std::process::exit(1);
     }
 }
