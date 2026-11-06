@@ -42,6 +42,29 @@ fn engine() -> Engine<Real> {
         sys: Real,
     }
 }
+fn settled_lock(e: &Engine<Real>) -> Result<fs::File> {
+    // A listening fallback can be visible just before its recovery worker
+    // finishes the final health check and releases the shared lock.
+    let until = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        match e.lock() {
+            Ok(lock) => return Ok(lock),
+            Err(error)
+                if matches!(
+                    error.downcast_ref::<std::fs::TryLockError>(),
+                    Some(std::fs::TryLockError::WouldBlock)
+                ) =>
+            {
+                require(
+                    std::time::Instant::now() < until,
+                    "recovery worker did not release lock",
+                )?;
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
 fn unit(label: &str, kind: &str) -> String {
     format!(
         "[Unit]\nDescription=Native isolated fixture {label}\n[Service]\nType={kind}\nUser=nobody\nGroup=nogroup\nExecStart={FIXTURE} serve {label} 18080\nTimeoutStartSec=10\nTimeoutStopSec=3\n[Install]\nWantedBy=multi-user.target\n"
@@ -237,7 +260,7 @@ fn run() -> Result<()> {
         .push(json!({"case":case,"selected":expected}));
     emit(&format!("PW_BOOT_CHECKED {case} {expected}"))?;
     let mut e = engine();
-    let _lock = e.lock()?;
+    let _lock = settled_lock(&e)?;
     let id = if case == 0 {
         let id = e.prepare(
             &f::record(&p("input.json"))?,
