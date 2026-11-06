@@ -174,6 +174,13 @@ fn initialize() -> Result<()> {
         "test-new.service",
         "test-role-case.service",
     ])?;
+    // The seed has finished provisioning. Later cold boots exercise only the
+    // real service manager and recovery, without repeating cloud metadata work.
+    file(
+        Path::new("/etc/cloud/cloud-init.disabled"),
+        "isolated fixture initialized\n",
+        0o600,
+    )?;
     command(&[
         "/usr/bin/systemctl",
         "start",
