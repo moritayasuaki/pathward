@@ -79,7 +79,9 @@ def main():
         with (args.output/f'qemu-{attempt}.log').open('w') as stderr:
             process=subprocess.Popen(command,stdout=subprocess.DEVNULL,stderr=stderr)
             try:
-                deadline=time.monotonic()+420
+                # Initial native fixture provisioning under CPU emulation can
+                # exceed a normal boot. Service/health deadlines remain intact.
+                deadline=time.monotonic()+(900 if args.role_contract and attempt==0 else 420)
                 while time.monotonic()<deadline:
                     text=log.read_text(errors='replace') if log.exists() else ''
                     if 'PW_VM_FAILURE ' in text:raise RuntimeError(f'Guest assertion failed: {log}')
