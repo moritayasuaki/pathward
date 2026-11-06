@@ -41,6 +41,8 @@ successful health check. Existing unit fragments and declared resources are
 captured; only the reviewed legacy recovery drop-ins are accepted. Later inputs
 use `source_current: REQUEST_SHA256` and derive the source from that completed
 native transaction.
+Original legacy resource hashes are checked before capture and remain pinned;
+reviewing a target never authorizes replacing the source's expected hashes.
 
 `target` contains `selected: "new"` and two roles `old` and `new`. Each role has:
 
@@ -64,6 +66,8 @@ alternate roots and delegated cgroups are refused. The installed gate runs
 before application code and forces control-group termination. Startup/stop
 deadlines are bounded; arbitrary systemd contracts are not silently accepted.
 All resource dependencies must be declared and validators must be reviewed.
+Unit definitions and application/validator programs are trusted not to control
+undeclared services or resources; this is not a general systemd policy sandbox.
 The lifetime union is bounded to 24 service names per native store.
 
 ## Ordering and recovery
