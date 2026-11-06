@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 const args=Object.fromEntries(process.argv.slice(2).reduce((a,v,i,all)=>i%2?a:[...a,[v,all[i+1]]],[]));
 const base=args['--base-image'],bundle=args['--bundle'],out=args['--output'],scenario=args['--scenario']??'publication';
-if(!base||!bundle||!out||!['publication','bootstrap','bridge'].includes(scenario)||Object.keys(args).some(k=>!['--base-image','--bundle','--output','--scenario','--legacy-bridge','--legacy-reader','--reference-server'].includes(k)))throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
+if(!base||!bundle||!out||!['publication','bootstrap','bridge'].includes(scenario)||Object.keys(args).some(k=>!['--base-image','--bundle','--output','--scenario','--legacy-bridge','--legacy-reader','--reference-server','--replay-policy','--replay-inventory'].includes(k)))throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const baseSha='406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0';
 if(sha(fs.readFileSync(base))!==baseSha)throw Error('Base image checksum');
@@ -24,6 +24,13 @@ if(scenario==='bridge')for(const [flag,name] of [['--legacy-bridge','legacy-brid
  if(!args[flag])throw Error(`Bridge rehearsal requires reviewed ${flag}`);
  const content=fs.readFileSync(args[flag]);if(content.length>256*1024*1024)throw Error('Fixture input bound');
  inputs[name]=sha(content);files.push({name,mode:'0755',content});
+}
+if(args['--replay-policy']||args['--replay-inventory']){
+ if(scenario!=='bridge'||!args['--replay-policy']||!args['--replay-inventory'])throw Error('Replay requires bridge scenario and both reviewed inputs');
+ for(const [flag,name] of [['--replay-policy','replay-policy.json'],['--replay-inventory','replay-inventory.json']]){
+  const content=fs.readFileSync(args[flag]);if(content.length>1024*1024)throw Error('Replay input bound');
+  JSON.parse(content);inputs[name]=sha(content);files.push({name,mode:'0600',content});
+ }
 }
 fs.mkdirSync(out,{mode:0o700});const seed=path.join(out,'seed');fs.mkdirSync(seed);
 // Copy raw verified files from read-only media. Embedding entire ELF binaries

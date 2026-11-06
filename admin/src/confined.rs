@@ -22,7 +22,7 @@ pub fn relative(s: &str) -> bool {
                 && p.len() <= 255
                 && good(p.as_bytes()[0])
                 && good(p.as_bytes()[p.len() - 1])
-                && p.bytes().all(|b| good(b) || b == b'.')
+                && p.bytes().all(|b| good(b) || b == b'.' || b == b'+')
         })
 }
 pub fn absolute(path: &Path) -> Result<File> {

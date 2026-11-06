@@ -86,6 +86,27 @@ impl Fixture {
 struct Pass;
 
 #[test]
+fn dependency_license_documents_do_not_allow_server_code() {
+    for name in [
+        "licenses/mux-js-LICENSE",
+        "licenses/server/wasi-0.11.1+wasi-snapshot-preview1/LICENSE-MIT",
+        "licenses/server/windows-sys-0.52.0/license-apache-2.0",
+    ] {
+        assert!(safe_asset(name), "{name}");
+    }
+    for name in [
+        "server/LICENSE",
+        "licenses/server/main.rs",
+        "licenses/server/config.json",
+        "licenses/private/LICENSE",
+        "licenses/server/../LICENSE",
+        "licenses/+escape/LICENSE",
+    ] {
+        assert!(!safe_asset(name), "{name}");
+    }
+}
+
+#[test]
 fn static_release_keeps_reviewed_immutable_assets() -> Result<()> {
     let mut x = Fixture::new()?;
     let base = x.base.join("static");

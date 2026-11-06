@@ -58,6 +58,133 @@ fn legacy_begin() -> Result<String> {
     ])
 }
 
+/// Replay reviewed route and filename metadata with synthetic public bytes.
+/// This checks policy compatibility without copying private application state.
+fn replay() -> Result<Value> {
+    if !path("replay-policy.json").exists() {
+        return Ok(Value::Null);
+    }
+    let mut policy = confined::metadata(&path("replay-policy.json"), 0)?;
+    let inventory = confined::metadata(&path("replay-inventory.json"), 0)?;
+    publication::validate(&policy)?;
+    dir(&path("replay"), true)?;
+    let mut count = 0usize;
+    for site in policy["sites"].as_array_mut().ok_or("replay sites")? {
+        if site["source_base"].is_null() {
+            continue;
+        }
+        let id = string(site, "id")?.to_owned();
+        require(
+            confined::relative(&id) && !id.contains('/'),
+            "replay site id",
+        )?;
+        let base = path("replay").join(&id);
+        for d in [
+            &base,
+            &base.join("releases"),
+            &base.join("releases/one"),
+            &base.join("releases/one/public"),
+        ] {
+            dir(d, true)?;
+        }
+        for name in inventory["sources"][&id]["files"]
+            .as_array()
+            .ok_or("replay inventory")?
+        {
+            let name = name.as_str().ok_or("replay filename")?;
+            require(
+                confined::relative(name) || name == ".nojekyll",
+                "replay path",
+            )?;
+            let file = base.join("releases/one/public").join(name);
+            let mut parent = base.join("releases/one/public");
+            for part in Path::new(name).parent().unwrap().components() {
+                parent.push(part);
+                dir(&parent, true)?;
+            }
+            put(
+                &file,
+                format!("reviewed public path {name}\n").as_bytes(),
+                0o644,
+            )?;
+            count += 1;
+        }
+        symlink("releases/one", base.join("current"))?;
+        site["source_base"] = json!(base);
+    }
+    json_file(&path("replay/old.json"), &policy)?;
+    let mut native = policy.clone();
+    native["schema"] = 2.into();
+    for site in native["sites"].as_array_mut().unwrap() {
+        site["directory_indexes"] = if site["index"] == "index.html" {
+            json!(["index.html", "index.txt"])
+        } else {
+            json!([site["index"]])
+        };
+    }
+    json_file(&path("replay/new.json"), &native)?;
+    let mut configurations = Vec::new();
+    let mut snapshots = Vec::new();
+    for (label, program) in [
+        (
+            "old",
+            words(&[
+                "/usr/bin/python3",
+                "-I",
+                path("legacy-bridge.py").to_str().unwrap(),
+            ]),
+        ),
+        ("new", words(&[path("pathward-hosting").to_str().unwrap()])),
+    ] {
+        let state = path("replay").join(format!("{label}-state"));
+        dir(&state, false)?;
+        run(&[
+            "/usr/bin/chown",
+            "pathward:pathward",
+            state.to_str().unwrap(),
+        ])?;
+        let mut a = program;
+        a.extend(words(&[
+            "build",
+            "--policy",
+            path(&format!("replay/{label}.json")).to_str().unwrap(),
+            "--state",
+            state.to_str().unwrap(),
+            "--binary",
+            path("reference-server").to_str().unwrap(),
+        ]));
+        let built =
+            codec::parse(user(&a.iter().map(String::as_str).collect::<Vec<_>>())?.as_bytes())?;
+        let text = fs::read_to_string(string(&built, "candidate")?)?;
+        configurations.push(
+            text.lines()
+                .filter(|l| !l.trim_start().starts_with("root "))
+                .map(str::to_owned)
+                .collect::<Vec<_>>(),
+        );
+        let mut manifests = json!({});
+        for entry in fs::read_dir(state.join("snapshots"))? {
+            let mut m = codec::parse(&f::bytes(&entry?.path().join("manifest.json"), false)?)?;
+            let host = string(&m, "host")?.to_owned();
+            m.as_object_mut().unwrap().remove("key");
+            manifests[host] = m;
+        }
+        snapshots.push(manifests);
+    }
+    require(
+        configurations[0] == configurations[1],
+        "replayed routes differ",
+    )?;
+    require(
+        snapshots[0] == snapshots[1],
+        "replayed publication maps differ",
+    )?;
+    emit("PW_BRIDGE_STAGE reviewed route and filename replay passed")?;
+    Ok(
+        json!({"hosts":policy["sites"].as_array().unwrap().len(),"source_files":count,"same_routes":true,"same_publication_maps":true,"synthetic_content":true}),
+    )
+}
+
 pub fn initialize() -> Result<()> {
     run(&[
         "/usr/sbin/useradd",
@@ -75,6 +202,7 @@ pub fn initialize() -> Result<()> {
     let gid = run(&["/usr/bin/id", "-g", "pathward"])?
         .trim()
         .parse::<u32>()?;
+    let replay = replay()?;
     dir(Path::new("/etc/pathward"), true)?;
     for d in ["legacy-state", "service", "publisher"] {
         dir(&path(d), d == "publisher")?;
@@ -126,18 +254,20 @@ pub fn initialize() -> Result<()> {
         symlink("releases/one", base.join("current"))?;
         let lock = base.join("static-work/deploy.lock");
         put(&lock, b"", 0o600)?;
-        run(&[
-            "/usr/bin/chown",
-            "-R",
-            "65534:65534",
-            base.to_str().unwrap(),
-        ])?;
-        let legacy = json!({"path":lock,"owner":65534});
+        if n != 7 {
+            run(&[
+                "/usr/bin/chown",
+                "-R",
+                "65534:65534",
+                base.to_str().unwrap(),
+            ])?;
+        }
+        let legacy = json!({"path":lock,"owner":if n==7{0}else{65534}});
         locks.push(legacy.clone());
         let directives = if n == 8 {
             json!([["reverse-proxy", "127.0.0.1:18089"]])
         } else {
-            json!([["header", "/", "X-Content-Type-Options", "nosniff"]])
+            json!([["header", "/", "x-frame-options", "DENY"]])
         };
         let explicit = special.map(|name| json!(["/", format!("/{index}"), format!("/{name}")]));
         policy["sites"].as_array_mut().unwrap().push(json!({"id":id,"host":host,"source_base":if n==8{Value::Null}else{json!(base)},"index":index,"public_paths":explicit.unwrap_or(Value::Null),"synthetic_files":{},"directives":directives}));
@@ -235,7 +365,9 @@ pub fn initialize() -> Result<()> {
         &Path::new(UNITS).join("backend.service"),
     ])?;
     let fence = json!({"schema":1,"lock":"/etc/pathward/publication.lock","writers":locks});
-    let config = json!({"schema":1,"hosting_policy":path("native-policy.json"),"receipt":RECEIPT,"receipt_owner":uid,"profiles":profiles,"health":checks,"rollout":{"lock":fence["lock"],"legacy_unit":OLD,"native_unit":NEW,"legacy_policy_sha256":codec::hash(&publication::encoded(&policy)),"native_policy_sha256":codec::hash(&publication::encoded(&native_policy))}});
+    let mut manual = profiles.as_object_mut().unwrap().remove("site7").unwrap();
+    manual["work"] = json!(engine().root);
+    let config = json!({"schema":1,"hosting_policy":path("native-policy.json"),"receipt":RECEIPT,"receipt_owner":uid,"profiles":profiles,"manual_profiles":{"site7":manual},"health":checks,"rollout":{"lock":fence["lock"],"legacy_unit":OLD,"native_unit":NEW,"legacy_policy_sha256":codec::hash(&publication::encoded(&policy)),"native_policy_sha256":codec::hash(&publication::encoded(&native_policy))}});
     json_file(&path("publisher.json"), &config)?;
     ready(&config, "legacy")?;
     emit("PW_BRIDGE_STAGE legacy ready on nine hosts")?;
@@ -264,7 +396,7 @@ pub fn initialize() -> Result<()> {
     record("bridge-input.json", &input)?;
     record(
         "bridge-report.json",
-        &json!({"scenario":"bridge","boots":[],"legacy_bridge_sha256":hash(&path("legacy-bridge.py"))?,"legacy_reader_sha256":hash(&path("legacy-reader.py"))?,"retained_server_sha256":hash(&server)?}),
+        &json!({"scenario":"bridge","boots":[],"policy_replay":replay,"legacy_bridge_sha256":hash(&path("legacy-bridge.py"))?,"legacy_reader_sha256":hash(&path("legacy-reader.py"))?,"retained_server_sha256":hash(&server)?}),
     )?;
     put(&path("bridge-case"), b"0", 0o600)?;
     service(
@@ -361,6 +493,35 @@ pub fn cases() -> Result<()> {
         )?;
         for i in 0..9 {
             let id = format!("site{i}");
+            if i == 7 {
+                require(
+                    native("describe", &id, &[]).is_err(),
+                    "administrator site delegated to unprivileged publisher",
+                )?;
+                let dest = path("site7/releases/two");
+                dir(&dest, true)?;
+                dir(&dest.join("public"), true)?;
+                put(&dest.join("public/index.html"), b"NATIVE 7", 0o644)?;
+                let manifest = path("manual-manifest.txt");
+                put(
+                    &manifest,
+                    format!("{}  public/index.html\n", codec::hash(b"NATIVE 7")).as_bytes(),
+                    0o600,
+                )?;
+                run(&[
+                    path("pathward-admin").to_str().unwrap(),
+                    "--root",
+                    engine().root.to_str().unwrap(),
+                    "manual-publish",
+                    path("publisher.json").to_str().unwrap(),
+                    &id,
+                    "releases/one",
+                    "releases/two",
+                    manifest.to_str().unwrap(),
+                    &hash(&manifest)?,
+                ])?;
+                continue;
+            }
             let stage = stage(&id, &format!("NATIVE {i}"))?;
             native("apply", &id, &["--stage", stage.to_str().unwrap()])?;
             emit(&format!("PW_BRIDGE_STAGE publication {id}"))?;
@@ -373,6 +534,7 @@ pub fn cases() -> Result<()> {
         legacy_begin()?;
         unchanged(&before)?;
         report["nine_hosts_native_publication_and_legacy_rollback"] = true.into();
+        report["administrator_owned_site_not_delegated"] = true.into();
         report["old_reader_rejects_native_policy"] = true.into();
         report["coordinated_native_and_legacy_locks"] = true.into();
         report["failed_candidate_health_restores_legacy"] = true.into();

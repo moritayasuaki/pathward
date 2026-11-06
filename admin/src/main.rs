@@ -64,6 +64,24 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
     match a[2].as_str() {
+        "manual-publish" => {
+            require(
+                a.len() == 9,
+                "manual-publish CONFIG PROFILE EXPECT NEXT MANIFEST SHA256",
+            )?;
+            let config = pathward_admin::confined::metadata(Path::new(&a[3]), 0)?;
+            let active = pathward_admin::bridge_rollout::manual_publish(
+                &mut e,
+                &config,
+                &a[4],
+                &a[5],
+                &a[6],
+                Path::new(&a[7]),
+                &a[8],
+                &mut |_| Ok(()),
+            )?;
+            println!("ADMINISTRATOR_PUBLICATION_VERIFIED {active}");
+        }
         "bridge-prepare" | "bridge-native" | "bridge-legacy" => {
             require(a.len() == 5, "bridge operation INPUT SHA256")?;
             let raw = storage::bytes(Path::new(&a[3]), true)?;

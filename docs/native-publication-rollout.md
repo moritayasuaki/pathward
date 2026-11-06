@@ -17,6 +17,8 @@ pathward-admin --root /opt/private-publication-recovery bridge-legacy INPUT SHA2
 `bridge-prepare` requires already installed root-owned binaries, profiles, old
 and new policies and unit templates. The initial account identity is pinned;
 new snapshot and publisher work directories get explicit unprivileged owners.
+Preparation requires a reviewed free-space reserve of at least 128 MiB, checks
+the existing service UID/GID, and verifies the new unit runs as that account.
 It builds snapshots using the retained server binary and repeats that build
 under the actual new unit restrictions with networking disabled. Preparation
 then installs the existing durable recovery protocol without starting the new
@@ -53,6 +55,10 @@ the same fencing path.
 These are advisory locks for the reviewed, cooperative deployment tools. A
 deployment account with direct filesystem write access can ignore its own lock;
 this is not protection from a malicious administrator or deployment account.
+Retire historical deployment bundles that check bridge identity before taking
+their writer lock without checking it again. Such an already-running writer is
+outside this cooperative protocol. A reviewed legacy entry must observe bridge
+identity while holding its existing lock and refuse a changed identity.
 
 Native mode uses a separate **schema 2 hosting policy** and separate snapshot
 state. The legacy policy stays schema 1. The routes must be equal after removing
@@ -83,6 +89,27 @@ standalone entry point. Optional `reviewed_assets` allows only exact named
 site's `public_paths`. It never relaxes traversal or private-directory checks;
 an unlisted file or unsupported extension remains refused. This is path/type
 authorization, not a content classifier for private information.
+Dependency license documents below `licenses/` may use conventional extensionless
+LICENSE/NOTICE/COPYING/ATTRIBUTION names, including `LICENSE-*` and `*-LICENSE`.
+Interior `+` characters in versioned directory names are allowed. This does not
+allow server source, private directories, dot segments or symlinks. Reviewed
+immutable prefixes apply to static releases as well as backend assets.
+
+Administrator-owned source trees stay administrator-owned. They use the separate
+`manual_profiles` map, with a release profile whose workspace is the private
+recovery root. The administrator first installs a reviewed ready release and
+public SHA-256 manifest, then runs:
+
+```
+pathward-admin --root STORE manual-publish CONFIG PROFILE EXPECT NEXT MANIFEST SHA256
+```
+
+The command takes the same exclusive administrator lease, verifies the native
+bridge epoch, exact manifest and current-release expectation, and verifies the
+public response before accepting the publication. Failure uses the existing
+conditional rollback. An unprivileged `describe` or `apply` cannot use a manual
+profile. `mode` may inspect it without granting publication access. These
+operations do not execute a helper from the uploaded release.
 
 Backend profiles can bind the service's environment using
 `environment_sha256` instead of storing its text in public profile metadata.
@@ -104,3 +131,7 @@ native publication, legacy-reader rejection, both writer locks, failed candidate
 health, unchanged application PIDs, a hard power cut during unit replacement,
 retry, stale upload rejection and reboot after committed rollback. A separate
 deployment-specific rehearsal must check the real host routes and permissions.
+Optional `--replay-policy` and `--replay-inventory` inputs replay reviewed routes
+and public filenames against the retained server, using synthetic file contents.
+The legacy and native builders must produce equal URL maps and configuration
+directives. This checks route compatibility, not the original content bytes.

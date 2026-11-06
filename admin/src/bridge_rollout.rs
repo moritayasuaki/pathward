@@ -239,6 +239,11 @@ pub fn prepare<S: System>(
         .unwrap()
         .as_str()
         .unwrap();
+    require(
+        text.lines()
+            .any(|line| line.trim() == format!("User={user}")),
+        "native bridge must run as the reviewed service account",
+    )?;
     let text = provision::preflight(text, &args)?;
     if transient.symlink_metadata().is_ok() {
         require(
@@ -289,4 +294,82 @@ pub fn switch<S: System>(
     )?;
     e.apply(&id, cp)?;
     Ok(id)
+}
+
+/// Existing administrator-owned sites keep their ownership. Their publication
+/// is performed under the same exclusive lease, without granting another UID
+/// write access to the public source or executing an uploaded helper.
+#[allow(clippy::too_many_arguments)]
+pub fn manual_publish<S: System>(
+    e: &mut Engine<S>,
+    config: &Value,
+    id: &str,
+    expected: &str,
+    next: &str,
+    manifest: &Path,
+    manifest_hash: &str,
+    cp: Checkpoint<'_>,
+) -> Result<String> {
+    let fence = f::record(&e.root.join("publication-fence.json"))?;
+    require(
+        e.current()?.is_some() && fence["lock"] == config["rollout"]["lock"],
+        "administrator publication requires the installed coordinated recovery store",
+    )?;
+    let raw = f::bytes(manifest, false)?;
+    require(
+        codec::hash(&raw) == manifest_hash,
+        "reviewed public manifest changed",
+    )?;
+    let v = config["manual_profiles"]
+        .get(id)
+        .ok_or("administrator publication profile required")?;
+    publisher::profile(&json!({"schema":1,"profiles":{id:v}}), id)?;
+    require(
+        v["kind"] == "release" && v["work"] == json!(e.root),
+        "administrator publication workspace",
+    )?;
+    let policy = confined::metadata(Path::new(string(config, "hosting_policy")?), 0)?;
+    let site = policy["sites"]
+        .as_array()
+        .ok_or("sites")?
+        .iter()
+        .find(|s| s["id"] == id)
+        .ok_or("hosting site")?;
+    require(
+        site["host"] == v["host"] && site["index"] == v["index"],
+        "administrator public route",
+    )?;
+    let before = publication_gate::observe(config, &mut e.sys)?;
+    require(
+        before["mode"] == "native"
+            && before["epoch"]["policy_sha256"] == codec::hash(&publication::encoded(&policy)),
+        "native bridge policy required",
+    )?;
+    let files = publication::public_manifest(manifest)?;
+    // Re-read the reviewed manifest after parsing so a changed file cannot be used.
+    require(
+        codec::hash(&f::bytes(manifest, false)?) == manifest_hash,
+        "public manifest changed while parsing",
+    )?;
+    publication::publish_checked(
+        &policy,
+        Path::new(string(config, "receipt")?),
+        config["receipt_owner"]
+            .as_u64()
+            .ok_or("receipt owner")?
+            .try_into()?,
+        id,
+        expected,
+        next,
+        &files,
+        &mut e.sys,
+        cp,
+        &mut |sys| {
+            publisher::Curl.check(v, &files, &e.root)?;
+            require(
+                publication_gate::observe(config, sys)?["epoch"] == before["epoch"],
+                "bridge changed during administrator publication",
+            )
+        },
+    )
 }

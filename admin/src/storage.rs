@@ -15,7 +15,7 @@ pub fn absolute(path: &Path) -> bool {
     path.is_absolute()
         && s.len() <= 1024
         && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"/_-.".contains(&b))
+            .all(|b| b.is_ascii_alphanumeric() || b"/_-.+".contains(&b))
         && path
             .components()
             .all(|c| matches!(c, Component::RootDir | Component::Normal(_)))

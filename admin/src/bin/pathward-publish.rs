@@ -211,12 +211,20 @@ fn run() -> Result<()> {
         "remote publication requires the unprivileged deployment account",
     )?;
     let config = confined::metadata(Path::new(config), 0)?;
+    if mode == "mode" {
+        require(
+            config["profiles"].get(id).is_some() || config["manual_profiles"].get(id).is_some(),
+            "unknown publication profile",
+        )?;
+        let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
+        println!(
+            "{}",
+            pathward_admin::publication_gate::observe(&config, &mut Real)?
+        );
+        return Ok(());
+    }
     let profile = p::profile(&config, id)?;
     let result: Value = match mode.as_str() {
-        "mode" => {
-            let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
-            pathward_admin::publication_gate::observe(&config, &mut Real)?
-        }
         "describe" => p::describe(&config, id, &mut Real)?,
         "receive" => {
             let _lease = pathward_admin::publication_gate::publisher(&config, None)?;

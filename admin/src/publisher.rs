@@ -50,7 +50,17 @@ pub fn safe_asset(name: &str) -> bool {
         }) || p
             .file_name()
             .and_then(|n| n.to_str())
-            .is_some_and(|s| ["LICENSE", "NOTICE", "COPYING", "ATTRIBUTION"].contains(&s)))
+            .is_some_and(|s| ["LICENSE", "NOTICE", "COPYING", "ATTRIBUTION"].contains(&s))
+            || license_document(name))
+}
+fn license_document(name: &str) -> bool {
+    name.starts_with("licenses/")
+        && name.rsplit('/').next().is_some_and(|n| {
+            let n = n.to_ascii_lowercase();
+            ["license", "notice", "copying", "attribution"].contains(&n.as_str())
+                || n.starts_with("license-")
+                || n.ends_with("-license")
+        })
 }
 fn public_path(name: &str) -> bool {
     io::relative(name)
@@ -63,10 +73,10 @@ fn public_path(name: &str) -> bool {
                 "tests",
                 "reports",
                 "node_modules",
-                "server",
             ]
             .contains(&n)
         })
+        && (!name.split('/').any(|n| n == "server") || license_document(name))
 }
 fn asset_contract(v: &Value) -> Result<()> {
     let index = v["index"].as_str().unwrap_or("index.html");
