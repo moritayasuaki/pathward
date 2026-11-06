@@ -117,5 +117,20 @@ r.write_record(Path(sys.argv[2]),json.loads(sys.argv[4]),kill)
             boot.write_text('first-boot')
             self.assertFalse(recovery.allow(plan,'changed','NEW'))
 
+    def test_recovery_waits_for_ordered_stop_and_never_starts_old_after_timeout(self):
+        recovery.write_record(self.path,self.old)
+        plan={'journal':str(self.path),'transaction':'a'*32,'state_seed':self.old,
+              'new':{'units':['new.service','bridge.service']},'old':{'units':['old.service']}}
+        calls=[]
+        def stalled(args,check=True,timeout=45):
+            calls.append((args,timeout))
+            raise subprocess.TimeoutExpired(args,timeout)
+        with patch.object(recovery,'verified',return_value=True),patch.object(recovery,'command',side_effect=stalled), \
+             patch.object(recovery,'publish') as publish:
+            with self.assertRaises(subprocess.TimeoutExpired):recovery.recover(plan,'sealed')
+            publish.assert_not_called()
+        self.assertEqual(calls,[(['systemctl','stop','bridge.service','new.service'],300)])
+        self.assertEqual(recovery.read_record(self.path),self.old)
+
 
 if __name__ == '__main__': unittest.main()

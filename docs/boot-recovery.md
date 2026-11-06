@@ -46,6 +46,10 @@ failed service state, and a verified old configuration. Rollback intent is
 persisted before changing services. The ordinary delayed watchdog still
 preserves a matching committed transaction. No availability or bounded recovery
 time is proved when validators, the OS, storage or the old service fail.
+The ordered candidate/bridge stop has a separate 300-second wait (covering the
+140-second public-server and 90-second bridge grace periods), and the fallback
+unit allows 480 seconds overall. A stop timeout never publishes an OLD permit.
+Deployments with longer stop sequences must review these bounds before use.
 
 The hosting adapter installs the disabled candidate's gate first, then durable
 boot units and their enablement link, and only then Caddy's gate. The active

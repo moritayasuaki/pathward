@@ -34,6 +34,9 @@ def file(path, data, mode=0o644):
 
 
 def initialize():
+    # There is deliberately no NIC. Do not spend each cold boot waiting for
+    # a network device that this fixture cannot have; recovery uses loopback.
+    command('systemctl','mask','systemd-networkd-wait-online.service')
     old = {'phase':'cutover_pending','transaction':'a'*32}
     r.write_record(JOURNAL,old)
     service=ROOT/'service.py'

@@ -129,8 +129,8 @@ def digest_file(path):
         os.close(fd)
 
 
-def command(args, check=True):
-    return subprocess.run(list(map(str, args)), check=check, timeout=45,
+def command(args, check=True, timeout=45):
+    return subprocess.run(list(map(str, args)), check=check, timeout=timeout,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                           env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C'})
 
@@ -221,7 +221,9 @@ def recover(plan, expected):
     if value and value.get('transaction') == plan['transaction'] and value['phase'] in ['committed', 'prepared', 'rolled_back']:
         return
     require(verified(plan['old']), 'Old service validation failed; hold')
-    command(['systemctl', 'stop', *reversed(plan['new']['units'])])
+    # A public server can have a 140s graceful stop, ordered after a bridge's
+    # 90s stop. The ordinary validator deadline must not abort that sequence.
+    command(['systemctl', 'stop', *reversed(plan['new']['units'])], timeout=300)
     require(all(command(['systemctl', 'is-active', '--quiet', u], check=False).returncode != 0 for u in plan['new']['units']), 'Candidate still active')
     publish(plan, expected, 'OLD')
     command(['systemctl', 'start', *plan['old']['units']])
@@ -300,7 +302,7 @@ After=pathward-recovery.service
 [Service]
 Type=oneshot
 ExecStart={invocation} boot-failure
-TimeoutStartSec=180
+TimeoutStartSec=480
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes
