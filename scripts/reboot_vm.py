@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--base-image',type=Path,required=True)
     parser.add_argument('--kernel-binary',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--guard-upgrade',action='store_true')
     args=parser.parse_args()
     assert hashlib.sha256(args.base_image.read_bytes()).hexdigest()==BASE_SHA
     assert args.kernel_binary.read_bytes()[:4]==b'\x7fELF','Use the CI Linux decision binary'
@@ -29,12 +30,16 @@ def main():
     seed=args.output/'seed';seed.mkdir()
     files={'pathward_recovery.py':ROOT/'deploy/pathward_recovery.py',
            'reboot_guest.py':ROOT/'scripts/reboot_guest.py','pathward-recovery':args.kernel_binary}
+    if args.guard_upgrade:
+        files.update({'pathward_guard_upgrade.py':ROOT/'deploy/pathward_guard_upgrade.py',
+                      'guard_upgrade_guest.py':ROOT/'scripts/guard_upgrade_guest.py'})
     entries=[]
     for name,path in files.items():
         entries.append({'path':'/opt/pathward-reboot-test/'+name,'permissions':'0755' if name=='pathward-recovery' else '0600',
                         'encoding':'b64','content':base64.b64encode(path.read_bytes()).decode()})
     user={'package_update':False,'package_upgrade':False,'ssh_deletekeys':False,
-          'write_files':entries,'runcmd':[['/usr/bin/python3','/opt/pathward-reboot-test/reboot_guest.py','--initialize']]}
+          'write_files':entries,'runcmd':[['/usr/bin/python3','/opt/pathward-reboot-test/'+
+                       ('guard_upgrade_guest.py' if args.guard_upgrade else 'reboot_guest.py'),'--initialize']]}
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(user))
     (seed/'meta-data').write_text('instance-id: pathward-recovery-isolated\nlocal-hostname: recovery-test\n')
     (seed/'network-config').write_text('version: 2\nethernets: {}\n')

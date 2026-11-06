@@ -4,6 +4,7 @@ import ConnectionProofs
 import ContentProofs
 import CutoverProofs
 import DeliveryProofs
+import GuardUpgradeProofs
 import PathwardProofs
 import ProxyProofs
 import RecoveryProofs
@@ -138,6 +139,26 @@ import UpstreamProofs
 #print axioms DeliveryProofs.cancelled_heads_bounded
 #print axioms DeliveryProofs.cancel_slot_total
 #print axioms DeliveryProofs.multiplex_refusal_is_retirement
+#print axioms GuardUpgradeProofs.action_eq
+#print axioms GuardUpgradeProofs.install_iff
+#print axioms GuardUpgradeProofs.finish_iff
+#print axioms GuardUpgradeProofs.unready_rejects
+#print axioms GuardUpgradeProofs.incompatible_rejects
+#print axioms GuardUpgradeProofs.pending_cutover_rejects
+#print axioms GuardUpgradeProofs.stale_request_rejects
+#print axioms GuardUpgradeProofs.ambiguous_identity_rejects
+#print axioms GuardUpgradeProofs.exhausted_epoch_rejects
+#print axioms GuardUpgradeProofs.cannot_skip_or_rewind
+#print axioms GuardUpgradeProofs.installed_retry_only_finishes
+#print axioms GuardUpgradeProofs.install_strictly_increases_epoch
+#print axioms GuardUpgradeProofs.initial_safe
+#print axioms GuardUpgradeProofs.step_preserves_safe
+#print axioms GuardUpgradeProofs.every_interrupted_prefix_safe
+#print axioms GuardUpgradeProofs.step_never_decreases_epoch
+#print axioms GuardUpgradeProofs.run_never_decreases_epoch
+#print axioms GuardUpgradeProofs.retries_are_idempotent
+#print axioms GuardUpgradeProofs.installed_generation_has_durable_bundle
+#print axioms GuardUpgradeProofs.upgrade_preserves_application
 #print axioms PathwardProofs.name_byte_eq
 #print axioms PathwardProofs.step_eq
 #print axioms PathwardProofs.accepting_eq

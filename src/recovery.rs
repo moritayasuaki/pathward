@@ -53,3 +53,37 @@ pub fn fallback_allowed(
 ) -> bool {
     selected_new && same_boot && same_plan && failed && old_valid
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UpgradeAction {
+    Reject,
+    Install,
+    Finish,
+}
+
+/// Content identities are checked separately from epochs by the adapter.
+pub fn upgrade_action(
+    base_epoch: u64,
+    target_epoch: u64,
+    current_is_base: bool,
+    current_is_target: bool,
+    ready: bool,
+    compatible: bool,
+    stable: bool,
+) -> UpgradeAction {
+    if !ready
+        || !compatible
+        || !stable
+        || base_epoch == u64::MAX
+        || target_epoch != base_epoch + 1
+        || (current_is_base && current_is_target)
+    {
+        UpgradeAction::Reject
+    } else if current_is_target {
+        UpgradeAction::Finish
+    } else if current_is_base {
+        UpgradeAction::Install
+    } else {
+        UpgradeAction::Reject
+    }
+}
