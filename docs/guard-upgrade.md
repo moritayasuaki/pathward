@@ -27,7 +27,8 @@ writer are ignored. Preparation does not modify installed service paths.
 Applying the request holds the same administrator lock used by migration and
 recovery. Its retained hash and envelope are checked against the same private
 inode read, with trusted ancestors, so a later pathname replacement cannot
-substitute different decoded content. It requires a stable terminal transaction with the matching boot
+substitute different decoded content. It requires a stable terminal transaction
+with the matching boot
 permit and service states. Pending cutover/rollback, missing verification,
 changed units, stale base or competing target identities are rejected.
 
