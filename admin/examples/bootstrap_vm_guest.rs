@@ -110,14 +110,16 @@ fn initialize() -> Result<()> {
         "source/releases/one",
         "source/releases/one/public",
         "publisher",
-        "backend-release",
-        "backend-release/public",
+        "backend-base",
+        "backend-base/releases",
+        "backend-base/releases/one",
+        "backend-base/releases/one/public",
     ] {
         dir(&path(d), true)?;
     }
     for (d, label) in [
         ("source/releases/one/public", "ONE"),
-        ("backend-release/public", "BACKEND"),
+        ("backend-base/releases/one/public", "BACKEND"),
     ] {
         put(&path(d).join("index.html"), label.as_bytes(), 0o644)?;
         put(
@@ -127,7 +129,8 @@ fn initialize() -> Result<()> {
         )?;
     }
     symlink("releases/one", path("source/current"))?;
-    for d in ["source", "publisher", "backend-release/public"] {
+    symlink("releases/one", path("backend-base/current"))?;
+    for d in ["source", "publisher", "backend-base/releases/one/public"] {
         run(&[
             "/usr/bin/chown",
             "-R",
@@ -212,7 +215,7 @@ fn initialize() -> Result<()> {
 }
 fn configure_publisher() -> Result<Value> {
     let text = format!(
-        "[Unit]\nDescription=Unchanged backend fixture\n[Service]\nType=exec\nUser=nobody\nWorkingDirectory={ROOT}/backend-release\nEnvironment=PORT=18089\nExecStart={ROOT}/role_fixture files {ROOT}/backend-release/public 18089\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\n[Install]\nWantedBy=multi-user.target\n"
+        "[Unit]\nDescription=Unchanged backend fixture\n[Service]\nType=exec\nUser=nobody\nWorkingDirectory={ROOT}/backend-base/current\nEnvironment=PORT=18089\nExecStart={ROOT}/role_fixture files {ROOT}/backend-base/releases/one/public 18089\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\n[Install]\nWantedBy=multi-user.target\n"
     );
     put(
         &Path::new(UNITS).join("backend.service"),
@@ -236,7 +239,7 @@ fn configure_publisher() -> Result<Value> {
         .parse::<u32>()?;
     let mut config = json!({"schema":1,"hosting_policy":format!("{INSTALL}/hosting.json"),"receipt":format!("{INSTALL}/receipts/receipt.json"),"receipt_owner":uid,"profiles":{
         "portal":{"kind":"release","host":"example.test","origin":"http://127.0.0.1:18081","work":path("publisher/portal"),"checks":{},"extra_checks":[{"host":"backend.test","origin":"http://127.0.0.1:18081","path":"/","status":200}]},
-        "backend":{"kind":"backend","host":"backend.test","origin":"http://127.0.0.1:18081","work":path("publisher/backend"),"checks":{},"root":path("backend-release/public"),"unit":"backend.service","upstream":"127.0.0.1:18089","executable":path("role_fixture"),"properties":props,"sealed_files":filemap(&[&path("role_fixture"),&Path::new(UNITS).join("backend.service")])?,"immutable_prefixes":["avatars/"],"additive_prefixes":["avatars/v6/"]}
+        "backend":{"kind":"backend","host":"backend.test","origin":"http://127.0.0.1:18081","work":path("publisher/backend"),"checks":{},"root":path("backend-base/releases/one/public"),"release_base":path("backend-base"),"unit":"backend.service","upstream":"127.0.0.1:18089","executable":path("role_fixture"),"properties":props,"sealed_files":filemap(&[&path("role_fixture"),&Path::new(UNITS).join("backend.service")])?,"immutable_prefixes":["avatars/"],"additive_prefixes":["avatars/v6/"]}
     }});
     put(&path("publisher.json"), &codec::canonical(&config), 0o644)?;
     native("describe", "backend", &[])?;
@@ -256,7 +259,7 @@ fn cut_child() -> Result<()> {
         &mut publisher::Curl,
         &mut |label| {
             if label == "asset-renamed"
-                && fs::read(path("backend-release/public/app.js"))? == b"THIRD asset"
+                && fs::read(path("backend-base/releases/one/public/app.js"))? == b"THIRD asset"
             {
                 fs::write(path("publisher/cut-ready"), b"ready")?;
                 loop {
@@ -387,8 +390,8 @@ fn cases() -> Result<()> {
             &["--operation", string(&m, "operation")?],
         )?;
         require(
-            fs::read(path("backend-release/public/index.html"))? == b"NEXT"
-                && fs::read(path("backend-release/public/app.js"))? == b"NEXT asset",
+            fs::read(path("backend-base/releases/one/public/index.html"))? == b"NEXT"
+                && fs::read(path("backend-base/releases/one/public/app.js"))? == b"NEXT asset",
             "partial backend recovery failed",
         )?;
         require(
@@ -401,6 +404,7 @@ fn cases() -> Result<()> {
         report["backend_process_kill_recovery"] = true.into();
         report["native_runtime_no_python"] = true.into();
         report["proc_and_systemd_executable_observation"] = true.into();
+        report["backend_current_alias_is_bound"] = true.into();
         record("report.json", &report)?;
         put(&path("case"), b"2", 0o600)?;
         emit("PW_COLD_REBOOT initial-and-publication")?;
@@ -413,7 +417,7 @@ fn cases() -> Result<()> {
         "committed native role lost on reboot",
     )?;
     require(
-        fs::read(path("backend-release/public/index.html"))? == b"NEXT",
+        fs::read(path("backend-base/releases/one/public/index.html"))? == b"NEXT",
         "published backend files lost",
     )?;
     require(

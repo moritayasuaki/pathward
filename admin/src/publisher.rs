@@ -244,6 +244,32 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
         )?;
         out[key] = raw.into();
     }
+    let executable = string(v, "executable")?;
+    let start_executable = v["exec_start"].as_str().unwrap_or(executable);
+    let mut working = PathBuf::from(string(&v["properties"], "WorkingDirectory")?);
+    if let Some(base) = v.get("release_base") {
+        let base = Path::new(base.as_str().ok_or("backend release base")?);
+        require(
+            working == base.join("current"),
+            "backend current alias differs",
+        )?;
+        let reference = io::reference(&io::absolute(base)?)?;
+        working = base.join(&reference);
+        out["release_reference"] = reference.into();
+        if start_executable != executable {
+            let suffix = Path::new(start_executable).strip_prefix(base.join("current"))?;
+            require(
+                suffix.to_str().is_some_and(io::relative)
+                    && working.join(suffix) == Path::new(executable),
+                "backend executable alias differs from sealed release",
+            )?;
+        }
+    } else {
+        require(
+            start_executable == executable,
+            "unbound backend executable alias",
+        )?;
+    }
     let files = v["sealed_files"]
         .as_object()
         .ok_or("backend sealed files")?;
@@ -277,7 +303,7 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
     )?;
     if observation == "systemd" {
         let start = property("ExecStart")?;
-        let expected = format!("{{ path={} ;", string(v, "executable")?);
+        let expected = format!("{{ path={start_executable} ;");
         require(
             start.starts_with(&expected) && start.matches("{ path=").count() == 1,
             "loaded backend executable differs",
@@ -297,7 +323,7 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
         "backend static subtree",
     )?;
     require(
-        root == Path::new(string(&v["properties"], "WorkingDirectory")?).join(subdir),
+        root == working.join(subdir),
         "backend public directory differs",
     )?;
     out["root"] = v["root"].clone();

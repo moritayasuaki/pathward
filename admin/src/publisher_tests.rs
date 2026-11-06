@@ -86,6 +86,44 @@ impl Fixture {
 struct Pass;
 
 #[test]
+fn backend_current_alias_is_bound_to_the_sealed_release() -> Result<()> {
+    let mut x = Fixture::new()?;
+    let base = x.base.join("backend");
+    private(&base)?;
+    private(&base.join("releases"))?;
+    fs::rename(x.base.join("release"), base.join("releases/one"))?;
+    std::os::unix::fs::symlink("releases/one", base.join("current"))?;
+    x.config["profiles"]["site"]["release_base"] = json!(base);
+    x.config["profiles"]["site"]["root"] = json!(base.join("releases/one/public"));
+    x.config["profiles"]["site"]["properties"]["WorkingDirectory"] = json!(base.join("current"));
+    x.sys.properties["WorkingDirectory"] = json!(base.join("current"));
+    describe(&x.config, "site", &mut x.sys)?;
+    private(&base.join("releases/one/bin"))?;
+    let exe = base.join("releases/one/bin/backend");
+    put(&exe, b"sealed executable fixture")?;
+    x.config["profiles"]["site"]["executable"] = json!(exe);
+    x.config["profiles"]["site"]["exec_start"] = json!(base.join("current/bin/backend"));
+    x.config["profiles"]["site"]["executable_observation"] = "systemd".into();
+    x.config["profiles"]["site"]["sealed_files"][exe.to_str().unwrap()] =
+        codec::hash(b"sealed executable fixture").into();
+    x.sys.properties["ExecStart"] = format!(
+        "{{ path={} ; }}",
+        base.join("current/bin/backend").display()
+    )
+    .into();
+    describe(&x.config, "site", &mut x.sys)?;
+    x.config["profiles"]["site"]["exec_start"] = json!(base.join("current/bin/unreviewed"));
+    assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    x.config["profiles"]["site"]["exec_start"] = json!(base.join("current/bin/backend"));
+    for target in ["releases/two", "../outside", "/etc"] {
+        fs::remove_file(base.join("current"))?;
+        std::os::unix::fs::symlink(target, base.join("current"))?;
+        assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    }
+    Ok(())
+}
+
+#[test]
 fn loaded_executable_observation_requires_explicit_single_match() -> Result<()> {
     let mut x = Fixture::new()?;
     x.config["profiles"]["site"]["executable_observation"] = "systemd".into();

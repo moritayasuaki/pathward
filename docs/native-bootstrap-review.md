@@ -38,6 +38,10 @@ source locks; privileged/cooperating-writer assumptions are documented explicitl
 The default executable observation is `/proc/PID/exe`. An explicit systemd
 observation profile can support separate service identities; it checks one loaded
 ExecStart and sealed files, but does not attest the current process image.
+An explicit `current` deployment alias is resolved only as `releases/NAME` under
+its reviewed base. The working directory and executable must correspond to the
+pinned concrete release. The reference is included in repeated identity checks;
+publication never follows this alias for destination writes.
 
 Residual risks include administrator or deployment-account compromise, mutable
 source releases, OS command behavior, filesystem durability, health-check adequacy,

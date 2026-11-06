@@ -81,6 +81,12 @@ server's exact `public` or `dist` subtree; they additionally require:
 - Reviewed systemd `properties`, including `WorkingDirectory`, `Environment`,
   `FragmentPath`, `NoNewPrivileges=yes` and relevant isolation properties.
 - `sealed_files` covering the executable and unit definition.
+- Optional `release_base` when WorkingDirectory is its `current` link. Only a
+  relative `releases/NAME` reference is accepted; `root` and the sealed executable
+  still name the concrete reviewed release. Optional `exec_start` may name the
+  corresponding `current` executable alias. A changed reference, escaping link
+  or different executable is rejected, and the observed reference is bound into
+  the upload description and subsequent identity checks.
 - `immutable_prefixes` and `additive_prefixes`. Unknown routes are refused unless
   their explicit prefix is allowed. Existing immutable or content-hashed assets
   cannot change. Omitted older assets remain available for existing browser tabs.
