@@ -175,6 +175,15 @@ pub fn prepare<S: System>(
         contract::verified(&mut e.sys, &target[side], true)?;
     }
     let state = Path::new(string(input, "state")?);
+    let minimum = input["minimum_free_bytes"]
+        .as_u64()
+        .ok_or("storage reserve required")?;
+    require(minimum >= 128 << 20, "storage reserve is too small")?;
+    let disk = rustix::fs::statvfs(state.parent().ok_or("state parent")?)?;
+    require(
+        u128::from(disk.f_bavail) * u128::from(disk.f_frsize) >= u128::from(minimum),
+        "insufficient publication storage reserve",
+    )?;
     provision::owned_dir(state, uid, gid, 0o700)?;
     let deploy_uid: u32 = input["deployment_uid"]
         .as_u64()

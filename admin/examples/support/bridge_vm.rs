@@ -260,7 +260,7 @@ pub fn initialize() -> Result<()> {
         .unwrap()] = codec::hash(&codec::encode(&fence)).into();
     let old = json!({"units":{OLD:template("legacy-template.service",&old_text)?},"files":files,"executable_aliases":{"/usr/bin/python3":python},"check":[path("role_fixture"),"check"],"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"legacy"]});
     let new = json!({"units":{NEW:template("native-template.service",&new_text)?},"files":files,"check":[path("role_fixture"),"check"],"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"native"]});
-    let input = json!({"schema":1,"publisher":path("publisher.json"),"legacy_policy":POLICY,"account":"pathward","uid":uid,"gid":gid,"deployment_uid":65534,"deployment_gid":65534,"state":path("native-state"),"hosting_binary":path("pathward-hosting"),"server_binary":server,"fence":fence,"contract":{"selected":"new","old":old,"new":new}});
+    let input = json!({"schema":1,"minimum_free_bytes":134217728,"publisher":path("publisher.json"),"legacy_policy":POLICY,"account":"pathward","uid":uid,"gid":gid,"deployment_uid":65534,"deployment_gid":65534,"state":path("native-state"),"hosting_binary":path("pathward-hosting"),"server_binary":server,"fence":fence,"contract":{"selected":"new","old":old,"new":new}});
     record("bridge-input.json", &input)?;
     record(
         "bridge-report.json",

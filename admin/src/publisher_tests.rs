@@ -86,6 +86,43 @@ impl Fixture {
 struct Pass;
 
 #[test]
+fn static_release_keeps_reviewed_immutable_assets() -> Result<()> {
+    let mut x = Fixture::new()?;
+    let base = x.base.join("static");
+    private(&base)?;
+    private(&base.join("releases"))?;
+    fs::rename(x.base.join("release"), base.join("releases/one"))?;
+    std::os::unix::fs::symlink("releases/one", base.join("current"))?;
+    x.config["profiles"]["site"]["kind"] = "release".into();
+    x.config["profiles"]["site"]["immutable_prefixes"] = json!(["app.js"]);
+    let mut policy = read_policy(&x.config)?;
+    policy["sites"][0]["source_base"] = json!(base);
+    put(&x.base.join("hosting.json"), &codec::canonical(&policy))?;
+    x.stage()?;
+    assert!(
+        apply(
+            &x.config,
+            "site",
+            &x.base.join("upload"),
+            &mut x.sys,
+            &mut Pass,
+            &mut |_| Ok(())
+        )
+        .is_err()
+    );
+    assert_eq!(
+        fs::read_link(base.join("current"))?,
+        Path::new("releases/one")
+    );
+    assert_eq!(
+        fs::read(base.join("releases/one/public/app.js"))?,
+        b"old asset"
+    );
+    assert!(!x.base.join("work/active.json").exists());
+    Ok(())
+}
+
+#[test]
 fn backend_environment_can_be_bound_without_disclosing_it() -> Result<()> {
     let mut x = Fixture::new()?;
     x.config["profiles"]["site"]["properties"]
