@@ -59,6 +59,20 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
     match a[2].as_str() {
+        "gc-observe" => {
+            require(a.len() == 3, "gc-observe arguments")?;
+            let value = e.observe_collection(&mut |_| Ok(()))?;
+            println!("RETENTION_OBSERVED {}", value["current"]);
+        }
+        "gc-plan" => {
+            let id = e.plan_collection(&a[3..], &mut |_| Ok(()))?;
+            println!("PREPARED_COLLECTION {id}");
+        }
+        "gc-apply" => {
+            require(a.len() == 4, "gc-apply REQUEST")?;
+            let n = e.apply_collection(&a[3], &mut |_| Ok(()))?;
+            println!("COLLECTED_GENERATIONS {n}");
+        }
         "prepare" => {
             require(a.len() == 5, "prepare INPUT SHA256")?;
             let bytes = storage::bytes(Path::new(&a[3]), true)?;

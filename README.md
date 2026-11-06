@@ -320,3 +320,6 @@ restriction/revocation, stale-writer exclusion, early-data restrictions and
 fragmented-input accounting, including each theorem's explicit assumptions.
 
 Native administrator support for service-role and startup-contract changes is described in [contract migration](docs/contract-migration.md).
+
+The Rust publication bridge, boot-bound acknowledgement and reboot-fenced
+generation collection are described in [native publication](docs/native-publication.md).

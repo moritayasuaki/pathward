@@ -9,11 +9,12 @@ maintenance interval: this operation has a deliberate service interruption.
 The new migration, gates, watchdog and boot/failure recovery do not invoke
 Python. The legacy helper and records are retained as evidence; its systemd
 units are masked and its generation pointer becomes an unsupported-schema
-tombstone so old administrator/update/GC commands fail closed. The existing
-publication bridge and verification/tooling scripts are separate Python users.
-Native integration for that bridge, old-generation collection and administrative
-retention limits remains on the roadmap. Do not delete preserved source plans,
-resources, engines or transactions manually.
+tombstone so old administrator/update/GC commands fail closed.
+[Native publication and retention](native-publication.md) now supplies the Rust
+bridge, publisher and bounded collection of retired native/legacy generations.
+Existing installations need a reviewed service/publisher migration; initial
+provisioning and historical verification/tooling still use Python. Do not delete
+preserved source plans, resources, engines or transactions manually.
 
 ## Reviewed inputs and commands
 

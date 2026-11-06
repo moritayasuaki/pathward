@@ -516,7 +516,7 @@ def delivery.wire_fits
   else ok false
 
 /-- [pathward::State]
-    Source: 'src/lib.rs', lines 11:0-18:1
+    Source: 'src/lib.rs', lines 12:0-19:1
     Visibility: public -/
 @[discriminant isize]
 inductive State where
@@ -528,7 +528,7 @@ inductive State where
 | Reject : State
 
 /-- [pathward::{impl core::cmp::PartialEq<pathward::State> for pathward::State}::eq]:
-    Source: 'src/lib.rs', lines 10:29-10:38
+    Source: 'src/lib.rs', lines 11:29-11:38
     Visibility: public -/
 def State.Insts.CoreCmpPartialEqState.eq
   (self : State) (other : State) : RustM Bool := do
@@ -537,7 +537,7 @@ def State.Insts.CoreCmpPartialEqState.eq
   ok (self1 = other1)
 
 /-- [pathward::name_byte]:
-    Source: 'src/lib.rs', lines 23:0-30:1
+    Source: 'src/lib.rs', lines 24:0-31:1
     Visibility: public -/
 def name_byte (byte : Std.U8) : RustM Bool := do
   if byte >= 97#u8
@@ -624,7 +624,7 @@ def name_byte (byte : Std.U8) : RustM Bool := do
              else ok (byte = 43#u8)
 
 /-- [pathward::step]:
-    Source: 'src/lib.rs', lines 33:0-62:1
+    Source: 'src/lib.rs', lines 34:0-63:1
     Visibility: public -/
 def step (state : State) (byte : Std.U8) : RustM State := do
   match state with
@@ -676,7 +676,7 @@ def step (state : State) (byte : Std.U8) : RustM State := do
   | State.Reject => ok State.Reject
 
 /-- [pathward::accepting]:
-    Source: 'src/lib.rs', lines 65:0-67:1
+    Source: 'src/lib.rs', lines 66:0-68:1
     Visibility: public -/
 def accepting (state : State) : RustM Bool := do
   match state with
@@ -688,7 +688,7 @@ def accepting (state : State) : RustM Bool := do
   | State.Reject => ok false
 
 /-- [pathward::valid_path]: loop 0:
-    Source: 'src/lib.rs', lines 77:4-80:5
+    Source: 'src/lib.rs', lines 78:4-81:5
     Visibility: public -/
 @[rust_loop]
 def valid_path_loop
@@ -704,7 +704,7 @@ def valid_path_loop
 partial_fixpoint
 
 /-- [pathward::valid_path]:
-    Source: 'src/lib.rs', lines 71:0-82:1
+    Source: 'src/lib.rs', lines 72:0-83:1
     Visibility: public -/
 def valid_path (path : Slice Std.U8) : RustM Bool := do
   let i := Slice.len path
@@ -714,7 +714,7 @@ def valid_path (path : Slice Std.U8) : RustM Bool := do
        accepting state
 
 /-- [pathward::same_path]: loop 0:
-    Source: 'src/lib.rs', lines 90:4-97:1
+    Source: 'src/lib.rs', lines 91:4-98:1
     Visibility: public -/
 @[rust_loop]
 def same_path_loop
@@ -734,7 +734,7 @@ def same_path_loop
 partial_fixpoint
 
 /-- [pathward::same_path]:
-    Source: 'src/lib.rs', lines 85:0-97:1
+    Source: 'src/lib.rs', lines 86:0-98:1
     Visibility: public -/
 def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   let i := Slice.len left
@@ -744,7 +744,7 @@ def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
   else same_path_loop left right 0#usize
 
 /-- [pathward::listed]:
-    Source: 'src/lib.rs', lines 109:0-119:1 -/
+    Source: 'src/lib.rs', lines 110:0-120:1 -/
 def listed
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) (index : Std.Usize)
   :
@@ -763,7 +763,7 @@ def listed
 partial_fixpoint
 
 /-- [pathward::is_public]:
-    Source: 'src/lib.rs', lines 100:0-105:1
+    Source: 'src/lib.rs', lines 101:0-106:1
     Visibility: public -/
 def is_public
   (path : Slice Std.U8) (published : Slice (Slice Std.U8)) : RustM Bool := do
@@ -1267,6 +1267,63 @@ def proxy.response_header
                       ]))
                 let b5 ← same_path «name» s3
                 ok (¬ b5)
+    else ok false
+  else ok false
+
+/-- [pathward::publication::mapping_allowed]:
+    Source: 'src/publication.rs', lines 2:0-4:1
+    Visibility: public -/
+def publication.mapping_allowed
+  (canonical : Bool) (selected : Bool) (synthetic : Bool) : RustM Bool := do
+  if canonical
+  then if selected
+       then ok true
+       else ok synthetic
+  else ok false
+
+/-- [pathward::publication::receipt_allowed]:
+    Source: 'src/publication.rs', lines 7:0-18:1
+    Visibility: public -/
+def publication.receipt_allowed
+  (policy : Bool) (boot : Bool) (revision : Bool) (source : Bool)
+  (files : Bool) (after : Std.U64) (observed : Std.U64) (now : Std.U64) :
+  RustM Bool
+  := do
+  if policy
+  then
+    if boot
+    then
+      if revision
+      then
+        if source
+        then
+          if files
+          then if after < observed
+               then ok (observed <= now)
+               else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::publication::collection_allowed]:
+    Source: 'src/publication.rs', lines 20:0-28:1
+    Visibility: public -/
+def publication.collection_allowed
+  (stable : Bool) (later_boot : Bool) (observed : Bool) («protected» : Bool)
+  (exact : Bool) :
+  RustM Bool
+  := do
+  if stable
+  then
+    if later_boot
+    then
+      if observed
+      then if «protected»
+           then ok false
+           else ok exact
+      else ok false
     else ok false
   else ok false
 

@@ -22,6 +22,9 @@ const LEGACY: [&str; 2] = [
     "pathward-recovery-fallback.service",
 ];
 
+#[path = "collection.rs"]
+mod collection;
+
 #[derive(Clone)]
 pub struct Environment {
     pub units: PathBuf,
@@ -619,6 +622,10 @@ impl<S: System> Engine<S> {
             "legacy":legacy,"bootstrap":bootstrap,"universe":universe,"engine":engine,"engine_sha256":engine_hash});
         let id = codec::hash(&codec::encode(&p));
         let dir = self.dir(&id)?;
+        require(
+            dir.exists() || fs::read_dir(self.root.join("transactions"))?.count() < 128,
+            "native request retention limit; collect reviewed old generations first",
+        )?;
         f::directory(&dir)?;
         // PID 1's own parser checks both complete contracts before a request
         // can be applied. Only immutable copies in this private staging area.

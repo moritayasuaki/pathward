@@ -21,7 +21,8 @@
     "RecoveryProofs": "再起動時の旧新選択・起動許可・書込み中断と永続化のモデル",
     "GuardUpgradeProofs": "復旧ガード更新の世代照合・再試行判断と中断可能な更新の状態モデル",
     "PlanMigrationProofs": "別の復旧計画への同一サービス移行、再起動後の世代回収と保護参照",
-    "ContractMigrationProofs": "Rust管理処理の異なるサービス役割・起動契約への移行判断、停止・起動許可と途中書換えの状態モデル"
+    "ContractMigrationProofs": "Rust管理処理の異なるサービス役割・起動契約への移行判断、停止・起動許可と途中書換えの状態モデル",
+    "PublicationProofs": "Rust公開更新の選択・起動識別子付き受領票・世代整理の判断と中断可能な削除の状態モデル"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -77,7 +78,14 @@
     "ContractMigrationProofs.permit_and_running_contract_agree",
     "ContractMigrationProofs.changing_contract_requires_drain",
     "ContractMigrationProofs.source_and_rescue_survive",
-    "ContractMigrationProofs.reboot_revokes_all_volatile_authority"
+    "ContractMigrationProofs.reboot_revokes_all_volatile_authority",
+    "PublicationProofs.matching_receipt_has_exact_digests",
+    "PublicationProofs.matching_receipt_cannot_add_file",
+    "PublicationProofs.matching_receipt_follows_switch",
+    "PublicationProofs.collection_step_preserves_live_roots",
+    "PublicationProofs.every_interrupted_prefix_preserves_roots",
+    "PublicationProofs.transitive_dependencies_survive",
+    "PublicationProofs.partial_unlink_retry_idempotent"
   ],
   "axioms": {
     "Classical.choice": {
@@ -168,10 +176,20 @@
     {
       "id": "PUBLISH-RECEIPT",
       "priority": "P0",
-      "status": "planned",
+      "status": "proved",
       "title": "公開更新の受領票と実際に有効な設定の一致",
-      "acceptance": "不変スナップショット・CAS・受領票の状態モデルで、古い受領票は新しい公開更新を承認できず、公開範囲外のファイルを追加しないと証明する。Linux実装のリンク・fsync・権限の前提を明示する。現在はLinux統合試験で検証。",
-      "theorems": []
+      "acceptance": "Rustの公開元の限定コピー・設定生成・CAS・受領票・公開リンク更新を実装。抽出した判断で同一policy/boot/revision/source/完全一致ファイル集合と、更新開始より後かつ未来でない観測時刻を要求する。受領票は記載した観測時点の配信を確認するもので、後続の管理者切替まで固定する保証ではない。ファイルとOS・systemdの観測の真正性、全コードとの対応証明は別途残る。",
+      "theorems": [
+        "PublicationProofs.receipt_iff",
+        "PublicationProofs.old_receipt_denied",
+        "PublicationProofs.previous_boot_denied",
+        "PublicationProofs.wrong_revision_denied",
+        "PublicationProofs.changed_file_set_denied",
+        "PublicationProofs.unselected_file_denied",
+        "PublicationProofs.matching_receipt_has_exact_digests",
+        "PublicationProofs.matching_receipt_cannot_add_file",
+        "PublicationProofs.matching_receipt_follows_switch"
+      ]
     },
     {
       "id": "CANCEL-POLICY",
@@ -512,10 +530,14 @@
     {
       "id": "NATIVE-ADMIN-COVERAGE",
       "priority": "P1",
-      "status": "planned",
+      "status": "in_progress",
       "title": "残るPython運用処理と世代整理をRustへ移す",
-      "acceptance": "今回の役割移行・起動許可・再起動復旧・watchdogはRust。既存Python管理を封じた後の運用統合、旧世代GCと新しい管理記録の保持量制御、公開更新の橋渡しは別途Rust化・検証する。現在は旧リリース・移行元を保持し、管理対象は最大24サービスに制限する。試験・抽出・監査の既存Python道具も実行時処理とは分けて管理する。",
-      "theorems": []
+      "acceptance": "公開スナップショット生成、設定CAS、受領票、公開リンク切替と失敗時の条件付き復旧をRust化。廃止済み旧Pythonガードの世代とRust取引記録を、再起動・安定状態・完全一致一覧で制限してRustから回収する。外部の元計画・鍵・helper・リリースと公開スナップショットは削除しない。既存の初回管理者準備・サイト別ビルド/公開ラッパー・旧互換移行・試験道具のPython置換、公開スナップショットの自動保持量制御、稼働中のnative engine自身の更新は残課題。",
+      "theorems": [
+        "PublicationProofs.collection_iff",
+        "PublicationProofs.every_interrupted_prefix_preserves_roots",
+        "PublicationProofs.transitive_dependencies_survive"
+      ]
     }
   ]
 }

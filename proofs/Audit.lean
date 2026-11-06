@@ -9,6 +9,7 @@ import GuardUpgradeProofs
 import PathwardProofs
 import PlanMigrationProofs
 import ProxyProofs
+import PublicationProofs
 import RecoveryProofs
 import ReleaseProofs
 import ResponseProofs
@@ -290,6 +291,31 @@ import UpstreamProofs
 #print axioms ProxyProofs.target_bounded
 #print axioms ProxyProofs.target_no_controls
 #print axioms ProxyProofs.proxy_total
+#print axioms PublicationProofs.mapping_iff
+#print axioms PublicationProofs.unselected_file_denied
+#print axioms PublicationProofs.noncanonical_mapping_denied
+#print axioms PublicationProofs.receipt_iff
+#print axioms PublicationProofs.old_receipt_denied
+#print axioms PublicationProofs.future_receipt_denied
+#print axioms PublicationProofs.previous_boot_denied
+#print axioms PublicationProofs.changed_policy_denied
+#print axioms PublicationProofs.wrong_revision_denied
+#print axioms PublicationProofs.wrong_source_denied
+#print axioms PublicationProofs.changed_file_set_denied
+#print axioms PublicationProofs.receipt_time_order
+#print axioms PublicationProofs.collection_iff
+#print axioms PublicationProofs.same_boot_collection_denied
+#print axioms PublicationProofs.protected_collection_denied
+#print axioms PublicationProofs.unobserved_collection_denied
+#print axioms PublicationProofs.changed_member_collection_denied
+#print axioms PublicationProofs.busy_collection_denied
+#print axioms PublicationProofs.matching_receipt_has_exact_digests
+#print axioms PublicationProofs.matching_receipt_cannot_add_file
+#print axioms PublicationProofs.matching_receipt_follows_switch
+#print axioms PublicationProofs.collection_step_preserves_live_roots
+#print axioms PublicationProofs.every_interrupted_prefix_preserves_roots
+#print axioms PublicationProofs.transitive_dependencies_survive
+#print axioms PublicationProofs.partial_unlink_retry_idempotent
 #print axioms RecoveryProofs.new_iff
 #print axioms RecoveryProofs.old_iff
 #print axioms RecoveryProofs.invalid_plan_holds

@@ -1,0 +1,27 @@
+[Unit]
+Description=PathWard native publication bridge
+After=pathward.service
+Requires=pathward.service
+
+[Service]
+Type=simple
+User=pathward
+Group=pathward
+ExecStart=@HOSTING_BINARY@ reconcile --policy /etc/pathward/hosting.json --state /var/lib/pathward/snapshots --binary @SERVER_BINARY@ --control /var/lib/pathward/control --receipt /run/pathward-hosting/receipt.json --watch
+RuntimeDirectory=pathward-hosting
+RuntimeDirectoryMode=0755
+UMask=0077
+MemoryMax=128M
+TasksMax=8
+LimitNOFILE=4096
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/pathward /run/pathward-hosting
+NoExecPaths=/var/lib/pathward /run/pathward-hosting
+
+[Install]
+WantedBy=multi-user.target

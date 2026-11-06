@@ -271,6 +271,107 @@ fn template_input(base: &Path, exe: &Path, label: &str, kind: &str) -> Result<Va
     Ok(json!({"path":path,"sha256":codec::hash(&f::bytes(&path,false)?)}))
 }
 
+fn collection_fixture() -> Result<(Fixture, Vec<String>, String)> {
+    let f = Fixture::new()?;
+    let mut e = engine(&f.base);
+    let first = f.prepare()?;
+    e.apply(&first, &mut |_| Ok(()))?;
+    let mut ids = vec![first];
+    for _ in 0..2 {
+        let mut input = f.input.clone();
+        input["source_current"] = ids.last().unwrap().clone().into();
+        let id = e.prepare(&input, &f.exe, &mut |_| Ok(()))?;
+        e.apply(&id, &mut |_| Ok(()))?;
+        ids.push(id);
+    }
+    let mut input = f.input.clone();
+    input["source_current"] = ids.last().unwrap().clone().into();
+    let prepared = e.prepare(&input, &f.exe, &mut |_| Ok(()))?;
+    e.observe_collection(&mut |_| Ok(()))?;
+    assert!(e.plan_collection(&[], &mut |_| Ok(())).is_err());
+    f.reboot()?;
+    Ok((f, ids, prepared))
+}
+#[test]
+fn native_collection_preserves_current_parent_prepared_and_explicit_keep() -> Result<()> {
+    let (f, ids, prepared) = collection_fixture()?;
+    let mut e = engine(&f.base);
+    let _lock = e.lock()?;
+    assert!(
+        e.plan_collection(&[format!("native-{}", ids[0])], &mut |_| Ok(()))
+            .is_err()
+    );
+    let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+    assert_eq!(e.apply_collection(&request, &mut |_| Ok(()))?, 1);
+    assert!(!e.root.join("transactions").join(&ids[0]).exists());
+    for id in [&ids[1], &ids[2], &prepared] {
+        assert!(e.plan(id).is_ok());
+    }
+    assert_eq!(e.apply_collection(&request, &mut |_| Ok(()))?, 1);
+    assert!(f.base.join("plan.json").exists());
+    assert!(f.base.join("helper.py").exists());
+    Ok(())
+}
+#[test]
+fn native_collection_retries_every_partial_delete_and_rejects_stale_requests() -> Result<()> {
+    let (f, _, _) = collection_fixture()?;
+    let mut e = engine(&f.base);
+    let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+    let mut labels = Vec::new();
+    e.apply_collection(&request, &mut |s| {
+        labels.push(s.to_owned());
+        Ok(())
+    })?;
+    for point in 0..labels.len() {
+        let (f, ids, _) = collection_fixture()?;
+        let mut e = engine(&f.base);
+        let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+        let mut n = 0;
+        assert!(
+            e.apply_collection(&request, &mut |_| {
+                let fail = n == point;
+                n += 1;
+                if fail {
+                    Err("interrupted collection".into())
+                } else {
+                    Ok(())
+                }
+            })
+            .is_err()
+        );
+        e.apply_collection(&request, &mut |_| Ok(()))?;
+        for id in &ids[1..] {
+            assert!(e.plan(id).is_ok());
+        }
+    }
+    let (f, _, prepared) = collection_fixture()?;
+    let mut e = engine(&f.base);
+    let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+    e.apply(&prepared, &mut |_| Ok(()))?;
+    assert!(e.apply_collection(&request, &mut |_| Ok(())).is_err());
+    println!("collection interruption boundaries: {}", labels.len());
+    Ok(())
+}
+#[test]
+fn changed_or_foreign_collection_members_and_pending_jobs_are_refused() -> Result<()> {
+    let (f, ids, _) = collection_fixture()?;
+    let mut e = engine(&f.base);
+    let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+    let mut machine = e.sys.state()?;
+    machine["busy"] = true.into();
+    e.sys.update(&machine)?;
+    assert!(e.apply_collection(&request, &mut |_| Ok(())).is_err());
+    machine["busy"] = false.into();
+    e.sys.update(&machine)?;
+    file(
+        &e.root.join("transactions").join(&ids[0]).join("unexpected"),
+        "foreign",
+    )?;
+    assert!(e.apply_collection(&request, &mut |_| Ok(())).is_err());
+    assert!(e.plan(&ids[0]).is_ok());
+    Ok(())
+}
+
 #[test]
 fn swaps_roles_and_startup_contract_without_python() -> Result<()> {
     let f = Fixture::new()?;
