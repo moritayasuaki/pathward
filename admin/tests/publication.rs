@@ -376,3 +376,38 @@ fn real_process_death_at_every_publication_write_boundary_retries() -> Result<()
     println!("real publication SIGKILL boundaries: {count}");
     Ok(())
 }
+
+#[test]
+fn aggregate_receipt_capacity_is_checked_before_any_activation() -> Result<()> {
+    let mut x = Fixture::new()?;
+    let mut dir = x.source();
+    for _ in 0..2 {
+        dir = dir.join("a".repeat(230));
+        f::directory(&dir)?;
+    }
+    for i in 0..110 {
+        let file = dir.join(format!("f{i:03}-{}.txt", "b".repeat(220)));
+        fs::write(&file, b"bounded")?;
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o600))?;
+    }
+    let site = x.policy["sites"][0].clone();
+    x.policy["sites"] = json!(
+        (0..5)
+            .map(|i| {
+                let mut s = site.clone();
+                s["id"] = format!("site-{i}").into();
+                s["host"] = format!("site-{i}.test").into();
+                s
+            })
+            .collect::<Vec<_>>()
+    );
+    let mut bridge = x.bridge();
+    let initial = bridge.sys.revision.clone();
+    let error = bridge
+        .reconcile(&x.policy, &Fixture::now(), &mut |_| Ok(()))
+        .unwrap_err();
+    assert!(error.to_string().contains("receipt capacity"), "{error}");
+    assert_eq!(bridge.sys.revision, initial);
+    assert!(!bridge.receipt.exists());
+    Ok(())
+}

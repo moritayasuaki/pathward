@@ -37,6 +37,10 @@ from the new runtime dependency graph.
 - A Caddy-active result does not establish a PathWard revision. The native
   publisher/ack command refuses that case; an outer Caddy integration retains
   responsibility for its own public HTTP checks.
+- A valid KDL may be smaller than its full receipt. Aggregate receipt capacity
+  is checked during preparation, before activation, with space reserved for the
+  boot/revision/time fields. Snapshot manifests and aggregate source path bytes
+  are bounded too; a capacity error cannot first switch the active configuration.
 - Collection does not trust a previous mark pass after state changes. It holds
   the administrator lock and repeats current/boot/gate/health/job/inventory
   checks. It moves only checksum-listed members into a private request-specific

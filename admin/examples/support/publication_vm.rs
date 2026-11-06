@@ -82,6 +82,7 @@ fn native(mode: &str, extra: &[&str]) -> Result<String> {
     Real.checked(&a, 180)
 }
 fn setup_publication() -> Result<()> {
+    emit("PW_PUBLICATION_STAGE preparing")?;
     for (name, source) in [(HOSTING, "pathward-hosting"), (SERVER, "pathward-server")] {
         f::replace(
             Path::new(name),
@@ -116,6 +117,7 @@ fn setup_publication() -> Result<()> {
         std::str::from_utf8(&publication::encoded(&value))?,
         0o644,
     )?;
+    emit("PW_PUBLICATION_STAGE building-as-unprivileged-user")?;
     let built = command(&[
         "/usr/sbin/runuser",
         "-u",
@@ -144,14 +146,14 @@ fn setup_publication() -> Result<()> {
     file(
         &Path::new(UNITS).join("pathward.service"),
         &format!(
-            "[Unit]\nDescription=Isolated publication HTTP server\n[Service]\nType=simple\nUser=nobody\nGroup=nogroup\nExecStart={SERVER} serve-http {BASE}/control/.config 127.0.0.1:18081 --control-dir {BASE}/control\nNoNewPrivileges=yes\nProtectSystem=strict\nReadWritePaths={BASE}\n[Install]\nWantedBy=multi-user.target\n"
+            "[Unit]\nDescription=Isolated publication HTTP server\n[Service]\nType=simple\nUser=nobody\nGroup=nogroup\nExecStart={SERVER} serve-http {BASE}/control/.config 127.0.0.1:18081 --control-dir {BASE}/control\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nReadWritePaths={BASE}\n[Install]\nWantedBy=multi-user.target\n"
         ),
         0o644,
     )?;
     file(
         &Path::new(UNITS).join("pathward-hosting.service"),
         &format!(
-            "[Unit]\nDescription=Isolated native publication bridge\nAfter=pathward.service\nRequires=pathward.service\n[Service]\nType=simple\nUser=nobody\nGroup=nogroup\nExecStart={HOSTING} reconcile --policy {POLICY} --state {BASE}/state --binary {SERVER} --control {BASE}/control --receipt {RECEIPT} --watch\nRuntimeDirectory=pathward-publication-test\nRuntimeDirectoryMode=0755\nUMask=0077\nNoNewPrivileges=yes\nProtectSystem=strict\nReadWritePaths={BASE} /run/pathward-publication-test\n[Install]\nWantedBy=multi-user.target\n"
+            "[Unit]\nDescription=Isolated native publication bridge\nAfter=pathward.service\nRequires=pathward.service\n[Service]\nType=simple\nUser=nobody\nGroup=nogroup\nExecStart={HOSTING} reconcile --policy {POLICY} --state {BASE}/state --binary {SERVER} --control {BASE}/control --receipt {RECEIPT} --watch\nRuntimeDirectory=pathward-publication-test\nRuntimeDirectoryMode=0755\nUMask=0077\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nReadWritePaths={BASE} /run/pathward-publication-test\n[Install]\nWantedBy=multi-user.target\n"
         ),
         0o644,
     )?;
@@ -164,6 +166,7 @@ fn setup_publication() -> Result<()> {
         "pathward-hosting.service",
     ])?;
     ready("ONE")?;
+    emit("PW_PUBLICATION_STAGE initial-http-ready")?;
     let until = std::time::Instant::now() + Duration::from_secs(30);
     loop {
         if native("begin", &[]).is_ok() {
@@ -193,6 +196,7 @@ fn setup_publication() -> Result<()> {
         "native publish acknowledgement",
     )?;
     ready("TWO")?;
+    emit("PW_PUBLICATION_STAGE native-update-acknowledged")?;
     require(
         http("/secret.txt")?.starts_with("HTTP/1.1 404"),
         "private file leaked",

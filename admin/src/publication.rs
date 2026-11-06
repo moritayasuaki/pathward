@@ -393,13 +393,9 @@ fn capture(
         "source changed during capture",
     )?;
     let manifest = json!({"key":key,"host":s["host"],"source":reference,"files":files,"urls":urls});
-    f::replace(
-        &folder.join("manifest.json"),
-        &encoded(&manifest),
-        0o600,
-        "manifest",
-        cp,
-    )?;
+    let raw = encoded(&manifest);
+    require(raw.len() <= codec::LIMIT, "snapshot manifest capacity")?;
+    f::replace(&folder.join("manifest.json"), &raw, 0o600, "manifest", cp)?;
     sync_tree(&folder)?;
     fs::rename(&folder, &target)?;
     cp("snapshot:renamed")?;
@@ -524,6 +520,13 @@ impl<S: System> Bridge<S> {
         }
         require(text.len() <= codec::LIMIT, "configuration size")?;
         let hash = codec::hash(text.as_bytes());
+        let receipt = json!({"schema":2,"policy_sha256":ph,"config_sha256":hash,"sites":manifests});
+        // Reserve all fixed receipt fields before any server activation. A
+        // valid KDL can be smaller than its exact file-digest receipt.
+        require(
+            encoded(&receipt).len() <= codec::LIMIT - 1024,
+            "publication receipt capacity",
+        )?;
         let path = self.state.join(format!("candidate-{hash}.kdl"));
         f::replace(&path, text.as_bytes(), 0o600, "candidate", cp)?;
         self.sys.checked(
@@ -535,10 +538,7 @@ impl<S: System> Bridge<S> {
             60,
         )?;
         require(refs == references(p)?, "release changed before activation")?;
-        Ok((
-            path,
-            json!({"schema":2,"policy_sha256":ph,"config_sha256":hash,"sites":manifests}),
-        ))
+        Ok((path, receipt))
     }
     fn control(&mut self, mode: &str, tail: &[&str]) -> Result<String> {
         let mut a = words(&[

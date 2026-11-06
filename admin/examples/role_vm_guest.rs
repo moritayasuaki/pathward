@@ -471,6 +471,8 @@ fn main() {
     if let Err(error) = result {
         for name in [
             "test-role-case.service",
+            "pathward.service",
+            "pathward-hosting.service",
             "pathward-role-recovery.service",
             "pathward-role-fallback.service",
             "test-old.service",

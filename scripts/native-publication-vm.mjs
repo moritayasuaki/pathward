@@ -15,16 +15,23 @@ const names=['pathward-admin','pathward-hosting','pathward-server','pathward-rec
 const sums=new Map(fs.readFileSync(path.join(bundle,'SHA256SUMS'),'utf8').trim().split('\n').map(s=>{const m=/^([0-9a-f]{64})  ([A-Za-z0-9_-]+)$/.exec(s);if(!m)throw Error('Checksum line');return [m[2],m[1]];}));
 const source=fs.readFileSync(path.join(bundle,'SOURCE_COMMIT'),'utf8').trim();
 if(!/^[0-9a-f]{40}$/.test(source))throw Error('Source commit');
-const files=names.map(name=>{const content=fs.readFileSync(path.join(bundle,name));if(sha(content)!==sums.get(name)||content.subarray(0,4).toString('hex')!=='7f454c46')throw Error(`Artifact mismatch ${name}`);return {path:`/opt/pathward-reboot-test/${name}`,permissions:'0755',encoding:'b64',content:content.toString('base64')};});
+const files=names.map(name=>{const content=fs.readFileSync(path.join(bundle,name));if(sha(content)!==sums.get(name)||content.subarray(0,4).toString('hex')!=='7f454c46')throw Error(`Artifact mismatch ${name}`);return {name,mode:'0755',content};});
 // Only the initial historical guard fixture is Python. It is tombstoned before
 // exercising publication, collection or any subsequent reboot.
-files.push({path:'/opt/pathward-reboot-test/pathward_recovery.py',permissions:'0600',encoding:'b64',content:fs.readFileSync(path.join(root,'deploy/pathward_recovery.py')).toString('base64')});
+files.push({name:'pathward_recovery.py',mode:'0600',content:fs.readFileSync(path.join(root,'deploy/pathward_recovery.py'))});
 fs.mkdirSync(out,{mode:0o700});const seed=path.join(out,'seed');fs.mkdirSync(seed);
-fs.writeFileSync(path.join(seed,'user-data'),'#cloud-config\n'+JSON.stringify({package_update:false,package_upgrade:false,ssh_deletekeys:false,write_files:files,runcmd:[['/opt/pathward-reboot-test/role_vm_guest','--publication-initialize']]}));
+// Copy raw verified files from read-only media. Embedding entire ELF binaries
+// in cloud-init YAML needlessly makes its parser emulate megabytes of text.
+fs.mkdirSync(path.join(seed,'artifacts'));
+for(const file of files)fs.writeFileSync(path.join(seed,'artifacts',file.name),file.content);
+const guestRoot='/opt/pathward-reboot-test',media='/mnt/pathward-seed';
+const commands=[['/usr/bin/install','-d','-m','0755',guestRoot,media],['/usr/bin/mount','-t','iso9660','-o','ro,nodev,nosuid,noexec','/dev/sr0',media],
+ ...files.map(f=>['/usr/bin/install','-m',f.mode,`${media}/artifacts/${f.name}`,`${guestRoot}/${f.name}`]),['/usr/bin/umount',media],[`${guestRoot}/role_vm_guest`,'--publication-initialize']];
+fs.writeFileSync(path.join(seed,'user-data'),'#cloud-config\n'+JSON.stringify({package_update:false,package_upgrade:false,ssh_deletekeys:false,runcmd:commands}));
 fs.writeFileSync(path.join(seed,'meta-data'),'instance-id: pathward-native-publication\nlocal-hostname: publication-test\n');fs.writeFileSync(path.join(seed,'network-config'),'version: 2\nethernets: {}\n');
 function cmd(bin,a){const r=spawnSync(bin,a,{stdio:['ignore','ignore','inherit']});if(r.status!==0)throw Error(`${bin} failed`);}
 const iso=path.join(out,'seed.iso'),disk=path.join(out,'disk.qcow2');
-if(process.platform==='darwin')cmd('hdiutil',['makehybrid','-iso','-joliet','-default-volume-name','cidata','-o',iso,seed]);else cmd('genisoimage',['-output',iso,'-volid','cidata','-joliet','-rock',...['user-data','meta-data','network-config'].map(n=>path.join(seed,n))]);
+if(process.platform==='darwin')cmd('hdiutil',['makehybrid','-iso','-joliet','-default-volume-name','cidata','-o',iso,seed]);else cmd('genisoimage',['-output',iso,'-volid','cidata','-joliet','-rock',seed]);
 cmd('qemu-img',['create','-f','qcow2','-F','qcow2','-b',fs.realpathSync(base),disk,'4G']);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let owned;
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{owned?.kill('SIGTERM');process.exitCode=1;});

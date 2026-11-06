@@ -373,6 +373,32 @@ fn changed_or_foreign_collection_members_and_pending_jobs_are_refused() -> Resul
 }
 
 #[test]
+fn collection_keeps_a_retained_contracts_explicit_generation_resource() -> Result<()> {
+    let (f, ids, _) = collection_fixture()?;
+    let mut e = engine(&f.base);
+    let old = e.root.join("transactions").join(&ids[0]).join("plan.json");
+    let mut input = f.input.clone();
+    input["source_current"] = ids[2].clone().into();
+    input["target"]["new"]["files"][old.to_str().unwrap()] =
+        codec::hash(&f::bytes(&old, true)?).into();
+    let next = e.prepare(&input, &f.exe, &mut |_| Ok(()))?;
+    e.apply(&next, &mut |_| Ok(()))?;
+    e.observe_collection(&mut |_| Ok(()))?;
+    file(&f.base.join("boot"), "cccccccc-cccc-cccc-cccc-cccccccccccc")?;
+    let mut state = e.sys.state()?;
+    state["active"] = json!({"pathward-role-recovery.service":"active"});
+    e.sys.update(&state)?;
+    e.recover(true, false, &mut |_| Ok(()))?;
+    let request = e.plan_collection(&[], &mut |_| Ok(()))?;
+    e.apply_collection(&request, &mut |_| Ok(()))?;
+    assert!(e.plan(&ids[0]).is_ok());
+    assert!(!e.root.join("transactions").join(&ids[1]).exists());
+    assert!(e.plan(&ids[2]).is_ok());
+    assert!(e.plan(&next).is_ok());
+    Ok(())
+}
+
+#[test]
 fn swaps_roles_and_startup_contract_without_python() -> Result<()> {
     let f = Fixture::new()?;
     let journal = fs::read(f.base.join("journal.json"))?;

@@ -142,6 +142,10 @@ pub fn names(root: &File) -> Result<Vec<String>> {
                 require(f.metadata()?.dev() == device, "source file changed mount")?;
                 out.push(path);
                 require(out.len() <= MAX_FILES, "file count limit")?;
+                require(
+                    out.iter().map(String::len).sum::<usize>() <= codec::LIMIT,
+                    "aggregate path budget",
+                )?;
             }
         }
         Ok(())
