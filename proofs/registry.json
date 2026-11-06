@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 543,
-  "axiom_free_count": 71,
+  "theorem_count": 568,
+  "axiom_free_count": 76,
   "axiom_counts": {
     "Classical.choice": 411,
     "Quot.sound": 411,
-    "propext": 472
+    "propext": 492
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
@@ -15,11 +15,12 @@
     "proofs/ContractMigrationProofs.lean": "90b90df4b459e7f9d7ac7fb25098b17024c0457a98ffef8204501f347df67c69",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "81c14a370e504323661d8fbedcb98da01046c511eb42ded01d7a7f5c89bd9f7e",
+    "proofs/Generated/Pathward.lean": "3ce3403bdfdef7563a31a5f34534aa90880fbaaaf4b368a7e39b85d04c7e9244",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
+    "proofs/PublicationProofs.lean": "19d944dd10f50b1f2b2fe4676c2409c279060b2e47ed68628eeb506eb6802222",
     "proofs/RecoveryProofs.lean": "cfd7a898f0bfc7315ca17620f002b0b2ef98d04eab4e61df32bdcf89d0e4f8d6",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
     "proofs/ResponseProofs.lean": "061343c2b849bea0fd68ed6b5992de66cd3c23b7ee1368693db5197c28b1dc53",
@@ -31,13 +32,14 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "dcdb19abd6a7c0cec1235337730fbc585436e46d5629c167aaec0f3b916a44d1",
+    "scripts/extract.py": "83b9fd7405ca443c8b72f0b4f3dd5d581ab5eba94bf1a74e0708b2f8e80a2af7",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
-    "src/lib.rs": "52c0de5926e2f2a8ea226025d4e33938a94913dda9bd3ae968ca9450b13d8a8c",
+    "src/lib.rs": "3d07f6e9a3694227bd2576fdf2760abc479904d0b57c5fe492549fe957145702",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
+    "src/publication.rs": "016a30064cb274c8e89263cdb4d2f80f849cb9305fd6a70d1df28ad9170d82ce",
     "src/recovery.rs": "54b03d1cf25d4b795eaf6aa0233630d7d0aac9b703fc59e181e93d7cdde74f99",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
@@ -3015,6 +3017,246 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.mapping_iff",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 5,
+      "statement": "theorem mapping_iff (c s y : Bool) :\n    publication.mapping_allowed c s y = ok true ↔ c = true ∧ (s = true ∨ y = true)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.unselected_file_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 8,
+      "statement": "theorem unselected_file_denied (c : Bool) :\n    publication.mapping_allowed c false false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.noncanonical_mapping_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 10,
+      "statement": "theorem noncanonical_mapping_denied (s y : Bool) :\n    publication.mapping_allowed false s y = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.receipt_iff",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 13,
+      "statement": "theorem receipt_iff (p b r s f : Bool) (a o n : U64) :\n    publication.receipt_allowed p b r s f a o n = ok true ↔\n    p = true ∧ b = true ∧ r = true ∧ s = true ∧ f = true ∧ a.val < o.val ∧ o.val ≤ n.val",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.old_receipt_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 18,
+      "statement": "theorem old_receipt_denied (p b r s f : Bool) (a o n : U64) (old : o.val ≤ a.val) :\n    publication.receipt_allowed p b r s f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.future_receipt_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 23,
+      "statement": "theorem future_receipt_denied (p b r s f : Bool) (a o n : U64) (future : n.val < o.val) :\n    publication.receipt_allowed p b r s f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.previous_boot_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 28,
+      "statement": "theorem previous_boot_denied (p r s f : Bool) (a o n : U64) :\n    publication.receipt_allowed p false r s f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.changed_policy_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 30,
+      "statement": "theorem changed_policy_denied (b r s f : Bool) (a o n : U64) :\n    publication.receipt_allowed false b r s f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.wrong_revision_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 32,
+      "statement": "theorem wrong_revision_denied (p b s f : Bool) (a o n : U64) :\n    publication.receipt_allowed p b false s f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.wrong_source_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 34,
+      "statement": "theorem wrong_source_denied (p b r f : Bool) (a o n : U64) :\n    publication.receipt_allowed p b r false f a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.changed_file_set_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 36,
+      "statement": "theorem changed_file_set_denied (p b r s : Bool) (a o n : U64) :\n    publication.receipt_allowed p b r s false a o n ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.receipt_time_order",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 38,
+      "statement": "theorem receipt_time_order (p b r s f : Bool) (a o n : U64)\n    (h : publication.receipt_allowed p b r s f a o n = ok true) : a.val < n.val",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.collection_iff",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 43,
+      "statement": "theorem collection_iff (s b o p e : Bool) :\n    publication.collection_allowed s b o p e = ok true ↔\n    s = true ∧ b = true ∧ o = true ∧ p = false ∧ e = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.same_boot_collection_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 47,
+      "statement": "theorem same_boot_collection_denied (s o p e : Bool) :\n    publication.collection_allowed s false o p e ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.protected_collection_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 49,
+      "statement": "theorem protected_collection_denied (s b o e : Bool) :\n    publication.collection_allowed s b o true e ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.unobserved_collection_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 51,
+      "statement": "theorem unobserved_collection_denied (s b p e : Bool) :\n    publication.collection_allowed s b false p e ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.changed_member_collection_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 53,
+      "statement": "theorem changed_member_collection_denied (s b o p : Bool) :\n    publication.collection_allowed s b o p false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.busy_collection_denied",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 55,
+      "statement": "theorem busy_collection_denied (b o p e : Bool) :\n    publication.collection_allowed false b o p e ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PublicationProofs.matching_receipt_has_exact_digests",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 73,
+      "statement": "theorem matching_receipt_has_exact_digests (r : Receipt) (b p v s a n : Nat)\n    (files : Nat → Option Nat) (h : Matches r b p v s a n files) (key : Nat) :\n    r.files key = files key",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.matching_receipt_cannot_add_file",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 76,
+      "statement": "theorem matching_receipt_cannot_add_file (r : Receipt) (b p v s a n : Nat)\n    (files : Nat → Option Nat) (h : Matches r b p v s a n files) (key : Nat)\n    (absent : files key = none) : r.files key = none",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.matching_receipt_follows_switch",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 79,
+      "statement": "theorem matching_receipt_follows_switch (r : Receipt) (b p v s a n : Nat)\n    (files : Nat → Option Nat) (h : Matches r b p v s a n files) : a < r.observed",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.collection_step_preserves_live_roots",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 94,
+      "statement": "theorem collection_step_preserves_live_roots (roots : Nat → Bool) (a b : Storage)\n    (h : Protected roots a) (step : Step roots a b) : Protected roots b",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.every_interrupted_prefix_preserves_roots",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 103,
+      "statement": "theorem every_interrupted_prefix_preserves_roots (roots : Nat → Bool) (a b : Storage)\n    (h : Protected roots a) (run : Run roots a b) : Protected roots b",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.transitive_dependencies_survive",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 108,
+      "statement": "theorem transitive_dependencies_survive (root : Nat → Prop) (edge : Nat → Nat → Prop)\n    (marked : Nat → Bool) (a b : Storage)\n    (start : ∀ x, root x → marked x = true)\n    (closed : ∀ x y, marked x = true → edge x y → marked y = true)\n    (safe : Protected marked a) (run : Run marked a b)\n    (x : Nat) (reachable : PlanMigrationProofs.Reachable root edge x) : b.live x = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PublicationProofs.partial_unlink_retry_idempotent",
+      "source": "proofs/PublicationProofs.lean",
+      "line": 116,
+      "statement": "theorem partial_unlink_retry_idempotent (s : Storage) (id x : Nat) :\n    PlanMigrationProofs.remove (PlanMigrationProofs.remove s.trash id) id x =\n    PlanMigrationProofs.remove s.trash id x",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
     },
     {
       "name": "RecoveryProofs.new_iff",

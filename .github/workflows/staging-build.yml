@@ -3,7 +3,7 @@ name: Staging binaries
 on:
   workflow_dispatch:
   push:
-    branches: [codex/role-contract-migration, codex/recovery-plan-migration, codex/recovery-guard-upgrade, codex/boot-recovery-proofs, codex/connection-cutover-proofs, codex/modern-http, codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity, codex/browser-public-staging]
+    branches: [codex/native-publication-retention, codex/role-contract-migration, codex/recovery-plan-migration, codex/recovery-guard-upgrade, codex/boot-recovery-proofs, codex/connection-cutover-proofs, codex/modern-http, codex/staging-rehearsal, codex/site-compatibility, codex/browser-staging, codex/admission-diagnostics, codex/nat-capacity, codex/browser-public-staging]
     paths: ["src/**", "admin/**", "server/**", "config/**", "vendor/**", "scripts/load_smoke.py", "scripts/capacity_smoke.py", ".github/workflows/staging-build.yml"]
 
 permissions:
@@ -25,6 +25,7 @@ jobs:
           cp server/target/release/pathward-server bundle/
           cp target/release/pathward-recovery bundle/
           cp admin/target/release/pathward-admin bundle/
+          cp admin/target/release/pathward-hosting bundle/
           cp admin/target/release/examples/role_vm_guest bundle/
           cp admin/target/release/examples/role_fixture bundle/
           cp server/target/release/examples/soak_server bundle/
@@ -41,7 +42,7 @@ jobs:
           PY
           git rev-parse HEAD > bundle/SOURCE_COMMIT
           cd bundle
-          sha256sum pathward-server pathward-recovery pathward-admin role_vm_guest role_fixture soak_server migration_gate acme_probe pebble pathward-server-tests SOURCE_COMMIT > SHA256SUMS
+          sha256sum pathward-server pathward-recovery pathward-admin pathward-hosting role_vm_guest role_fixture soak_server migration_gate acme_probe pebble pathward-server-tests SOURCE_COMMIT > SHA256SUMS
           cat SHA256SUMS
       # Build-only, exact upload directory, no deployment keys or host access.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

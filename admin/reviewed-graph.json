@@ -1,5 +1,5 @@
 {
-  "manifest_sha256": "614767d7a64f6a119987863b1862311fec674e3c479c4d6cb0c5919be5f40758",
+  "manifest_sha256": "04d6da64edb6fd5ea483d1784e018272397b1761ac5494b445d092593321acd6",
   "lockfile_sha256": "f516345a20719bfcea53b16e8826200003ee15e69f5ccb44a46532a11518532a",
   "packages": [
     {
@@ -161,7 +161,8 @@
         "alloc",
         "fs",
         "process",
-        "std"
+        "std",
+        "time"
       ],
       "build_script": true,
       "proc_macro": false

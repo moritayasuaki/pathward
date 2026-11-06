@@ -1,6 +1,8 @@
 pub mod codec;
+pub mod confined;
 pub mod contract;
 pub mod engine;
+pub mod publication;
 pub mod storage;
 pub mod system;
 

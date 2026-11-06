@@ -14,6 +14,8 @@ use std::time::Duration;
 const ROOT: &str = "/opt/pathward-reboot-test";
 const UNITS: &str = "/etc/systemd/system";
 const FIXTURE: &str = "/usr/local/bin/pathward-role-fixture";
+#[path = "support/publication_vm.rs"]
+mod publication_vm;
 fn p(name: &str) -> PathBuf {
     Path::new(ROOT).join(name)
 }
@@ -452,14 +454,25 @@ fn run() -> Result<()> {
     Ok(())
 }
 fn main() {
-    let result = if std::env::args().any(|a| a == "--initialize") {
+    let result = if std::env::args().any(|a| a == "--publication-initialize") {
+        file(
+            &p("publication-mode"),
+            "native publication and retention",
+            0o600,
+        )
+        .and_then(|()| initialize())
+    } else if std::env::args().any(|a| a == "--initialize") {
         initialize()
+    } else if p("publication-mode").exists() {
+        publication_vm::run()
     } else {
         run()
     };
     if let Err(error) = result {
         for name in [
             "test-role-case.service",
+            "pathward.service",
+            "pathward-hosting.service",
             "pathward-role-recovery.service",
             "pathward-role-fallback.service",
             "test-old.service",
