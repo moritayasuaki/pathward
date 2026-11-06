@@ -111,6 +111,9 @@ pathward-publish upload --remote deploy@example.test \
 The local command validates/copies the public tree, obtains a current remote
 description over SSH, transfers only data with rsync, and invokes an already
 installed native executable. It uploads no Python helper or executable code.
+Only SSH/rsync may inherit the caller's existing `SSH_AUTH_SOCK`; administrator
+and service commands retain their cleared environment. No credentials are part
+of the package or profile.
 `--stage-only yes` transfers without activation. SHA-256 manifests, links,
 hardlinks, traversal, private-directory names, unsupported types, file counts and
 capacity are checked. Limits remain 4096 files, 1 GiB/file and 2 GiB/package.

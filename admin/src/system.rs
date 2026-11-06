@@ -81,6 +81,17 @@ pub fn capture(args: &[String], seconds: u64, limit: u64) -> Result<(bool, Strin
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
         .env("LANG", "C");
+    // Transport may use the caller's already configured authentication agent.
+    // Never pass it into administrator/service commands or accept it from data.
+    if matches!(args[0].as_str(), "/usr/bin/ssh" | "/usr/bin/rsync")
+        && let Some(socket) = std::env::var_os("SSH_AUTH_SOCK")
+    {
+        require(
+            std::path::Path::new(&socket).is_absolute(),
+            "SSH agent socket path",
+        )?;
+        command.env("SSH_AUTH_SOCK", socket);
+    }
     if args[0] == "/usr/bin/systemctl" && args.get(1).is_some_and(|a| a == "--user") {
         require(
             !rustix::process::geteuid().is_root(),
