@@ -9,12 +9,49 @@ use rustls::{
 use std::{
     fmt,
     io::{self, Read, Write},
-    net::TcpStream,
+    net::{Shutdown, TcpStream},
     sync::{Arc, RwLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 pub const HANDSHAKE_BUDGET: Duration = Duration::from_secs(5);
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum HandshakePhase {
+    Hello,
+    Policy,
+    Negotiation,
+    Flush,
+}
+impl HandshakePhase {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Hello => "hello",
+            Self::Policy => "policy",
+            Self::Negotiation => "negotiation",
+            Self::Flush => "flush",
+        }
+    }
+}
+#[derive(Debug)]
+pub(crate) struct HandshakeFailure {
+    pub phase: HandshakePhase,
+    pub read_bytes: usize,
+}
+impl fmt::Display for HandshakeFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("TLS handshake failure")
+    }
+}
+impl std::error::Error for HandshakeFailure {}
+fn handshake_failure(error: io::Error, phase: HandshakePhase, socket: &DeadlineTcp) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        HandshakeFailure {
+            phase,
+            read_bytes: 131_072 - socket.read_left.unwrap_or(131_072),
+        },
+    )
+}
 pub fn unix_now() -> io::Result<u64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -211,11 +248,11 @@ impl TlsServer {
                 identity: identity.clone(),
                 challenge,
             }));
-            cfg.alpn_protocols = vec![if challenge {
-                b"acme-tls/1".to_vec()
+            cfg.alpn_protocols = if challenge {
+                vec![b"acme-tls/1".to_vec()]
             } else {
-                b"http/1.1".to_vec()
-            }];
+                vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+            };
             cfg.session_storage = Arc::new(rustls::server::NoServerSessionStorage {});
             cfg.send_tls13_tickets = 0;
             cfg.max_early_data_size = 0;
@@ -229,8 +266,60 @@ impl TlsServer {
             challenge,
         })
     }
-    /// ACME validation connections complete TLS and return without HTTP dispatch.
+    pub(crate) fn quic_config(&self) -> io::Result<quinn::ServerConfig> {
+        let mut cfg = self.normal.as_ref().clone();
+        cfg.alpn_protocols = vec![b"h3".to_vec()];
+        // Stateful, single-use resumption tickets. Secrets remain in bounded memory.
+        cfg.session_storage = rustls::server::ServerSessionMemoryCache::new(256);
+        cfg.send_tls13_tickets = 2;
+        cfg.max_early_data_size = u32::MAX;
+        let crypto =
+            quinn::crypto::rustls::QuicServerConfig::try_from(cfg).map_err(|_| denied())?;
+        let mut config = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+        config
+            .migration(true)
+            .max_incoming(64)
+            .incoming_buffer_size(131072)
+            .incoming_buffer_size_total(8388608);
+        let transport = Arc::get_mut(&mut config.transport).ok_or_else(denied)?;
+        transport
+            .max_concurrent_bidi_streams(32u32.into())
+            .max_concurrent_uni_streams(3u32.into())
+            .stream_receive_window(16384u32.into())
+            .receive_window(65535u32.into())
+            .send_window(131072)
+            .crypto_buffer_size(131072)
+            .datagram_receive_buffer_size(None)
+            .keep_alive_interval(Some(Duration::from_secs(10)))
+            .max_idle_timeout(Some(
+                Duration::from_secs(30).try_into().map_err(|_| denied())?,
+            ));
+        Ok(config)
+    }
+    pub(crate) fn current_identity(&self, name: &str) -> bool {
+        self.identity.known(name)
+            && self
+                .identity
+                .certificate
+                .read()
+                .ok()
+                .is_some_and(|c| c.as_ref().is_some_and(|c| c.active()))
+    }
+    /// Blocking compatibility API for embedders and focused transport tests.
     pub fn accept(&self, stream: TcpStream, accepted: Instant) -> io::Result<Option<TlsTransport>> {
+        let result = futures_lite::future::block_on(self.accept_async(stream, accepted))?;
+        if let Some(transport) = &result {
+            transport.stream.sock.stream.set_nonblocking(false)?;
+        }
+        Ok(result)
+    }
+    /// ACME validation connections complete TLS and return without HTTP dispatch.
+    pub async fn accept_async(
+        &self,
+        stream: TcpStream,
+        accepted: Instant,
+    ) -> io::Result<Option<TlsTransport>> {
+        stream.set_nonblocking(true)?;
         let mut socket = DeadlineTcp {
             stream,
             deadline: accepted + HANDSHAKE_BUDGET,
@@ -238,37 +327,54 @@ impl TlsServer {
         };
         let mut acceptor = Acceptor::default();
         let accepted = loop {
-            if acceptor.read_tls(&mut socket)? == 0 {
-                return Err(io::ErrorKind::UnexpectedEof.into());
+            if crate::async_http::operation(socket.deadline, || acceptor.read_tls(&mut socket))
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Hello, &socket))?
+                == 0
+            {
+                return Err(handshake_failure(
+                    io::ErrorKind::UnexpectedEof.into(),
+                    HandshakePhase::Hello,
+                    &socket,
+                ));
             }
             match acceptor.accept() {
                 Ok(Some(a)) => break a,
                 Ok(None) => {}
-                Err(_) => return Err(denied()),
+                Err(_) => return Err(handshake_failure(denied(), HandshakePhase::Hello, &socket)),
             }
         };
         let hello = accepted.client_hello();
-        let name = hello.server_name().ok_or_else(denied)?.to_owned();
+        let name = hello
+            .server_name()
+            .ok_or_else(|| handshake_failure(denied(), HandshakePhase::Policy, &socket))?
+            .to_owned();
         if !self.identity.known(&name) {
-            return Err(denied());
+            return Err(handshake_failure(denied(), HandshakePhase::Policy, &socket));
         }
         let protocols: Vec<_> = hello.alpn().into_iter().flatten().collect();
         let challenge = protocols == [b"acme-tls/1".as_slice()];
         if !challenge && protocols.iter().any(|p| *p == b"acme-tls/1") {
-            return Err(denied());
+            return Err(handshake_failure(denied(), HandshakePhase::Policy, &socket));
         }
         let config = if challenge {
             self.challenge.clone()
         } else {
             self.normal.clone()
         };
-        let mut conn = accepted.into_connection(config).map_err(|_| denied())?;
+        let mut conn = accepted
+            .into_connection(config)
+            .map_err(|_| handshake_failure(denied(), HandshakePhase::Negotiation, &socket))?;
         conn.set_buffer_limit(Some(32_768));
         while conn.is_handshaking() {
-            conn.complete_io(&mut socket)?;
+            crate::async_http::operation(socket.deadline, || conn.complete_io(&mut socket))
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Negotiation, &socket))?;
         }
         while conn.wants_write() {
-            conn.write_tls(&mut socket)?;
+            crate::async_http::operation(socket.deadline, || conn.write_tls(&mut socket))
+                .await
+                .map_err(|e| handshake_failure(e, HandshakePhase::Flush, &socket))?;
         }
         if challenge {
             return Ok(None);
@@ -277,6 +383,7 @@ impl TlsServer {
         Ok(Some(TlsTransport {
             stream: StreamOwned::new(conn, socket),
             sni: name,
+            close_drain: None,
         }))
     }
 }
@@ -319,6 +426,12 @@ impl Write for DeadlineTcp {
 pub struct TlsTransport {
     stream: StreamOwned<ServerConnection, DeadlineTcp>,
     pub sni: String,
+    close_drain: Option<CloseDrain>,
+}
+struct CloseDrain {
+    began: Instant,
+    received: u64,
+    write_closed: bool,
 }
 impl Read for TlsTransport {
     fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
@@ -350,12 +463,53 @@ impl Transport for TlsTransport {
     }
 }
 impl TlsTransport {
-    pub(crate) fn blocking(&mut self) -> io::Result<()> {
-        self.stream.sock.stream.set_nonblocking(false)
+    pub(crate) fn is_h2(&self) -> bool {
+        self.stream.conn.alpn_protocol() == Some(b"h2")
     }
     pub fn finish(&mut self) -> io::Result<()> {
         self.stream.conn.send_close_notify();
         self.stream.flush()
+    }
+    pub(crate) fn finish_h2(&mut self) -> io::Result<()> {
+        // A successful write/flush only hands bytes to the local TCP stack.
+        // Dropping the socket while late peer frames arrive can reset TCP and
+        // discard the still-unread response tail. Half-close, then drain raw
+        // peer bytes until EOF. They are never parsed or dispatched as HTTP.
+        let drain = self.close_drain.get_or_insert_with(|| CloseDrain {
+            began: Instant::now(),
+            received: 0,
+            write_closed: false,
+        });
+        if !pathward::delivery::h2_peer_drain_allowed(
+            drain.began.elapsed().as_millis().min(u64::MAX as u128) as u64,
+            drain.received,
+        ) {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "HTTP/2 peer drain limit",
+            ));
+        }
+        if !drain.write_closed {
+            self.finish()?;
+            self.stream.sock.stream.shutdown(Shutdown::Write)?;
+            self.close_drain
+                .as_mut()
+                .expect("initialized drain")
+                .write_closed = true;
+        }
+        let drain = self.close_drain.as_mut().expect("initialized drain");
+        let mut bytes = [0; 4096];
+        let limit = (1_048_576 - drain.received).min(bytes.len() as u64) as usize;
+        match self.stream.sock.read(&mut bytes[..limit]) {
+            Ok(0) => Ok(()),
+            Ok(n) => {
+                drain.received += n as u64;
+                // Yield even after progress: late traffic must not monopolize
+                // the cooperative executor or renew either drain deadline.
+                Err(io::ErrorKind::WouldBlock.into())
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 

@@ -19,7 +19,7 @@ pub const MAX_CONFIG_BYTES: usize = 1_048_576;
 pub const MAX_ROUTE_RULES: usize = 64;
 pub const MAX_SITES: usize = 16;
 pub const MAX_PUBLICATIONS: usize = 4096;
-pub const MAX_REDIRECTS: usize = 64;
+pub const MAX_REDIRECTS: usize = 512;
 pub const MAX_HEADERS: usize = 32;
 
 #[derive(Clone, Copy)]
@@ -29,6 +29,7 @@ pub struct Redirect<'a> {
     pub to: &'a str,
     pub status: u16,
     pub prefix: bool,
+    pub fallback: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeaderScope {
@@ -177,6 +178,7 @@ impl ParsedConfig {
                 .ok_or_else(|| self.at(node, "site requires a children block"))?;
             let mut root = None;
             let mut tls = None;
+            let mut encoding = None;
             let mut upstream = None;
             let mut denies = Vec::new();
             let mut proxy_paths = Vec::new();
@@ -293,6 +295,22 @@ impl ParsedConfig {
                         }
                         root = Some(values[0]);
                     }
+                    "encode" => {
+                        let value = self.arguments(child, 1)?[0];
+                        let mode = match value {
+                            "gzip" => 1,
+                            "zstd" => 2,
+                            "gzip,zstd" => 3,
+                            _ => {
+                                return Err(
+                                    self.at(child, "encode must be gzip, zstd or gzip,zstd")
+                                );
+                            }
+                        };
+                        if encoding.replace(mode).is_some() {
+                            return Err(self.at(child, "duplicate encode directive"));
+                        }
+                    }
                     "tls" => {
                         let values = self.arguments(child, 1)?;
                         if tls.is_some() {
@@ -335,8 +353,14 @@ impl ParsedConfig {
                         }
                         publications.push(publication);
                     }
-                    "redirect" | "redirect-prefix" => {
-                        let v = self.arguments(child, 4)?;
+                    "redirect" | "redirect-prefix" | "redirect-fallback" => {
+                        let fallback = child.name().value() == "redirect-fallback";
+                        let v = if fallback {
+                            let v = self.arguments(child, 2)?;
+                            vec!["/", v[0], "/", v[1]]
+                        } else {
+                            self.arguments(child, 4)?
+                        };
                         let status = match v[3] {
                             "301" => 301,
                             "308" => 308,
@@ -365,6 +389,7 @@ impl ParsedConfig {
                             to: v[2],
                             status,
                             prefix,
+                            fallback,
                         });
                     }
                     "cache" | "cache-prefix" => {
@@ -434,6 +459,9 @@ impl ParsedConfig {
                 }
             }
             let tls = tls.ok_or_else(|| self.at(node, "site is missing tls"))?;
+            if upstream.is_some() && redirects.iter().any(|r| r.fallback) {
+                return Err(self.at(node, "redirect fallback cannot coexist with a proxy"));
+            }
             if !pathward::proxy::site_mode_allowed(
                 root.is_some(),
                 !publications.is_empty(),
@@ -468,9 +496,10 @@ impl ParsedConfig {
                 return Err(self.at(node, "site requires 1 to 4096 valid, distinct publish URLs"));
             }
             if publications.iter().any(|p| {
-                redirects
-                    .iter()
-                    .any(|r| pathward::response::route_matches(p.path, r.from.as_bytes(), r.prefix))
+                redirects.iter().any(|r| {
+                    !r.fallback
+                        && pathward::response::route_matches(p.path, r.from.as_bytes(), r.prefix)
+                })
             }) {
                 return Err(self.at(node, "redirect overlaps a publication"));
             }
@@ -488,6 +517,7 @@ impl ParsedConfig {
             // Moving the same vector preserves the byte-for-byte declarations
             // accepted by rules::compile; no expansion or additional rule occurs.
             sites.push(CompiledSite {
+                encoding: encoding.unwrap_or(0),
                 host,
                 root,
                 tls,
@@ -567,6 +597,7 @@ pub enum TlsPolicy {
 }
 
 pub struct CompiledSite<'a> {
+    encoding: u8,
     host: &'a str,
     root: Option<&'a str>,
     upstream: Option<SocketAddr>,
@@ -583,6 +614,9 @@ pub struct CompiledSite<'a> {
 }
 
 impl<'a> CompiledSite<'a> {
+    pub fn encoding(&self) -> u8 {
+        self.encoding
+    }
     pub fn proxy_routes(&self) -> &[ProxyRoute<'a>] {
         &self.proxy_routes
     }

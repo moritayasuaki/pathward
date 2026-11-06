@@ -17,6 +17,9 @@ pub struct Observability {
     pub(crate) serving: AtomicBool,
     pub(crate) accepted: AtomicU64,
     pub(crate) overloaded: AtomicU64,
+    pub(crate) quic_migrations: AtomicU64,
+    pub(crate) early_static: AtomicU64,
+    pub(crate) early_rejected: AtomicU64,
     admission_rejected: AtomicU64,
     admission_reasons: [AtomicU64; 7],
     active: AtomicU64,
@@ -26,6 +29,9 @@ pub struct Observability {
     io_reasons: [AtomicU64; 7],
     bytes: AtomicU64,
     tls_errors: AtomicU64,
+    h2_idle_timeout: AtomicU64,
+    h2_idle_eof: AtomicU64,
+    h2_retired_streams: AtomicU64,
     reloads: AtomicU64,
     reload_errors: AtomicU64,
     acme_attempts: AtomicU64,
@@ -57,6 +63,49 @@ pub(crate) enum DeliveryPhase {
     Head,
     Body,
     Finish,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TransportStage {
+    Admission,
+    Input,
+    Responder,
+    Output,
+    Connection,
+}
+#[derive(Debug)]
+struct StageError {
+    stage: TransportStage,
+    error: io::Error,
+    connection: Option<(u64, u64)>,
+}
+impl std::fmt::Display for StageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("transport stage failure")
+    }
+}
+impl std::error::Error for StageError {}
+pub(crate) fn stage_error(error: io::Error, stage: TransportStage) -> io::Error {
+    if error.get_ref().is_some_and(|e| e.is::<StageError>()) {
+        return error;
+    }
+    io::Error::new(
+        error.kind(),
+        StageError {
+            stage,
+            error,
+            connection: None,
+        },
+    )
+}
+pub(crate) fn connection_error(error: io::Error, active: u64, seen: u64) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        StageError {
+            stage: TransportStage::Connection,
+            error,
+            connection: Some((active, seen)),
+        },
+    )
 }
 pub(crate) struct DeliveryProgress {
     pub phase: DeliveryPhase,
@@ -156,6 +205,38 @@ impl Observability {
                 self.io_reasons[reason].fetch_add(1, Ordering::Relaxed);
                 // Never format the error: its message can contain request data.
                 detail = format!(",\"io_error\":\"{}\"", IO_REASONS[reason]);
+                let cause = if let Some(stage) =
+                    error.get_ref().and_then(|e| e.downcast_ref::<StageError>())
+                {
+                    let label = match stage.stage {
+                        TransportStage::Admission => "admission",
+                        TransportStage::Input => "input",
+                        TransportStage::Responder => "responder",
+                        TransportStage::Output => "output",
+                        TransportStage::Connection => "connection",
+                    };
+                    detail.push_str(&format!(",\"transport_phase\":\"{label}\""));
+                    if let Some((active, seen)) = stage.connection {
+                        detail.push_str(&format!(
+                            ",\"active_streams\":{active},\"seen_streams\":{seen}"
+                        ));
+                    }
+                    &stage.error
+                } else {
+                    error
+                };
+                if let Some(h2) = cause
+                    .get_ref()
+                    .and_then(|e| e.downcast_ref::<crate::multiplex::H2Failure>())
+                {
+                    // Fixed fields only: no request/response bytes, URLs,
+                    // credentials or remote GOAWAY debug text are formatted.
+                    let reason = h2.reason.map_or_else(|| "null".into(), |n| n.to_string());
+                    detail.push_str(&format!(",\"h2_reason\":{reason},\"h2_remote\":{},\"h2_reset\":{},\"h2_goaway\":{},\"h2_library\":{}", h2.remote, h2.reset, h2.goaway, h2.library));
+                    if let Some(limit) = h2.limit {
+                        detail.push_str(&format!(",\"h2_limit\":\"{limit}\""));
+                    }
+                }
                 if let Some(p) = progress {
                     let phase = match p.phase {
                         DeliveryPhase::Head => "head",
@@ -188,6 +269,15 @@ impl Observability {
     pub(crate) fn tls_failed(&self) {
         self.tls_errors.fetch_add(1, Ordering::Relaxed);
     }
+    pub(crate) fn tls_handshake_failed(&self, elapsed: Duration, error: &io::Error) {
+        self.tls_failed();
+        let detail = error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<crate::tls::HandshakeFailure>());
+        let phase = detail.map_or("socket", |d| d.phase.label());
+        let bytes = detail.map_or(0, |d| d.read_bytes);
+        self.emit(format!("\"event\":\"tls_handshake_failed\",\"phase\":\"{phase}\",\"reason\":\"{}\",\"read_bytes\":{bytes},\"duration_us\":{}", IO_REASONS[io_reason(error)], elapsed.as_micros()));
+    }
     pub(crate) fn admission_rejected(&self, reason: crate::admission::Rejection) {
         self.admission_rejected.fetch_add(1, Ordering::Relaxed);
         self.admission_reasons[reason as usize].fetch_add(1, Ordering::Relaxed);
@@ -213,9 +303,31 @@ impl Observability {
         };
         self.event(event, 0, retry);
     }
+    pub(crate) fn acme_diagnostic(
+        &self,
+        stage: &'static str,
+        reason: &'static str,
+        transport: &'static str,
+        status: u16,
+    ) {
+        // All labels are fixed internal categories, never values returned by a CA.
+        self.emit(format!("\"event\":\"acme_failure_detail\",\"stage\":\"{stage}\",\"reason\":\"{reason}\",\"transport\":\"{transport}\",\"http_status\":{status}"));
+    }
     pub(crate) fn connection(self: &Arc<Self>) -> Active {
         self.active.fetch_add(1, Ordering::Relaxed);
         Active(self.clone())
+    }
+    pub(crate) fn h2_retired_stream(&self, generation: u64, admitted: u64) {
+        self.h2_retired_streams.fetch_add(1, Ordering::Relaxed);
+        self.event("h2_retired_stream", generation, admitted);
+    }
+    pub(crate) fn h2_idle_closed(&self, timed_out: bool) {
+        if timed_out {
+            &self.h2_idle_timeout
+        } else {
+            &self.h2_idle_eof
+        }
+        .fetch_add(1, Ordering::Relaxed);
     }
     pub(crate) fn metrics(
         &self,
@@ -227,6 +339,36 @@ impl Observability {
     ) -> String {
         let mut out = String::new();
         for (name, kind, value) in [
+            (
+                "h2_retired_streams_total",
+                "counter",
+                self.h2_retired_streams.load(Ordering::Relaxed),
+            ),
+            (
+                "h2_idle_preface_timeout_total",
+                "counter",
+                self.h2_idle_timeout.load(Ordering::Relaxed),
+            ),
+            (
+                "h2_idle_preface_eof_total",
+                "counter",
+                self.h2_idle_eof.load(Ordering::Relaxed),
+            ),
+            (
+                "quic_path_changes_total",
+                "counter",
+                self.quic_migrations.load(Ordering::Relaxed),
+            ),
+            (
+                "early_static_total",
+                "counter",
+                self.early_static.load(Ordering::Relaxed),
+            ),
+            (
+                "early_rejected_total",
+                "counter",
+                self.early_rejected.load(Ordering::Relaxed),
+            ),
             (
                 "admission_global_limit",
                 "gauge",
@@ -428,6 +570,40 @@ mod tests {
         }
     }
     #[test]
+    fn transport_diagnostics_keep_only_fixed_fields_and_preserve_error_kind() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(2);
+        *obs.log.lock().unwrap() = Some(tx);
+        let secret = stage_error(
+            io::Error::new(io::ErrorKind::TimedOut, "secret /?token=private"),
+            TransportStage::Output,
+        );
+        obs.request(7, Duration::ZERO, &Err(secret));
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"transport_phase\":\"output\""));
+        assert!(line.contains("\"io_error\":\"timed_out\""));
+        assert!(!line.contains("secret") && !line.contains("token"));
+        let protocol = io::Error::new(
+            io::ErrorKind::InvalidData,
+            crate::multiplex::H2Failure {
+                reason: Some(11),
+                remote: false,
+                reset: false,
+                goaway: true,
+                library: true,
+                limit: Some("pending_resets"),
+            },
+        );
+        obs.request(
+            7,
+            Duration::ZERO,
+            &Err(stage_error(protocol, TransportStage::Connection)),
+        );
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"h2_reason\":11,\"h2_remote\":false,\"h2_reset\":false,\"h2_goaway\":true,\"h2_library\":true"));
+        assert!(line.contains("\"transport_phase\":\"connection\""));
+    }
+    #[test]
     fn admission_reasons_are_fixed_and_do_not_log_peer_or_request_data() {
         let obs = Observability::default();
         let (tx, rx) = mpsc::sync_channel(7);
@@ -446,6 +622,31 @@ mod tests {
                 reason.label()
             )));
         }
+    }
+    #[test]
+    fn handshake_diagnostics_never_format_peer_errors() {
+        let obs = Observability::default();
+        let (tx, rx) = mpsc::sync_channel(2);
+        *obs.log.lock().unwrap() = Some(tx);
+        let untrusted = io::Error::other("private host /path?token=secret");
+        obs.tls_handshake_failed(Duration::from_millis(5), &untrusted);
+        let line = rx.recv().unwrap();
+        assert!(line.contains("\"phase\":\"socket\",\"reason\":\"other\",\"read_bytes\":0"));
+        assert!(!line.contains("secret") && !line.contains("private"));
+        let bounded = io::Error::new(
+            io::ErrorKind::TimedOut,
+            crate::tls::HandshakeFailure {
+                phase: crate::tls::HandshakePhase::Negotiation,
+                read_bytes: 1234,
+            },
+        );
+        obs.tls_handshake_failed(Duration::from_secs(5), &bounded);
+        assert!(
+            rx.recv()
+                .unwrap()
+                .contains("\"phase\":\"negotiation\",\"reason\":\"timed_out\",\"read_bytes\":1234")
+        );
+        assert_eq!(obs.tls_errors.load(Ordering::Relaxed), 2);
     }
     #[test]
     fn full_log_queue_drops_without_blocking_and_has_only_fixed_fields() {

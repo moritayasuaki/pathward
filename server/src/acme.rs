@@ -6,8 +6,8 @@ use crate::{
 use futures_lite::future;
 use rustls::{ClientConfig, RootCertStore};
 use rustls_acme::{
-    acme::{Account, AuthStatus, Directory, Identifier, OrderStatus},
-    https_helper::HttpsClient,
+    acme::{Account, AcmeError, AuthStatus, Directory, Identifier, OrderStatus},
+    https_helper::{HttpsClient, HttpsRequestError},
 };
 use std::{
     io,
@@ -24,6 +24,54 @@ pub const PRODUCTION: &str = rustls_acme::acme::LETS_ENCRYPT_PRODUCTION_DIRECTOR
 const ORDER_BUDGET: Duration = Duration::from_secs(600);
 fn error() -> io::Error {
     io::Error::other("ACME operation failed")
+}
+
+/// Fixed categories only: never retain CA response bodies, account URLs, tokens,
+/// private keys, resolver strings, or arbitrary error messages in the log.
+#[derive(Debug)]
+struct Failure {
+    stage: &'static str,
+    reason: &'static str,
+    transport: &'static str,
+    status: u16,
+}
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ACME {} failed: {} ({}, HTTP {})",
+            self.stage, self.reason, self.transport, self.status
+        )
+    }
+}
+impl std::error::Error for Failure {}
+fn request_error(stage: &'static str, error: AcmeError) -> io::Error {
+    let mut failure = Failure {
+        stage,
+        reason: "protocol",
+        transport: "none",
+        status: 0,
+    };
+    match error {
+        AcmeError::HttpRequest(HttpsRequestError::Timeout { phase }) => {
+            failure.reason = "timed_out";
+            failure.transport = phase;
+        }
+        AcmeError::HttpRequest(HttpsRequestError::Transport { phase, .. }) => {
+            failure.reason = "transport";
+            failure.transport = phase;
+        }
+        AcmeError::HttpRequest(HttpsRequestError::Non2xxStatus { status_code }) => {
+            failure.reason = "http_status";
+            failure.status = status_code;
+        }
+        AcmeError::Json(_) => failure.reason = "response_format",
+        AcmeError::MissingHeader(_) | AcmeError::HttpResponseNonStringHeader(_) => {
+            failure.reason = "response_header";
+        }
+        _ => {}
+    }
+    io::Error::other(failure)
 }
 
 pub fn public_client_config() -> io::Result<Arc<ClientConfig>> {
@@ -152,7 +200,7 @@ impl Manager {
     async fn order(&self) -> io::Result<Vec<u8>> {
         let directory = Directory::discover(&self.client, &self.directory)
             .await
-            .map_err(|_| error())?;
+            .map_err(|e| request_error("directory", e))?;
         for url in [
             &directory.new_nonce,
             &directory.new_account,
@@ -163,7 +211,7 @@ impl Manager {
         let account =
             Account::create_with_keypair(&self.client, directory, &self.contact, &self.account_key)
                 .await
-                .map_err(|_| error())?;
+                .map_err(|e| request_error("account", e))?;
         self.client.check_url(&account.kid)?;
         let mut params =
             rcgen::CertificateParams::new(self.domains.clone()).map_err(|_| error())?;
@@ -174,7 +222,7 @@ impl Manager {
         let (order_url, mut order) = account
             .new_order(&self.client, self.domains.clone())
             .await
-            .map_err(|_| error())?;
+            .map_err(|e| request_error("new_order", e))?;
         self.client.check_url(&order_url)?;
         for _ in 0..64 {
             if order.authorizations.len() > self.domains.len() {
@@ -184,7 +232,10 @@ impl Manager {
                 OrderStatus::Pending => {
                     let mut authorized = Vec::new();
                     for url in &order.authorizations {
-                        let auth = account.auth(&self.client, url).await.map_err(|_| error())?;
+                        let auth = account
+                            .auth(&self.client, url)
+                            .await
+                            .map_err(|e| request_error("authorization", e))?;
                         let Identifier::Dns(domain) = auth.identifier;
                         if !self.domains.contains(&domain)
                             || authorized.contains(&domain)
@@ -205,12 +256,14 @@ impl Manager {
                         account
                             .challenge(&self.client, &challenge.url)
                             .await
-                            .map_err(|_| error())?;
+                            .map_err(|e| request_error("challenge", e))?;
                         let mut valid = false;
                         for _ in 0..60 {
                             async_io::Timer::after(Duration::from_secs(1)).await;
-                            let auth =
-                                account.auth(&self.client, url).await.map_err(|_| error())?;
+                            let auth = account
+                                .auth(&self.client, url)
+                                .await
+                                .map_err(|e| request_error("authorization_poll", e))?;
                             let Identifier::Dns(name) = auth.identifier;
                             if name != domain {
                                 return Err(error());
@@ -234,7 +287,7 @@ impl Manager {
                     order = account
                         .finalize(&self.client, &order.finalize, csr.der())
                         .await
-                        .map_err(|_| error())?;
+                        .map_err(|e| request_error("finalize", e))?;
                     continue;
                 }
                 OrderStatus::Processing => {}
@@ -242,7 +295,7 @@ impl Manager {
                     let chain = account
                         .certificate(&self.client, certificate)
                         .await
-                        .map_err(|_| error())?;
+                        .map_err(|e| request_error("certificate", e))?;
                     let pem = format!("{}\n{chain}", key.serialize_pem()).into_bytes();
                     if pem.len() > 1_048_576 {
                         return Err(error());
@@ -255,7 +308,7 @@ impl Manager {
             order = account
                 .order(&self.client, &order_url)
                 .await
-                .map_err(|_| error())?;
+                .map_err(|e| request_error("order_poll", e))?;
         }
         Err(error())
     }
@@ -335,6 +388,26 @@ impl Manager {
                         // Even an unusually short-lived CA certificate cannot cause a tight order loop.
                         next = Instant::now() + Duration::from_secs(1);
                     } else {
+                        if let Some(failure) = result
+                            .as_ref()
+                            .err()
+                            .and_then(|e| e.get_ref())
+                            .and_then(|e| e.downcast_ref::<Failure>())
+                        {
+                            self.observe.acme_diagnostic(
+                                failure.stage,
+                                failure.reason,
+                                failure.transport,
+                                failure.status,
+                            );
+                        } else {
+                            self.observe.acme_diagnostic(
+                                "local_validation",
+                                "policy_or_io",
+                                "none",
+                                0,
+                            );
+                        }
                         self.observe.acme(Some(false), retry);
                         next = Instant::now() + Duration::from_secs(retry);
                         retry = (retry * 2).min(3600);
@@ -344,5 +417,34 @@ impl Manager {
             }
             self.identity.clear_challenge();
         });
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn errors_report_fixed_stages_without_transport_secrets() {
+        let source = io::Error::other("PRIVATE_TOKEN_AND_ACCOUNT_URL");
+        let error = request_error(
+            "directory",
+            AcmeError::HttpRequest(HttpsRequestError::Transport {
+                phase: "connect",
+                source,
+            }),
+        );
+        let message = error.to_string();
+        assert!(message.contains("directory") && message.contains("connect"));
+        assert!(!message.contains("PRIVATE_TOKEN"));
+        let timeout = request_error(
+            "account",
+            AcmeError::HttpRequest(HttpsRequestError::Timeout { phase: "dns" }),
+        );
+        assert!(timeout.to_string().contains("timed_out"));
+        let status = request_error(
+            "new_order",
+            AcmeError::HttpRequest(HttpsRequestError::Non2xxStatus { status_code: 429 }),
+        );
+        assert!(status.to_string().contains("429"));
     }
 }

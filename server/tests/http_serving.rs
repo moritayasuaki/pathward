@@ -318,6 +318,8 @@ fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
                 "/private/",
                 "/private/visible",
                 "/private/a",
+                "/private/a+b",
+                "/private/a%2Bb",
                 "/%70rivate",
                 "/a/../private",
                 "//private",
@@ -357,12 +359,12 @@ fn mixed_site_denials_and_static_failures_never_contact_the_fallback_proxy() {
                     head.push(byte[0]);
                     assert!(head.len() < 16384);
                 }
-                assert!(head.starts_with(b"GET /privateer/?q=%2f HTTP/1.1\r\n"));
+                assert!(head.starts_with(b"GET /privateer/a+b?q=%2f HTTP/1.1\r\n"));
                 socket
                     .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
                     .unwrap();
             });
-            assert!(get(addr, "GET", "app.example", "/privateer/?q=%2f").ends_with(b"OK"));
+            assert!(get(addr, "GET", "app.example", "/privateer/a+b?q=%2f").ends_with(b"OK"));
             origin.join().unwrap();
         }));
         stop.store(true, Ordering::Release);

@@ -15,6 +15,7 @@ rust-check:
 	cargo clippy --offline --locked --all-targets -- -D warnings
 
 proof-check:
+	python3 -m unittest discover -s scripts -p 'test_proof_registry.py'
 	python3 scripts/extract.py --check
 	cd proofs && lake build
 	python3 scripts/audit.py

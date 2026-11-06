@@ -2,7 +2,7 @@ use pathward_config::ParsedConfig;
 use pathward_server::deployment::generate;
 #[test]
 fn generation_preserves_explicit_startup_capacity() {
-    let text = "capacity \"shared-nat\"\nsite \"app.example\" {\n tls \"auto\"\n root \"/srv/old\"\n publish \"/\" \"index.html\"\n}\n";
+    let text = "capacity \"shared-nat\"\nsite \"app.example\" {\n tls \"auto\"\n encode \"gzip,zstd\"\n root \"/srv/old\"\n publish \"/\" \"index.html\"\n}\n";
     let parsed = ParsedConfig::parse(text).unwrap();
     let output = generate(
         &parsed.compile().unwrap(),
@@ -14,6 +14,7 @@ fn generation_preserves_explicit_startup_capacity() {
     .unwrap();
     let updated = ParsedConfig::parse(&output).unwrap();
     assert!(updated.compile().unwrap().shared_nat());
+    assert_eq!(updated.compile().unwrap().sites()[0].encoding(), 3);
 }
 #[test]
 fn explicit_manifest_round_trips_without_expansion_and_preserves_other_policies() {

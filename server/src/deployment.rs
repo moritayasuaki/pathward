@@ -60,6 +60,16 @@ pub fn generate(
             "site {} {{\n    tls \"auto\"\n",
             quoted(site.host())
         ));
+        if site.encoding() != 0 {
+            out.push_str(&format!(
+                "    encode {}\n",
+                quoted(match site.encoding() {
+                    1 => "gzip",
+                    2 => "zstd",
+                    _ => "gzip,zstd",
+                })
+            ));
+        }
         if let Some(old_root) = site.root() {
             out.push_str(&format!(
                 "    root {}\n",
@@ -202,6 +212,14 @@ pub fn generate(
             out.push_str(&format!("    publish {} {}\n", quoted(&url), quoted(&file)));
         }
         for r in site.redirects() {
+            if r.fallback {
+                out.push_str(&format!(
+                    "    redirect-fallback {} \"{}\"\n",
+                    quoted(r.host),
+                    r.status
+                ));
+                continue;
+            }
             out.push_str(&format!(
                 "    {} {} {} {} \"{}\"\n",
                 if r.prefix {

@@ -310,3 +310,80 @@ fn configured_locations_headers_and_reload_use_one_checked_policy() {
     assert!(r.contains("referrer-policy: origin\r\n"));
     assert!(!r.contains("no-referrer"));
 }
+
+#[test]
+fn fallback_preserves_local_denials_publications_and_explicit_redirects() {
+    let root = std::env::temp_dir().join(format!(
+        "pathward-fallback-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("index.html"), b"CONTENT").unwrap();
+    struct Tree(std::path::PathBuf);
+    impl Drop for Tree {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    let _tree = Tree(root.clone());
+    let text = format!(
+        "site \"example.com\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\npublish \"/local\" \"index.html\"\npublish \"/guide/\" \"index.html\"\nredirect \"/guide\" \"example.com\" \"/guide/\" \"308\"\ndeny \"/private\"\nredirect-prefix \"/old\" \"other.example\" \"/new\" \"301\"\nredirect-fallback \"other.example\" \"308\"\n}}\nsite \"other.example\" {{\nroot \"{}\"\ntls \"auto\"\npublish \"/\" \"index.html\"\n}}",
+        root.display(),
+        root.display()
+    );
+    let parsed = ParsedConfig::parse(&text).unwrap();
+    let server = Server::new(&parsed.compile().unwrap()).unwrap();
+    for (path, status, location) in [
+        ("/", 200, None),
+        ("/local?x=1", 200, None),
+        ("/local/", 404, None),
+        ("/guide/", 200, None),
+        ("/guide?x=1", 308, Some("https://example.com/guide/?x=1")),
+        ("/private", 404, None),
+        ("/private/file", 404, None),
+        ("/.key", 404, None),
+        ("/x%2fy", 404, None),
+        (
+            "/old/file?x=%20",
+            301,
+            Some("https://other.example/new/file?x=%20"),
+        ),
+        (
+            "/missing/?x=%0d%0a",
+            308,
+            Some("https://other.example/missing/?x=%0d%0a"),
+        ),
+    ] {
+        let response = exchange(&server, path, "example.com", Some("example.com"));
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{path}: {response}"
+        );
+        if let Some(location) = location {
+            assert!(response.contains(&format!("Location: {location}\r\n")));
+        } else {
+            assert!(!response.contains("Location:"), "{path}: {response}");
+        }
+    }
+    fs::remove_file(root.join("index.html")).unwrap();
+    let response = exchange(&server, "/local", "example.com", Some("example.com"));
+    assert!(response.starts_with("HTTP/1.1 404"));
+    assert!(
+        !response.contains("Location:"),
+        "failed local open must remain final"
+    );
+    let generated = crate::deployment::generate(
+        &parsed.compile().unwrap(),
+        "example.com",
+        root.to_str().unwrap(),
+        "index.html\n",
+        Some("index.html"),
+    )
+    .unwrap();
+    assert!(generated.contains("redirect-fallback \"other.example\" \"308\""));
+    assert!(ParsedConfig::parse(&generated).unwrap().compile().is_ok());
+}

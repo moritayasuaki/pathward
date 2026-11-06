@@ -13,9 +13,9 @@ fn grammar(path: &[u8]) -> bool {
                 !part.is_empty()
                     && part[0] != b'.'
                     && part[part.len() - 1] != b'.'
-                    && part
-                        .iter()
-                        .all(|b| b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'.'))
+                    && part.iter().all(|b| {
+                        b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'+' | b'.')
+                    })
             })
 }
 
@@ -127,7 +127,7 @@ fn exhaustive_single_byte_and_absorbing_rejection() {
 fn exhaustive_short_inputs_match_independent_grammar() {
     // Every short word over representatives of all relevant byte classes.
     let alphabet = [
-        b'/', b'.', b'a', b'Z', b'9', b'_', b'-', b'%', b'\\', 0, 255,
+        b'/', b'.', b'a', b'Z', b'9', b'_', b'-', b'+', b'%', b'\\', 0, 255,
     ];
     let mut words = vec![Vec::new()];
     for _ in 0..=5 {
@@ -169,5 +169,21 @@ fn comparison_and_authorization_match_reference() {
                 assert_eq!(same_path(&bytes, other), bytes.as_slice() == *other);
             }
         }
+    }
+}
+
+#[test]
+fn literal_plus_does_not_alias_space_escape_or_separator() {
+    let path = b"/licenses/wasi-0.11.1+wasi-snapshot-preview1/LICENSE";
+    assert!(is_public(path, &[path]));
+    for other in [
+        b"/licenses/wasi-0.11.1%2Bwasi-snapshot-preview1/LICENSE".as_slice(),
+        b"/licenses/wasi-0.11.1 wasi-snapshot-preview1/LICENSE",
+        b"/licenses/wasi-0.11.1/wasi-snapshot-preview1/LICENSE",
+        b"/licenses/wasi-0.11.1-wasi-snapshot-preview1/LICENSE",
+        b"/licenses/../wasi-0.11.1+wasi-snapshot-preview1/LICENSE",
+        b"/licenses/.wasi-0.11.1+wasi-snapshot-preview1/LICENSE",
+    ] {
+        assert!(!is_public(other, &[path]));
     }
 }

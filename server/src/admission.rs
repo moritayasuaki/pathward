@@ -197,6 +197,36 @@ impl Permit {
     pub fn peer(&self) -> IpAddr {
         self.peer
     }
+    pub fn next_request(&self, draining: bool) -> Result<(), Rejection> {
+        self.request_at(draining, Instant::now())
+    }
+    fn request_at(&self, draining: bool, now: Instant) -> Result<(), Rejection> {
+        let mut state = self
+            .admission
+            .0
+            .lock()
+            .map_err(|_| Rejection::StateUnavailable)?;
+        state.global.refill(now);
+        let global = state.global.credit / 1000;
+        let peer = state
+            .peers
+            .get_mut(&self.peer)
+            .ok_or(Rejection::StateUnavailable)?;
+        peer.bucket.refill(now);
+        peer.seen = now;
+        if !pathward::delivery::request_credit(global, peer.bucket.credit / 1000, draining) {
+            return Err(if draining {
+                Rejection::Draining
+            } else if global == 0 {
+                Rejection::GlobalRate
+            } else {
+                Rejection::PeerRate
+            });
+        }
+        peer.bucket.credit -= 1000;
+        state.global.credit -= 1000;
+        Ok(())
+    }
 }
 impl Drop for Permit {
     fn drop(&mut self) {
@@ -211,6 +241,43 @@ impl Drop for Permit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reuse_charges_both_request_buckets_without_another_connection() {
+        let a = Arc::new(Admission::new(false));
+        let now = Instant::now();
+        let ip = IpAddr::from([127, 0, 0, 1]);
+        let permit = a.at(ip, false, now).unwrap();
+        let burst = pathward::release::capacity_burst(false, true);
+        for _ in 1..burst {
+            permit.request_at(false, now).unwrap();
+        }
+        assert_eq!(permit.request_at(false, now), Err(Rejection::PeerRate));
+        {
+            let s = a.0.lock().unwrap();
+            assert_eq!(s.active, 1);
+            assert_eq!(s.peers[&ip].active, 1);
+            assert_eq!(s.peers[&ip].bucket.credit, 0);
+            assert_eq!(
+                s.global.credit,
+                (pathward::release::capacity_burst(false, false) - burst) * 1000
+            );
+        }
+        assert_eq!(
+            permit.request_at(true, now + Duration::from_secs(1)),
+            Err(Rejection::Draining)
+        );
+        permit
+            .request_at(false, now + Duration::from_secs(1))
+            .unwrap();
+        a.0.lock().unwrap().global.credit = 0;
+        assert_eq!(
+            permit.request_at(false, now + Duration::from_secs(1)),
+            Err(Rejection::GlobalRate)
+        );
+        drop(permit);
+        assert_eq!(a.0.lock().unwrap().active, 0);
+    }
+
     #[test]
     fn shared_nat_profile_retains_finite_occupancy_credit_and_drain_gates() {
         let a = Arc::new(Admission::new(true));

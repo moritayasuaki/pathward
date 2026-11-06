@@ -44,6 +44,19 @@ pub fn response_framing(length: Option<u64>, chunked: bool, duplicate_length: bo
     }
 }
 
+/// 0: read a framed body; 1: discard the private upstream connection without
+/// forwarding any body; 2: reject forbidden bytes on a bodyless status.
+/// HEAD always has no response body, even if a broken upstream sends bytes.
+pub fn upstream_body_mode(head_only: bool, status: u16, prefetched: bool) -> u8 {
+    if head_only {
+        1
+    } else if status == 204 || status == 304 {
+        if prefetched { 2 } else { 1 }
+    } else {
+        0
+    }
+}
+
 #[allow(clippy::manual_range_contains)]
 fn target_bytes(target: &[u8]) -> bool {
     let mut i = 0;

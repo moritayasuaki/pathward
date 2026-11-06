@@ -8,7 +8,7 @@ open pathward
 
 def nameByte (b : U8) : Bool :=
   decide ((97 ≤ b.val ∧ b.val ≤ 122) ∨ (65 ≤ b.val ∧ b.val ≤ 90) ∨
-    (48 ≤ b.val ∧ b.val ≤ 57) ∨ b.val = 95 ∨ b.val = 45)
+    (48 ≤ b.val ∧ b.val ≤ 57) ∨ b.val = 95 ∨ b.val = 45 ∨ b.val = 43)
 
 theorem name_byte_eq (b : U8) : name_byte b = ok (nameByte b) := by
   unfold name_byte

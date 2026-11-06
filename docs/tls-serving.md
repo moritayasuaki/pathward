@@ -1,5 +1,31 @@
 # TLS and automatic certificates
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
+The CA client supports bounded IPv4/IPv6 fallback: at most eight distinct
+addresses are tried 250 ms apart, sharing one 30-second request deadline. It
+authenticates the original CA hostname regardless of which address connects.
+`acme_failure_detail` logs fixed `stage`, `transport`, `reason` and numeric
+`http_status` fields, without CA response bodies or credentials.
+
+To check outbound DNS/TCP/public trust before a cutover without issuing anything:
+
+```sh
+cargo +1.99.1 run --offline --locked --release --manifest-path server/Cargo.toml \
+  --example acme_probe -- production
+```
+
+This reads the directory and nonce only. It does not test incoming TLS-ALPN-01
+validation or prove that a public certificate can be issued. Run it under the
+deployment's actual service restrictions as well as from an ordinary shell.
+
+Linux service sandboxes must allow `openat2`; systemd's `RestrictSUIDSGID=yes`
+blocks it. Retain a dedicated nonroot UID, `NoNewPrivileges=yes`, minimal
+capabilities, private state and write restrictions, and validate the full service
+sandbox before stopping an existing server. See the
+[systemd setting](https://freedesktop.org/software/systemd/man/latest/systemd.exec.html#RestrictSUIDSGID=).
+
 PathWard serves HTTP/1.1 through rustls on Linux 5.6+ and continuously obtains and
 renews certificates with ACME TLS-ALPN-01. Existing KDL `tls "auto"` declarations
 are activated by `serve-tls`; `serve-http` remains explicitly loopback-only.

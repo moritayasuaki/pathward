@@ -26,6 +26,7 @@ pub fn name_byte(byte: u8) -> bool {
         || (byte >= b'0' && byte <= b'9')
         || byte == b'_'
         || byte == b'-'
+        || byte == b'+'
 }
 
 /// One total transition. Reject is absorbing.

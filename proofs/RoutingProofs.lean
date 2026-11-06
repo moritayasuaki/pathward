@@ -71,15 +71,15 @@ theorem times_bounded (b c h t : U64) (valid : routing.time_limits b c h t = ok 
   rcases hp with ⟨_,_,hb,_,_,hc,_,hh,_,ht⟩
   exact ⟨hb,hc,hh,ht⟩
 
-theorem connection_eq (l : U64) : routing.connection_limit l = ok (decide (0 < l.val ∧ l.val ≤ 3)) := by
+theorem connection_eq (l : U64) : routing.connection_limit l = ok (decide (0 < l.val ∧ l.val ≤ 64)) := by
   simp [routing.connection_limit]; split_ifs <;> simp_all
 
 theorem service_eq (a c l : U64) :
-    routing.service_admit a c l = ok (decide (0 < c.val ∧ c.val ≤ 3 ∧ 0 < l.val ∧ l.val ≤ 3 ∧ a.val < c.val ∧ a.val < l.val)) := by
+    routing.service_admit a c l = ok (decide (0 < c.val ∧ c.val ≤ 64 ∧ 0 < l.val ∧ l.val ≤ 64 ∧ a.val < c.val ∧ a.val < l.val)) := by
   simp [routing.service_admit,connection_eq]; split_ifs <;> simp_all
 
 theorem service_bounded (a c l : U64) (h : routing.service_admit a c l = ok true) :
-    a.val + 1 ≤ c.val ∧ a.val + 1 ≤ l.val ∧ a.val + 1 ≤ 3 := by
+    a.val + 1 ≤ c.val ∧ a.val + 1 ≤ l.val ∧ a.val + 1 ≤ 64 := by
   simp [service_eq] at h
   omega
 
@@ -116,15 +116,18 @@ theorem stem_canonical (p s : Slice U8) (h : routing.stem p = ok (some s)) : can
     simpa [←he] using hc
   · simp at h
 
-theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :
-    p.val = s.val ∨ p.val = s.val ++ [47#u8] := by
+/-- Routing never decodes or rewrites bytes, including a literal plus sign. -/
+theorem stem_preserves_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :
+    p = s := by
   rw [stem_eq] at h
   unfold stemPolicy at h
   split_ifs at h
-  · have he : p = s := by simpa using h
-    subst s
-    exact Or.inl rfl
+  · simpa using h
   · simp at h
+
+theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :
+    p.val = s.val ∨ p.val = s.val ++ [47#u8] := by
+  exact Or.inl (congrArg (fun (p : Slice U8) => p.val) (stem_preserves_bytes p s h))
 
 theorem stem_input_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :
     ∀ b ∈ p.val, allowedByte b = true := by

@@ -1,0 +1,4695 @@
+{
+  "schema": 1,
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "theorem_count": 397,
+  "axiom_free_count": 17,
+  "axiom_counts": {
+    "Classical.choice": 357,
+    "Quot.sound": 357,
+    "propext": 380
+  },
+  "source_sha256": {
+    "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
+    "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
+    "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
+    "proofs/Generated/Pathward.lean": "867f956487cfc25420b3778d8786c560de100530427dbf984c595d03bed1271e",
+    "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
+    "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
+    "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
+    "proofs/ResponseProofs.lean": "061343c2b849bea0fd68ed6b5992de66cd3c23b7ee1368693db5197c28b1dc53",
+    "proofs/RoutingProofs.lean": "72240b68db96e7840996eac9f3fb2c20e68b91a6e13bef7a87ca16df2fc3e7b7",
+    "proofs/RulesProofs.lean": "7d1cf96a83901846448a8dc4a271fb8509a6fb09d41c5ccf3431cab02ff99611",
+    "proofs/RuntimeProofs.lean": "59c26e771cd0c24d173ed60c8b355284c81e36f19a5d65e5a1bbc5271e2630cb",
+    "proofs/SafetyProofs.lean": "e9d16ab6900e76f64b3e52040a37e92f6126ec01bf44f81a639905f9c9792c97",
+    "proofs/ServingProofs.lean": "7a4a1b0f7fe826402024350d81c9d2afa058d5fe4d43db224bcbf6067097ca3e",
+    "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
+    "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
+    "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
+    "scripts/extract.py": "064c688bdc9fcfb35a6eafc7e3cf3072b60a86ab256fea0db1f15a1328c16024",
+    "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
+    "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
+    "src/lib.rs": "4db18d5f16824c9a07ebf6d9a0641bd8aa6214f0e980fa776ad4682969eb3314",
+    "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
+    "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
+    "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
+    "src/routing.rs": "3b8389ea373035950377b1f52624c1a7db144725b0033860bf67e0f4a7aac460",
+    "src/rules.rs": "47afdd758a71cccfc513ec1a4f6ec6aed290c5419ac2c2760001107e3f45d166",
+    "src/runtime.rs": "0a1d152f60bcf3aab2865029bd01c00b5ba323204265b0dd675494f9b1c084e8",
+    "src/serving.rs": "019358430607bb367639c6e2c1ccd56795ed85a2cd43152df26ff1986e37ca67",
+    "src/streaming.rs": "7ce627b8afbf1fcb4956b1d0b8a40e11c23248839dcf6a774dbfc3459f4e7741",
+    "src/tls.rs": "f443f6750448b1734272eea13ba085b6eb6ce420f3a4fd74145470683f35d7ba",
+    "src/upstream.rs": "06cea2a344756e15d6d80a164f46ffa3d7a7b80ff7f2e2d22cce958a292df003"
+  },
+  "theorems": [
+    {
+      "name": "CancellationProofs.head_slot_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 5,
+      "statement": "theorem head_slot_eq (active : U64) (held : Bool) :\n    delivery.head_slot active held = ok (decide (held = false ∧ active.val < 32))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.held_head_bounded",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 9,
+      "statement": "theorem held_head_bounded (active : U64) (held : Bool)\n    (h : delivery.head_slot active held = ok true) :\n    held = false ∧ active.val + 1 ≤ 32",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.cancellation_wins",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 15,
+      "statement": "theorem cancellation_wins (elapsed : U64) :\n    delivery.held_action true elapsed = ok delivery.HeldAction.Discard",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.discard_iff_cancelled",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 18,
+      "statement": "theorem discard_iff_cancelled (cancelled : Bool) (elapsed : U64) :\n    delivery.held_action cancelled elapsed = ok delivery.HeldAction.Discard ↔ cancelled = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.try_admission_iff",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 23,
+      "statement": "theorem try_admission_iff (cancelled : Bool) (elapsed : U64) :\n    delivery.held_action cancelled elapsed = ok delivery.HeldAction.TryAdmission ↔\n      cancelled = false ∧ elapsed.val < 5000",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.expired_cannot_start",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 28,
+      "statement": "theorem expired_cannot_start (cancelled : Bool) (elapsed : U64)\n    (h : 5000 ≤ elapsed.val) :\n    delivery.held_action cancelled elapsed ≠ ok delivery.HeldAction.TryAdmission",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.step_preserves_bound",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 56,
+      "statement": "theorem step_preserves_bound (before after : Window) (step : Step before after)\n    (bound : occupied before ≤ 32) : occupied after ≤ 32",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CancellationProofs.every_interleaving_bounded",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 69,
+      "statement": "theorem every_interleaving_bounded (first last : Window) (run : Run first last)\n    (initial : occupied first ≤ 32) : occupied last ≤ 32",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CancellationProofs.cancellation_releases_held_slot",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 75,
+      "statement": "theorem cancellation_releases_held_slot (active : Nat) :\n    occupied ⟨active, false⟩ + 1 = occupied ⟨active, true⟩",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "CancellationProofs.retirement_close_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 78,
+      "statement": "theorem retirement_close_eq (retiring held stopping : Bool) (quiet retired active stopped : U64) :\n    delivery.retirement_close retiring quiet retired active held stopping stopped = ok (decide\n      ((stopping = true ∧ 5000 ≤ stopped.val) ∨\n       (retiring = true ∧ 5000 ≤ quiet.val ∧ 5000 ≤ retired.val ∧ active.val = 0 ∧ held = false)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_preserves_active",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 86,
+      "statement": "theorem retirement_preserves_active (retiring held : Bool) (quiet retired active stopped : U64)\n    (h : 0 < active.val) :\n    delivery.retirement_close retiring quiet retired active held false stopped = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_preserves_held",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 92,
+      "statement": "theorem retirement_preserves_held (retiring : Bool) (quiet retired active stopped : U64) :\n    delivery.retirement_close retiring quiet retired active true false stopped = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_empty_closes",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 96,
+      "statement": "theorem retirement_empty_closes (quiet retired stopped : U64)\n    (hq : 5000 ≤ quiet.val) (hr : 5000 ≤ retired.val) :\n    delivery.retirement_close true quiet retired 0#u64 false false stopped = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.shutdown_deadline_closes",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 101,
+      "statement": "theorem shutdown_deadline_closes (retiring held : Bool) (quiet retired active stopped : U64)\n    (h : 5000 ≤ stopped.val) :\n    delivery.retirement_close retiring quiet retired active held true stopped = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.retirement_grace_starts_at_retirement",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 106,
+      "statement": "theorem retirement_grace_starts_at_retirement (retiring held : Bool)\n    (quiet retired active stopped : U64) (h : retired.val < 5000) :\n    delivery.retirement_close retiring quiet retired active held false stopped = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_pending_blocks_normal_close",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 112,
+      "statement": "theorem h2_pending_blocks_normal_close (close : Bool) :\n    delivery.h2_close_ready close false true = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_shutdown_preserves_deadline",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 116,
+      "statement": "theorem h2_shutdown_preserves_deadline (pending : Bool) :\n    delivery.h2_close_ready true true pending = ok true",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_close_requires_retirement",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 119,
+      "statement": "theorem h2_close_requires_retirement (close stopping pending : Bool)\n    (h : delivery.h2_close_ready close stopping pending = ok true) : close = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_drain_expired_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 123,
+      "statement": "theorem h2_drain_expired_eq (pending retiring held : Bool) (quiet active : U64) :\n    delivery.h2_drain_expired pending retiring quiet active held = ok (decide\n      (pending = true ∧ retiring = true ∧ 30000 ≤ quiet.val ∧ active.val = 0 ∧ held = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_drain_before_deadline",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 130,
+      "statement": "theorem h2_drain_before_deadline (pending retiring held : Bool) (quiet active : U64)\n    (h : quiet.val < 30000) :\n    delivery.h2_drain_expired pending retiring quiet active held = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_drain_preserves_work",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 136,
+      "statement": "theorem h2_drain_preserves_work (pending retiring held : Bool) (quiet active : U64)\n    (h : 0 < active.val ∨ held = true) :\n    delivery.h2_drain_expired pending retiring quiet active held = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_stuck_output_times_out",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 144,
+      "statement": "theorem h2_stuck_output_times_out (quiet : U64) (h : 30000 ≤ quiet.val) :\n    delivery.h2_drain_expired true true quiet 0#u64 false = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_eq",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 148,
+      "statement": "theorem h2_peer_drain_eq (elapsed received : U64) :\n    delivery.h2_peer_drain_allowed elapsed received = ok (decide\n      (elapsed.val < 30000 ∧ received.val < 1048576))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_bounded",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 154,
+      "statement": "theorem h2_peer_drain_bounded (elapsed received : U64)\n    (h : delivery.h2_peer_drain_allowed elapsed received = ok true) :\n    elapsed.val < 30000 ∧ received.val < 1048576",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_time_limit",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 159,
+      "statement": "theorem h2_peer_drain_time_limit (elapsed received : U64) (h : 30000 ≤ elapsed.val) :\n    delivery.h2_peer_drain_allowed elapsed received = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "CancellationProofs.h2_peer_drain_byte_limit",
+      "source": "proofs/CancellationProofs.lean",
+      "line": 164,
+      "statement": "theorem h2_peer_drain_byte_limit (elapsed received : U64) (h : 1048576 ≤ received.val) :\n    delivery.h2_peer_drain_allowed elapsed received = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.span_eq",
+      "source": "proofs/ContentProofs.lean",
+      "line": 5,
+      "statement": "theorem span_eq (size start count : U64) :\n    content.span_allowed size start count = ok (decide (size.val ≤ 1073741824 ∧ start.val + count.val ≤ size.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.span_bounded",
+      "source": "proofs/ContentProofs.lean",
+      "line": 19,
+      "statement": "theorem span_bounded (size start count : U64)\n    (h : content.span_allowed size start count = ok true) :\n    start.val + count.val ≤ size.val ∧ size.val ≤ 1073741824",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.span_total",
+      "source": "proofs/ContentProofs.lean",
+      "line": 25,
+      "statement": "theorem span_total (size start count : U64) :\n    ∃ result, content.span_allowed size start count = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.preconditions_eq",
+      "source": "proofs/ContentProofs.lean",
+      "line": 31,
+      "statement": "theorem preconditions_eq (m u n d : Option Bool) :\n    content.precondition_status m u n d = ok\n      (if condition m u true then if condition n d false then 304#u16 else 200#u16 else 412#u16)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.failed_match_precedes_not_modified",
+      "source": "proofs/ContentProofs.lean",
+      "line": 37,
+      "statement": "theorem failed_match_precedes_not_modified (u n d : Option Bool) :\n    content.precondition_status (some false) u n d = ok 412#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.tag_precedes_date",
+      "source": "proofs/ContentProofs.lean",
+      "line": 41,
+      "statement": "theorem tag_precedes_date (m u d : Option Bool) :\n    content.precondition_status m u (some false) d =\n      ok (if condition m u true then 200#u16 else 412#u16)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.failed_date_precedes_not_modified",
+      "source": "proofs/ContentProofs.lean",
+      "line": 46,
+      "statement": "theorem failed_date_precedes_not_modified (n d : Option Bool) :\n    content.precondition_status none (some false) n d = ok 412#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.cache_eq",
+      "source": "proofs/ContentProofs.lean",
+      "line": 50,
+      "statement": "theorem cache_eq (s : U16) (a c : Bool) (t : U64) :\n    content.shared_cache_allowed s a c t = ok (decide\n      (a = true ∧ c = false ∧ t.val ≤ 31536000 ∧ (s = 200#u16 ∨ s = 206#u16 ∨ s = 304#u16)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.no_credential_cache",
+      "source": "proofs/ContentProofs.lean",
+      "line": 56,
+      "statement": "theorem no_credential_cache (s : U16) (a : Bool) (t : U64) :\n    content.shared_cache_allowed s a true t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.no_unpublished_cache",
+      "source": "proofs/ContentProofs.lean",
+      "line": 59,
+      "statement": "theorem no_unpublished_cache (s : U16) (c : Bool) (t : U64) :\n    content.shared_cache_allowed s false c t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContentProofs.cache_status_and_duration",
+      "source": "proofs/ContentProofs.lean",
+      "line": 62,
+      "statement": "theorem cache_status_and_duration (s : U16) (a c : Bool) (t : U64)\n    (h : content.shared_cache_allowed s a c t = ok true) :\n    t.val ≤ 31536000 ∧ (s = 200#u16 ∨ s = 206#u16 ∨ s = 304#u16)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 6,
+      "statement": "theorem reserve_eq (g p n : U64) (d : Bool) :\n    delivery.reserve_allowed g p n d = ok (decide\n      (d = false ∧ 0 < n.val ∧ g.val + n.val ≤ 268435456 ∧ p.val + n.val ≤ 201326592))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 33,
+      "statement": "theorem reserve_bounded (g p n : U64) (d : Bool)\n    (h : delivery.reserve_allowed g p n d = ok true) :\n    g.val + n.val ≤ 268435456 ∧ p.val + n.val ≤ 201326592 ∧ d = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_no_overflow",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 39,
+      "statement": "theorem reserve_no_overflow (g p n : U64) (d : Bool)\n    (h : delivery.reserve_allowed g p n d = ok true) :\n    g.val + n.val < 2^64 ∧ p.val + n.val < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_no_draining",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 45,
+      "statement": "theorem reserve_no_draining (g p n : U64) :\n    delivery.reserve_allowed g p n true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_positive",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 48,
+      "statement": "theorem reserve_positive (g p n : U64) (d : Bool)\n    (h : delivery.reserve_allowed g p n d = ok true) : 0 < n.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reserve_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 53,
+      "statement": "theorem reserve_total (g p n : U64) (d : Bool) :\n    ∃ b, delivery.reserve_allowed g p n d = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.shrink_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 56,
+      "statement": "theorem shrink_eq (b a : U64) :\n    delivery.shrink_allowed b a = ok (decide (a.val ≤ b.val))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.shrink_cannot_add_credit",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 59,
+      "statement": "theorem shrink_cannot_add_credit (b a : U64)\n    (h : delivery.shrink_allowed b a = ok true) : a.val ≤ b.val",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.response_storage_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 63,
+      "statement": "theorem response_storage_eq (body credit : U64) :\n    delivery.response_storage body credit = ok (decide\n      (2 * body.val + 262144 ≤ credit.val ∧ credit.val ≤ 134479872))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.response_storage_covers_copies",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 84,
+      "statement": "theorem response_storage_covers_copies (body credit : U64)\n    (h : delivery.response_storage body credit = ok true) :\n    2 * body.val + 262144 ≤ credit.val ∧ body.val ≤ 67108864",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.response_storage_cannot_exceed_cap",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 90,
+      "statement": "theorem response_storage_cannot_exceed_cap (body credit : U64)\n    (h : delivery.response_storage body credit = ok true) :\n    credit.val ≤ 134479872 ∧ credit.val < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.phase_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 96,
+      "statement": "theorem phase_eq (e b : U64) (d : Bool) :\n    delivery.phase_live e b d = ok (decide (d = false ∧ 0 < b.val ∧ b.val ≤ 120000 ∧ e.val < b.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.phase_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 101,
+      "statement": "theorem phase_bounded (e b : U64) (d : Bool)\n    (h : delivery.phase_live e b d = ok true) : e.val < 120000 ∧ d = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.phase_expired",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 106,
+      "statement": "theorem phase_expired (e b : U64) (d : Bool) (h : b.val ≤ e.val) :\n    delivery.phase_live e b d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.phase_no_draining",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 111,
+      "statement": "theorem phase_no_draining (e b : U64) : delivery.phase_live e b true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.idle_has_no_http_timeout",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 113,
+      "statement": "theorem idle_has_no_http_timeout : delivery.input_timeout_status 0#u64 = ok 0#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.partial_head_times_out",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 115,
+      "statement": "theorem partial_head_times_out (n : U64) (h : 0 < n.val) :\n    delivery.input_timeout_status n = ok 408#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reuse_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 120,
+      "statement": "theorem reuse_eq (c a : U64) (r d : Bool) :\n    delivery.reuse_allowed c a r d = ok (decide\n      (r = true ∧ d = false ∧ 0 < c.val ∧ c.val < 100 ∧ a.val < 120000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reuse_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 126,
+      "statement": "theorem reuse_bounded (c a : U64) (r d : Bool)\n    (h : delivery.reuse_allowed c a r d = ok true) :\n    c.val < 100 ∧ a.val < 120000 ∧ r = true ∧ d = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reuse_no_draining",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 132,
+      "statement": "theorem reuse_no_draining (c a : U64) (r : Bool) :\n    delivery.reuse_allowed c a r true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reuse_expired",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 135,
+      "statement": "theorem reuse_expired (c a : U64) (r d : Bool) (h : 120000 ≤ a.val) :\n    delivery.reuse_allowed c a r d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.reuse_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 140,
+      "statement": "theorem reuse_total (c a : U64) (r d : Bool) :\n    ∃ b, delivery.reuse_allowed c a r d = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.request_credit_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 143,
+      "statement": "theorem request_credit_eq (g p : U64) (d : Bool) :\n    delivery.request_credit g p d = ok (decide (d = false ∧ 0 < g.val ∧ 0 < p.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.request_credit_positive",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 148,
+      "statement": "theorem request_credit_positive (g p : U64) (d : Bool)\n    (h : delivery.request_credit g p d = ok true) :\n    0 < g.val ∧ 0 < p.val ∧ d = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.request_credit_no_draining",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 154,
+      "statement": "theorem request_credit_no_draining (g p : U64) :\n    delivery.request_credit g p true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.request_credit_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 157,
+      "statement": "theorem request_credit_total (g p : U64) (d : Bool) :\n    ∃ b, delivery.request_credit g p d = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.task_slot_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 160,
+      "statement": "theorem task_slot_eq (n : U64) :\n    delivery.task_slot n = ok (decide (n.val < 64))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.tasks_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 163,
+      "statement": "theorem tasks_bounded (n : U64) (h : delivery.task_slot n = ok true) : n.val + 1 ≤ 64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.encode_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 167,
+      "statement": "theorem encode_eq (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool) :\n    delivery.encode_allowed e n s m p r c t x = ok (decide\n      (e = true ∧ 1024 ≤ n.val ∧ n.val ≤ 4194304 ∧ s.val = 200 ∧ m = true ∧\n       p = false ∧ r = false ∧ c = false ∧ t = false ∧ x = true))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.encode_safe",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 174,
+      "statement": "theorem encode_safe (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool)\n    (h : delivery.encode_allowed e n s m p r c t x = ok true) :\n    n.val ≤ 4194304 ∧ p = false ∧ r = false ∧ c = false ∧ t = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.encode_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 180,
+      "statement": "theorem encode_total (e : Bool) (n : U64) (s : U16) (m p r c t x : Bool) :\n    ∃ b, delivery.encode_allowed e n s m p r c t x = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.multiplex_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 183,
+      "statement": "theorem multiplex_eq (a n t : U64) (d : Bool) :\n    delivery.multiplex_slot a n t d = ok (decide (d = false ∧ a.val < 32 ∧ n.val < 100 ∧ t.val < 120000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.multiplex_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 188,
+      "statement": "theorem multiplex_bounded (a n t : U64) (d : Bool)\n    (h : delivery.multiplex_slot a n t d = ok true) :\n    a.val + 1 ≤ 32 ∧ n.val + 1 ≤ 100 ∧ t.val < 120000 ∧ d = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.multiplex_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 195,
+      "statement": "theorem multiplex_total (a n t : U64) (d : Bool) :\n    ∃ b, delivery.multiplex_slot a n t d = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.early_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 198,
+      "statement": "theorem early_eq (c r p : Bool) (n : U64) (s : Bool) :\n    delivery.early_allowed c r p n s = ok (decide (c = true ∨ (r = true ∧ p = true ∧ n.val = 0 ∧ s = false)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.early_only_published_reads",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 203,
+      "statement": "theorem early_only_published_reads (r p : Bool) (n : U64) (s : Bool)\n    (h : delivery.early_allowed false r p n s = ok true) :\n    r = true ∧ p = true ∧ n.val = 0 ∧ s = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.early_no_proxy",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 207,
+      "statement": "theorem early_no_proxy (r : Bool) (n : U64) (s : Bool) :\n    delivery.early_allowed false r false n s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.early_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 210,
+      "statement": "theorem early_total (c r p : Bool) (n : U64) (s : Bool) :\n    ∃ b, delivery.early_allowed c r p n s = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.wire_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 213,
+      "statement": "theorem wire_eq (u n l : U64) :\n    delivery.wire_fits u n l = ok (decide (l.val ≤ 134283264 ∧ u.val + n.val ≤ l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.wire_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 225,
+      "statement": "theorem wire_bounded (u n l : U64) (h : delivery.wire_fits u n l = ok true) :\n    u.val + n.val ≤ l.val ∧ l.val ≤ 134283264 ∧ u.val + n.val < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.wire_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 230,
+      "statement": "theorem wire_total (u n l : U64) :\n    ∃ b, delivery.wire_fits u n l = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancel_slot_eq",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 233,
+      "statement": "theorem cancel_slot_eq (n t : U64) :\n    delivery.cancel_slot n t = ok (decide (n.val < 256 ∧ t.val < 120000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancelled_heads_bounded",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 238,
+      "statement": "theorem cancelled_heads_bounded (n t : U64)\n    (h : delivery.cancel_slot n t = ok true) :\n    n.val + 1 ≤ 256 ∧ t.val < 120000 ∧ n.val + 1 < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.cancel_slot_total",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 244,
+      "statement": "theorem cancel_slot_total (n t : U64) :\n    ∃ b, delivery.cancel_slot n t = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "DeliveryProofs.multiplex_refusal_is_retirement",
+      "source": "proofs/DeliveryProofs.lean",
+      "line": 247,
+      "statement": "theorem multiplex_refusal_is_retirement (a n t : U64) (d : Bool)\n    (ha : a.val < 32) (h : delivery.multiplex_slot a n t d = ok false) :\n    d = true ∨ 100 ≤ n.val ∨ 120000 ≤ t.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.name_byte_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 13,
+      "statement": "theorem name_byte_eq (b : U8) : name_byte b = ok (nameByte b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.step_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 33,
+      "statement": "theorem step_eq (s : State) (b : U8) : step s b = ok (next s b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.accepting_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 36,
+      "statement": "theorem accepting_eq (s : State) : accepting s = ok (accepts s)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.index_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 39,
+      "statement": "theorem index_eq {α : Type} (xs : Slice α) (i : Usize) (h : i.val < xs.val.length) :\n    Slice.index_usize xs i = ok xs.val[i.val]",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.succ_exists",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 43,
+      "statement": "theorem succ_exists (i : Usize) (h : i.val < Usize.max) :\n    ∃ j, (i + 1#usize : RustM Usize) = ok j ∧ j.val = i.val + 1",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.drop_head",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 49,
+      "statement": "theorem drop_head {α : Type} (xs : List α) (i : Nat) (h : i < xs.length) :\n    xs.drop i = xs[i] :: xs.drop (i + 1)",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.valid_loop_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 53,
+      "statement": "theorem valid_loop_eq (p : Slice U8) (s : State) (i : Usize)\n    (_hi : i.val ≤ p.val.length) :\n    valid_path_loop p s i = ok (run s (p.val.drop i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.valid_path_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 71,
+      "statement": "theorem valid_path_eq (p : Slice U8) : valid_path p = ok (canonical p.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.same_loop_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 77,
+      "statement": "theorem same_loop_eq (p q : Slice U8) (i : Usize)\n    (hlen : p.val.length = q.val.length) (_hi : i.val ≤ p.val.length) :\n    same_path_loop p q i = ok (p.val.drop i.val == q.val.drop i.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.same_path_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 98,
+      "statement": "theorem same_path_eq (p q : Slice U8) : same_path p q = ok (p.val == q.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.listed_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 105,
+      "statement": "theorem listed_eq (p : Slice U8) (pub : Slice (Slice U8)) (i : Usize)\n    (_hi : i.val ≤ pub.val.length) :\n    listed p pub i = ok ((pub.val.drop i.val).any (fun entry => p.val == entry.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.is_public_eq",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 123,
+      "statement": "theorem is_public_eq (p : Slice U8) (pub : Slice (Slice U8)) :\n    is_public p pub = ok (decide (pub.val.length ≤ 4096) && canonical p.val &&\n      pub.val.any (fun entry => p.val == entry.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.authorization_iff",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 132,
+      "statement": "theorem authorization_iff (p : Slice U8) (pub : Slice (Slice U8)) :\n    is_public p pub = ok true ↔ pub.val.length ≤ 4096 ∧ canonical p.val = true ∧\n      ∃ entry ∈ pub.val, p.val = entry.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.authorization_total",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 139,
+      "statement": "theorem authorization_total (p : Slice U8) (pub : Slice (Slice U8)) :\n    ∃ decision, is_public p pub = ok decision",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.deny_unlisted",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 143,
+      "statement": "theorem deny_unlisted (p : Slice U8) (pub : Slice (Slice U8))\n    (h : ∀ entry ∈ pub.val, p.val ≠ entry.val) : is_public p pub = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.deny_invalid",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 150,
+      "statement": "theorem deny_invalid (p : Slice U8) (pub : Slice (Slice U8))\n    (h : canonical p.val = false) : is_public p pub = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_nil",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 154,
+      "statement": "@[simp] theorem run_nil (s : State) : run s [] = s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_cons",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 155,
+      "statement": "@[simp] theorem run_cons (s : State) (b : U8) (xs : List U8) :\n    run s (b :: xs) = run (next s b) xs",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_append",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 158,
+      "statement": "theorem run_append (s : State) (xs ys : List U8) :\n    run s (xs ++ ys) = run (run s xs) ys",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_reject",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 162,
+      "statement": "@[simp] theorem run_reject (xs : List U8) : run .Reject xs = .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.disallowed_rejects",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 169,
+      "statement": "theorem disallowed_rejects (s : State) (b : U8) (h : allowedByte b = false) :\n    next s b = .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_all_allowed",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 175,
+      "statement": "theorem run_all_allowed (s : State) (xs : List U8)\n    (h : accepts (run s xs) = true) : ∀ b ∈ xs, allowedByte b = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.canonical_all_allowed",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 188,
+      "statement": "theorem canonical_all_allowed (xs : List U8) (h : canonical xs = true) :\n    ∀ b ∈ xs, allowedByte b = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.canonical_rooted",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 193,
+      "statement": "theorem canonical_rooted (xs : List U8) (h : canonical xs = true) :\n    ∃ rest, xs = 47#u8 :: rest",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.slash_dot_rejects",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 202,
+      "statement": "theorem slash_dot_rejects (s : State) : next (next s 47#u8) 46#u8 = .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.double_slash_rejects",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 205,
+      "statement": "theorem double_slash_rejects (s : State) : next (next s 47#u8) 47#u8 = .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.no_hidden_or_traversal",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 209,
+      "statement": "theorem no_hidden_or_traversal (before after : List U8) :\n    canonical (before ++ 47#u8 :: 46#u8 :: after) = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.no_empty_component",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 213,
+      "statement": "theorem no_empty_component (before after : List U8) :\n    canonical (before ++ 47#u8 :: 47#u8 :: after) = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.no_trailing_dot",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 217,
+      "statement": "theorem no_trailing_dot (before : List U8) : canonical (before ++ [46#u8]) = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.allowed_ascii",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 222,
+      "statement": "theorem allowed_ascii (b : U8) (h : allowedByte b = true) :\n    33 ≤ b.val ∧ b.val ≤ 126 ∧ b.val ≠ 37 ∧ b.val ≠ 92 ∧\n      b.val ≠ 63 ∧ b.val ≠ 35",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.published_bytes_safe",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 229,
+      "statement": "theorem published_bytes_safe (p : Slice U8) (pub : Slice (Slice U8))\n    (h : is_public p pub = ok true) (b : U8) (hb : b ∈ p.val) :\n    33 ≤ b.val ∧ b.val ≤ 126 ∧ b.val ≠ 37 ∧ b.val ≠ 92 ∧\n      b.val ≠ 63 ∧ b.val ≠ 35",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.published_rooted",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 235,
+      "statement": "theorem published_rooted (p : Slice U8) (pub : Slice (Slice U8))\n    (h : is_public p pub = ok true) : ∃ rest, p.val = 47#u8 :: rest",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.published_no_traversal",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 239,
+      "statement": "theorem published_no_traversal (p : Slice U8) (pub : Slice (Slice U8))\n    (h : is_public p pub = ok true) :\n    ∀ before after, p.val ≠ before ++ 47#u8 :: 46#u8 :: after",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.next_not_start",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 247,
+      "statement": "theorem next_not_start (s : State) (b : U8) : next s b ≠ .Start",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.run_not_start",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 250,
+      "statement": "theorem run_not_start (xs : List U8) (s : State) (h : s ≠ .Start) : run s xs ≠ .Start",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PathwardProofs.directory_suffix_allowed",
+      "source": "proofs/PathwardProofs.lean",
+      "line": 255,
+      "statement": "theorem directory_suffix_allowed (xs : List U8)\n    (h : run .Start xs = .Segment) (bound : xs.length < 4096) :\n    canonical (xs ++ [47#u8]) = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.mode_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 8,
+      "statement": "theorem mode_eq (r p d x : Bool) :\n    proxy.site_mode_allowed r p d x = ok (decide (modePolicy r p d x))",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.publications_require_root",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 11,
+      "statement": "theorem publications_require_root (r d x : Bool) (h : proxy.site_mode_allowed r true d x = ok true) :\n    r = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.endpoint_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 16,
+      "statement": "theorem endpoint_eq (a : Slice U8) (p : U16) :\n    proxy.endpoint_allowed a p = ok (decide (0 < p.val ∧ (a.val = loopback4 ∨ a.val = loopback6)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.endpoint_contract",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 22,
+      "statement": "theorem endpoint_contract (a : Slice U8) (p : U16) :\n    proxy.endpoint_allowed a p = ok true ↔ 0 < p.val ∧ (a.val = loopback4 ∨ a.val = loopback6)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.endpoint_no_zero",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 24,
+      "statement": "theorem endpoint_no_zero (a : Slice U8) : proxy.endpoint_allowed a 0#u16 = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.method_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 35,
+      "statement": "theorem method_eq (m : Slice U8) : proxy.method_allowed m = ok (decide (m.val ∈ methods))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.status_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 40,
+      "statement": "theorem status_eq (s : U16) : proxy.status_allowed s = ok (decide (200 ≤ s.val ∧ s.val ≤ 599))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.request_framing_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 44,
+      "statement": "theorem request_framing_eq (n : U64) (t d : Bool) :\n    proxy.request_framing n t d = ok (decide (n.val ≤ 1048576 ∧ t = false ∧ d = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_framing_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 50,
+      "statement": "theorem response_framing_eq (n : Option U64) (t d : Bool) :\n    proxy.response_framing n t d = ok ((match n with | none => decide (d = false) | some n => decide (d = false ∧ n.val ≤ 8388608 ∧ t = false)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.request_no_transfer_encoding",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 55,
+      "statement": "theorem request_no_transfer_encoding (n : U64) (d : Bool) :\n    proxy.request_framing n true d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_no_ambiguous_length",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 57,
+      "statement": "theorem response_no_ambiguous_length (n : U64) (d : Bool) :\n    proxy.response_framing (some n) true d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_no_duplicate_length",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 59,
+      "statement": "theorem response_no_duplicate_length (n : Option U64) (t : Bool) :\n    proxy.response_framing n t true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.head_discards_prefix",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 63,
+      "statement": "theorem head_discards_prefix (status : U16) (prefetched : Bool) :\n    proxy.upstream_body_mode true status prefetched = ok 1#u8",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.bodyless_prefix_rejected",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 66,
+      "statement": "theorem bodyless_prefix_rejected (status : U16)\n    (h : status = 204#u16 ∨ status = 304#u16) :\n    proxy.upstream_body_mode false status true = ok 2#u8",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.ordinary_response_reads_body",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 71,
+      "statement": "theorem ordinary_response_reads_body (status : U16) (prefetched : Bool)\n    (h204 : status ≠ 204#u16) (h304 : status ≠ 304#u16) :\n    proxy.upstream_body_mode false status prefetched = ok 0#u8",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_body_mode_total",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 76,
+      "statement": "theorem response_body_mode_total (head prefetched : Bool) (status : U16) :\n    ∃ mode, proxy.upstream_body_mode head status prefetched = ok mode ∧\n      mode.val ≤ 2",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_loop_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 83,
+      "statement": "theorem target_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :\n    proxy.target_bytes_loop p i = ok ((p.val.drop i.val).all targetByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_bytes_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 97,
+      "statement": "theorem target_bytes_eq (p : Slice U8) : proxy.target_bytes p = ok (p.val.all targetByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 105,
+      "statement": "theorem target_eq (p : Slice U8) : proxy.target_allowed p = ok (targetPolicy p.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.hop_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 132,
+      "statement": "theorem hop_eq (n : Slice U8) : proxy.hop_header n = ok (decide (n.val ∈ hopNames))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.forwarding_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 147,
+      "statement": "theorem forwarding_eq (n : Slice U8) : proxy.forwarding_header n = ok (decide (forwardingPolicy n.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.request_header_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 167,
+      "statement": "theorem request_header_eq (n v : Slice U8) :\n    proxy.request_header n v = ok (decide (requestHeaderPolicy n v))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_header_eq",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 172,
+      "statement": "theorem response_header_eq (n v : Slice U8) (e : Bool) :\n    proxy.response_header n v e = ok (decide (responseHeaderPolicy n v e))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.no_forwarded_identity",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 178,
+      "statement": "theorem no_forwarded_identity (n v : Slice U8) (h : forwardingPolicy n.val) :\n    proxy.request_header n v = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.no_hop_request",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 181,
+      "statement": "theorem no_hop_request (n v : Slice U8) (h : n.val ∈ hopNames) :\n    proxy.request_header n v = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.no_hop_response",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 184,
+      "statement": "theorem no_hop_response (n v : Slice U8) (e : Bool) (h : n.val ∈ hopNames) :\n    proxy.response_header n v e = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.no_unencrypted_hsts",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 187,
+      "statement": "theorem no_unencrypted_hsts (n v : Slice U8) (h : n.val = hstsName) :\n    proxy.response_header n v false = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.request_header_no_controls",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 190,
+      "statement": "theorem request_header_no_controls (n v : Slice U8) (h : proxy.request_header n v = ok true) :\n    ∀ b ∈ v.val, 32 ≤ b.val ∧ b.val ≤ 126",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.response_header_no_controls",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 199,
+      "statement": "theorem response_header_no_controls (n v : Slice U8) (e : Bool) (h : proxy.response_header n v e = ok true) :\n    ∀ b ∈ v.val, 32 ≤ b.val ∧ b.val ≤ 126",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_contract",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 205,
+      "statement": "theorem target_contract (p : Slice U8) :\n    proxy.target_allowed p = ok true ↔ targetPolicy p.val = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_bounded",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 208,
+      "statement": "theorem target_bounded (p : Slice U8) (h : proxy.target_allowed p = ok true) :\n    p.val.length ≤ 8192 ∧ p.val.head? = some 47#u8",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.target_no_controls",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 217,
+      "statement": "theorem target_no_controls (p : Slice U8) (h : proxy.target_allowed p = ok true) :\n    ∀ b ∈ p.val, 33 ≤ b.val ∧ b.val ≤ 126 ∧ b.val ≠ 35 ∧ b.val ≠ 92",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ProxyProofs.proxy_total",
+      "source": "proofs/ProxyProofs.lean",
+      "line": 226,
+      "statement": "theorem proxy_total (r p d x t e : Bool) (a n v : Slice U8) (port s : U16) (len : U64) (opt : Option U64) :\n    (∃ b, proxy.site_mode_allowed r p d x = ok b) ∧\n    (∃ b, proxy.endpoint_allowed a port = ok b) ∧\n    (∃ b, proxy.method_allowed a = ok b) ∧\n    (∃ b, proxy.status_allowed s = ok b) ∧\n    (∃ b, proxy.request_framing len t d = ok b) ∧\n    (∃ b, proxy.response_framing opt t d = ok b) ∧\n    (∃ b, proxy.target_allowed a = ok b) ∧\n    (∃ b, proxy.request_header n v = ok b) ∧\n    (∃ b, proxy.response_header n v e = ok b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 10,
+      "statement": "theorem generated_eq (u t e : Slice U8) (rootAlias : Bool) :\n    release.generated_rule u t e rootAlias = ok (decide (generationPolicy u t e rootAlias))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_contract",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 23,
+      "statement": "theorem generated_contract (u t e : Slice U8) (rootAlias : Bool) :\n    release.generated_rule u t e rootAlias = ok true ↔ generationPolicy u t e rootAlias",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_exact_entry",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 26,
+      "statement": "theorem generated_exact_entry (u t e : Slice U8) (rootAlias : Bool)\n    (h : release.generated_rule u t e rootAlias = ok true) : t.val = e.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_no_extra_url",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 30,
+      "statement": "theorem generated_no_extra_url (u t e : Slice U8)\n    (h : release.generated_rule u t e false = ok true) : u.val.drop 1 = e.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_safe_target",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 35,
+      "statement": "theorem generated_safe_target (u t e : Slice U8) (rootAlias : Bool)\n    (h : release.generated_rule u t e rootAlias = ok true) : targetCanonical t.val = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.generated_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 39,
+      "statement": "theorem generated_total (u t e : Slice U8) (rootAlias : Bool) :\n    ∃ b, release.generated_rule u t e rootAlias = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.commit_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 45,
+      "statement": "theorem commit_eq (c e : Slice U8) (p s d : Bool) :\n    release.commit_allowed c e p s d = ok (decide (commitPolicy c e p s d))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.commit_contract",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 51,
+      "statement": "theorem commit_contract (c e : Slice U8) (p s d : Bool) :\n    release.commit_allowed c e p s d = ok true ↔ commitPolicy c e p s d",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.no_unpersisted_commit",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 54,
+      "statement": "theorem no_unpersisted_commit (c e : Slice U8) (p d : Bool) :\n    release.commit_allowed c e p false d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.no_stale_commit",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 57,
+      "statement": "theorem no_stale_commit (c e : Slice U8) (p s d : Bool) (h : c.val ≠ e.val) :\n    release.commit_allowed c e p s d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.no_draining_commit",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 60,
+      "statement": "theorem no_draining_commit (c e : Slice U8) (p s : Bool) :\n    release.commit_allowed c e p s true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.admission_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 63,
+      "statement": "theorem admission_eq (a p t : U64) (d : Bool) :\n    release.admission_allowed a p t d = ok (decide (d = false ∧ a.val < 12 ∧ p.val < 6 ∧ 0 < t.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.admission_contract",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 68,
+      "statement": "theorem admission_contract (a p t : U64) (d : Bool) :\n    release.admission_allowed a p t d = ok true ↔ d = false ∧ a.val < 12 ∧ p.val < 6 ∧ 0 < t.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.admission_no_exhausted_tokens",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 71,
+      "statement": "theorem admission_no_exhausted_tokens (a p : U64) (d : Bool) :\n    release.admission_allowed a p 0#u64 d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.admission_no_draining",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 74,
+      "statement": "theorem admission_no_draining (a p t : U64) :\n    release.admission_allowed a p t true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 77,
+      "statement": "theorem rejection_eq (a p t : U64) (d : Bool) :\n    release.admission_rejection a p t d = ok\n      (if d then 1#u64 else if 12 ≤ a.val then 2#u64 else\n       if 6 ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_accepts_exactly",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 84,
+      "statement": "theorem rejection_accepts_exactly (a p t : U64) (d : Bool) :\n    release.admission_rejection a p t d = ok 0#u64 ↔\n      release.admission_allowed a p t d = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_code_bounded",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 95,
+      "statement": "theorem rejection_code_bounded (a p t c : U64) (d : Bool)\n    (h : release.admission_rejection a p t d = ok c) : c.val ≤ 4",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_draining",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 100,
+      "statement": "theorem rejection_draining (a p t : U64) :\n    release.admission_rejection a p t true = ok 1#u64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_exhausted",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 103,
+      "statement": "theorem rejection_exhausted (a p : U64) (ha : a.val < 12) (hp : p.val < 6) :\n    release.admission_rejection a p 0#u64 false = ok 4#u64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.rejection_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 107,
+      "statement": "theorem rejection_total (a p t : U64) (d : Bool) :\n    ∃ c, release.admission_rejection a p t d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_global_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 110,
+      "statement": "theorem capacity_global_eq (n : Bool) :\n    release.capacity_global n = ok (if n then 256#u64 else 12#u64)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_peer_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 112,
+      "statement": "theorem capacity_peer_eq (n : Bool) :\n    release.capacity_peer n = ok (if n then 192#u64 else 6#u64)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_queue_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 114,
+      "statement": "theorem capacity_queue_eq (n : Bool) :\n    release.capacity_queue n = ok (if n then 252#u64 else 8#u64)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_rate_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 116,
+      "statement": "theorem capacity_rate_eq (n p : Bool) :\n    release.capacity_rate n p = ok\n      (if n then (if p then 256#u64 else 512#u64) else (if p then 8#u64 else 64#u64))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_burst_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 120,
+      "statement": "theorem capacity_burst_eq (n p : Bool) :\n    release.capacity_burst n p = ok\n      (if n then (if p then 384#u64 else 512#u64) else (if p then 16#u64 else 128#u64))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_limits_bounded",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 125,
+      "statement": "theorem capacity_limits_bounded (n : Bool) (g p q : U64)\n    (hg : release.capacity_global n = ok g)\n    (hp : release.capacity_peer n = ok p)\n    (hq : release.capacity_queue n = ok q) :\n    0 < p.val ∧ p.val < g.val ∧ g.val ≤ 256 ∧ q.val + 4 = g.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_credit_bounded",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 133,
+      "statement": "theorem capacity_credit_bounded (n p : Bool) (r b : U64)\n    (hr : release.capacity_rate n p = ok r)\n    (hb : release.capacity_burst n p = ok b) :\n    0 < r.val ∧ r.val ≤ 512 ∧ r.val ≤ b.val ∧ b.val ≤ 512 ∧\n      60000 * r.val + 1000 * b.val < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_rejection_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 141,
+      "statement": "theorem capacity_rejection_eq (a p t : U64) (d n : Bool) :\n    release.capacity_rejection a p t d n = ok\n      (if d then 1#u64 else if (if n then 256 else 12) ≤ a.val then 2#u64 else\n       if (if n then 192 else 6) ≤ p.val then 3#u64 else if t.val = 0 then 4#u64 else 0#u64)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_accepts_exactly",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 148,
+      "statement": "theorem capacity_accepts_exactly (a p t : U64) (d n : Bool) :\n    release.capacity_rejection a p t d n = ok 0#u64 ↔\n      d = false ∧ a.val < (if n then 256 else 12) ∧\n        p.val < (if n then 192 else 6) ∧ 0 < t.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_standard_unchanged",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 161,
+      "statement": "theorem capacity_standard_unchanged (a p t : U64) (d : Bool) :\n    release.capacity_rejection a p t d false = release.admission_rejection a p t d",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_code_bounded",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 165,
+      "statement": "theorem capacity_code_bounded (a p t c : U64) (d n : Bool)\n    (h : release.capacity_rejection a p t d n = ok c) : c.val ≤ 4",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_no_draining",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 170,
+      "statement": "theorem capacity_no_draining (a p t : U64) (n : Bool) :\n    release.capacity_rejection a p t true n = ok 1#u64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_no_credit",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 173,
+      "statement": "theorem capacity_no_credit (a p : U64) (n : Bool)\n    (ha : a.val < (if n then 256 else 12))\n    (hp : p.val < (if n then 192 else 6)) :\n    release.capacity_rejection a p 0#u64 false n = ok 4#u64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 179,
+      "statement": "theorem capacity_total (a p t : U64) (d n : Bool) :\n    ∃ c, release.capacity_rejection a p t d n = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_reload_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 182,
+      "statement": "theorem capacity_reload_eq (current candidate : Bool) :\n    release.capacity_reload_allowed current candidate = ok (decide (current = candidate))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_reload_unchanged",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 186,
+      "statement": "theorem capacity_reload_unchanged (current candidate : Bool)\n    (h : release.capacity_reload_allowed current candidate = ok true) : current = candidate",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.capacity_reload_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 190,
+      "statement": "theorem capacity_reload_total (current candidate : Bool) :\n    ∃ b, release.capacity_reload_allowed current candidate = ok b",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.gates_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 193,
+      "statement": "theorem gates_total (c e : Slice U8) (p s d : Bool) (a n t : U64) :\n    (∃ b, release.commit_allowed c e p s d = ok b) ∧\n    (∃ b, release.admission_allowed a n t d = ok b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.dispatch_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 197,
+      "statement": "theorem dispatch_eq (a p : U64) (d : Bool) :\n    release.dispatch_allowed a p d = ok (decide (d = false ∧ a.val < 4 ∧ p.val < 2))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.dispatch_contract",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 202,
+      "statement": "theorem dispatch_contract (a p : U64) (d : Bool) :\n    release.dispatch_allowed a p d = ok true ↔ d = false ∧ a.val < 4 ∧ p.val < 2",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.dispatch_bounded",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 205,
+      "statement": "theorem dispatch_bounded (a p : U64) (d : Bool)\n    (h : release.dispatch_allowed a p d = ok true) : a.val + 1 ≤ 4 ∧ p.val + 1 ≤ 2",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.dispatch_no_draining",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 210,
+      "statement": "theorem dispatch_no_draining (a p : U64) :\n    release.dispatch_allowed a p true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.dispatch_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 213,
+      "statement": "theorem dispatch_total (a p : U64) (d : Bool) :\n    ∃ b, release.dispatch_allowed a p d = ok b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_eq",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 221,
+      "statement": "theorem migration_eq (c i : Slice U8) (r p b s : Bool) :\n    release.migration_allowed c i r p b s = ok (decide (migrationPolicy c i r p b s))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_contract",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 227,
+      "statement": "theorem migration_contract (c i : Slice U8) (r p b s : Bool) :\n    release.migration_allowed c i r p b s = ok true ↔ migrationPolicy c i r p b s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_no_stale",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 231,
+      "statement": "theorem migration_no_stale (c i : Slice U8) (r p b s : Bool) (h : c.val ≠ i.val) :\n    release.migration_allowed c i r p b s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_no_unready",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 234,
+      "statement": "theorem migration_no_unready (c i : Slice U8) (p b s : Bool) :\n    release.migration_allowed c i false p b s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_no_mismatch",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 237,
+      "statement": "theorem migration_no_mismatch (c i : Slice U8) (r b s : Bool) :\n    release.migration_allowed c i r false b s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_requires_rollback",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 240,
+      "statement": "theorem migration_requires_rollback (c i : Slice U8) (r p s : Bool) :\n    release.migration_allowed c i r p false s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_requires_isolation",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 243,
+      "statement": "theorem migration_requires_isolation (c i : Slice U8) (r p b : Bool) :\n    release.migration_allowed c i r p b false = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ReleaseProofs.migration_total",
+      "source": "proofs/ReleaseProofs.lean",
+      "line": 246,
+      "statement": "theorem migration_total (c i : Slice U8) (r p b s : Bool) :\n    ∃ result, release.migration_allowed c i r p b s = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 6,
+      "statement": "theorem authority_port_eq (l : U16) (e r : Bool) :\n    response.authority_port l e r = ok (if e then 443#u16 else if r then 80#u16 else l)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_tls",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 11,
+      "statement": "theorem authority_port_tls (l : U16) (r : Bool) :\n    response.authority_port l true r = ok 443#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_redirect",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 14,
+      "statement": "theorem authority_port_redirect (l : U16) :\n    response.authority_port l false true = ok 80#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_direct",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 17,
+      "statement": "theorem authority_port_direct (l : U16) :\n    response.authority_port l false false = ok l",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_allowed_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 20,
+      "statement": "theorem authority_port_allowed_eq (p : Option U16) (e : U16) :\n    response.authority_port_allowed p e = ok (decide (e ≠ 0#u16 ∧ (p = none ∨ p = some e)))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_contract",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 24,
+      "statement": "theorem authority_port_contract (p : Option U16) (e : U16) :\n    response.authority_port_allowed p e = ok true ↔ e ≠ 0#u16 ∧ (p = none ∨ p = some e)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_no_mismatch",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 28,
+      "statement": "theorem authority_port_no_mismatch (p e : U16)\n    (h : response.authority_port_allowed (some p) e = ok true) : p = e",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_no_zero",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 33,
+      "statement": "theorem authority_port_no_zero (p : Option U16) :\n    response.authority_port_allowed p 0#u16 = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.authority_port_total",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 36,
+      "statement": "theorem authority_port_total (l e : U16) (t r : Bool) (p : Option U16) :\n    (∃ port, response.authority_port l t r = ok port) ∧\n    (∃ b, response.authority_port_allowed p e = ok b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 41,
+      "statement": "theorem forwarded_port_eq (p : Option U16) (e : U16) (t : Bool) :\n    response.forwarded_port p e t = ok\n      (if e ≠ 0#u16 ∧ p = some e ∧ e ≠ (if t then 443#u16 else 80#u16)\n       then e else 0#u16)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_trusted",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 49,
+      "statement": "theorem forwarded_port_trusted (p : Option U16) (e v : U16) (t : Bool)\n    (h : response.forwarded_port p e t = ok v) (hv : v ≠ 0#u16) :\n    v = e ∧ p = some e",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_omitted",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 55,
+      "statement": "theorem forwarded_port_omitted (e : U16) (t : Bool) :\n    response.forwarded_port none e t = ok 0#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_mismatch",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 58,
+      "statement": "theorem forwarded_port_mismatch (p e : U16) (t : Bool) (h : p ≠ e) :\n    response.forwarded_port (some p) e t = ok 0#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_standard",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 61,
+      "statement": "theorem forwarded_port_standard (e : U16) (t : Bool) :\n    response.forwarded_port (some (if t then 443#u16 else 80#u16)) e t = ok 0#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.forwarded_port_total",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 65,
+      "statement": "theorem forwarded_port_total (p : Option U16) (e : U16) (t : Bool) :\n    ∃ v, response.forwarded_port p e t = ok v",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.visible_loop_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 69,
+      "statement": "theorem visible_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :\n    response.visible_loop p i = ok ((p.val.drop i.val).all visibleByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.visible_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 83,
+      "statement": "theorem visible_eq (p : Slice U8) : response.visible p = ok (p.val.all visibleByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.host_loop_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 87,
+      "statement": "theorem host_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :\n    response.host_bytes_loop p i = ok ((p.val.drop i.val).all hostByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.host_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 102,
+      "statement": "theorem host_eq (p : Slice U8) : response.host_bytes p = ok (hostPolicy p.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.header_name_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 115,
+      "statement": "theorem header_name_eq (n : Slice U8) : response.header_name n = ok (decide (n.val ∈ headerNames))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.header_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 121,
+      "statement": "theorem header_eq (n v : Slice U8) : response.header_allowed n v = ok (decide (headerPolicy n v))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.header_contract",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 126,
+      "statement": "theorem header_contract (n v : Slice U8) : response.header_allowed n v = ok true ↔ headerPolicy n v",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.header_no_controls",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 128,
+      "statement": "theorem header_no_controls (n v : Slice U8) (h : response.header_allowed n v = ok true) :\n    ∀ b ∈ v.val, 32 ≤ b.val ∧ b.val ≤ 126",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.redirect_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 136,
+      "statement": "theorem redirect_eq (h c t : Slice U8) (s : U16) :\n    response.redirect_allowed h c t s = ok (decide (redirectPolicy h c t s))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.redirect_contract",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 141,
+      "statement": "theorem redirect_contract (h c t : Slice U8) (s : U16) :\n    response.redirect_allowed h c t s = ok true ↔ redirectPolicy h c t s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.redirect_fixed_host",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 144,
+      "statement": "theorem redirect_fixed_host (h c t : Slice U8) (s : U16) (p : response.redirect_allowed h c t s = ok true) : h.val = c.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.redirect_no_controls",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 147,
+      "statement": "theorem redirect_no_controls (h c t : Slice U8) (s : U16) (p : response.redirect_allowed h c t s = ok true) :\n    ∀ b ∈ t.val, 32 ≤ b.val ∧ b.val ≤ 126",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.split_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 154,
+      "statement": "theorem split_eq (p : Slice U8) (n : Usize) (hn : n.val ≤ p.val.length) :\n    core.slice.Slice.split_at p n = ok (prefixSlice p n.val, suffixSlice p n.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.route_eq",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 163,
+      "statement": "theorem route_eq (p f : Slice U8) (pre : Bool) :\n    response.route_matches p f pre = ok (decide (routePolicy p f pre))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.route_contract",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 187,
+      "statement": "theorem route_contract (p f : Slice U8) (pre : Bool) :\n    response.route_matches p f pre = ok true ↔ routePolicy p f pre",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ResponseProofs.response_total",
+      "source": "proofs/ResponseProofs.lean",
+      "line": 190,
+      "statement": "theorem response_total (h c t : Slice U8) (s : U16) (pre : Bool) :\n    (∃ b, response.redirect_allowed h c t s = ok b) ∧\n    (∃ b, response.header_allowed h t = ok b) ∧\n    (∃ b, response.route_matches t h pre = ok b)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.select_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 9,
+      "statement": "theorem select_eq (v d s r p : Bool) : routing.select v d s r p = ok (choice v d s r p)",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.denial_first",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 12,
+      "statement": "theorem denial_first (v s r p : Bool) : routing.select v true s r p = ok .Denied",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.malformed_denied",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 13,
+      "statement": "theorem malformed_denied (d s r p : Bool) : routing.select false d s r p = ok .Denied",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.static_before_proxy",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 14,
+      "statement": "theorem static_before_proxy (r p : Bool) : routing.select true false true r p = ok .Static",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.redirect_before_proxy",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 15,
+      "statement": "theorem redirect_before_proxy (p : Bool) : routing.select true false false true p = ok .Redirect",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.proxy_contract",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 16,
+      "statement": "theorem proxy_contract (v d s r p : Bool) :\n    routing.select v d s r p = ok .Proxy ↔ v = true ∧ d = false ∧ s = false ∧ r = false ∧ p = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_proxy_after_denial",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 19,
+      "statement": "theorem no_proxy_after_denial (v s r p : Bool) : routing.select v true s r p ≠ ok .Proxy",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_static_fallback",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 20,
+      "statement": "theorem no_static_fallback (r p : Bool) : routing.select true false true r p ≠ ok .Proxy",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.body_limit_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 23,
+      "statement": "theorem body_limit_eq (l : U64) (r : Bool) : routing.body_limit l r = ok (decide (l.val ≤ cap r))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.body_fits_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 24,
+      "statement": "theorem body_fits_eq (n l : U64) (r : Bool) : routing.body_fits n l r = ok (decide (l.val ≤ cap r ∧ n.val ≤ l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.chunk_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 28,
+      "statement": "theorem chunk_eq (u n l : U64) :\n    routing.chunk_fits u n l = ok (decide (l.val ≤ 67108864 ∧ u.val + n.val ≤ l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.chunk_bounded",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 39,
+      "statement": "theorem chunk_bounded (u n l : U64) (h : routing.chunk_fits u n l = ok true) :\n    u.val + n.val ≤ l.val ∧ l.val ≤ 67108864",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.request_frame_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 44,
+      "statement": "theorem request_frame_eq (n l : U64) (t d : Bool) :\n    routing.request_framing n l t d = ok (decide (l.val ≤ 16777216 ∧ n.val ≤ l.val ∧ t = false ∧ d = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.response_frame_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 49,
+      "statement": "theorem response_frame_eq (n : Option U64) (l : U64) (t d : Bool) :\n    routing.response_framing n l t d = ok (match n with\n      | none => decide (d = false ∧ l.val ≤ 67108864)\n      | some n => decide (d = false ∧ l.val ≤ 67108864 ∧ n.val ≤ l.val ∧ t = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_request_transfer",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 55,
+      "statement": "theorem no_request_transfer (n l : U64) (d : Bool) : routing.request_framing n l true d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_response_ambiguity",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 56,
+      "statement": "theorem no_response_ambiguity (n l : U64) (d : Bool) : routing.response_framing (some n) l true d = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_response_duplicate",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 57,
+      "statement": "theorem no_response_duplicate (n : Option U64) (l : U64) (t : Bool) : routing.response_framing n l t true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.time_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 64,
+      "statement": "theorem time_eq (b c h t : U64) : routing.time_limits b c h t = ok (decide (timePolicy b c h t))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.times_bounded",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 68,
+      "statement": "theorem times_bounded (b c h t : U64) (valid : routing.time_limits b c h t = ok true) :\n    b.val ≤ t.val ∧ c.val ≤ t.val ∧ h.val ≤ t.val ∧ t.val ≤ 120000",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.connection_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 74,
+      "statement": "theorem connection_eq (l : U64) : routing.connection_limit l = ok (decide (0 < l.val ∧ l.val ≤ 64))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.service_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 77,
+      "statement": "theorem service_eq (a c l : U64) :\n    routing.service_admit a c l = ok (decide (0 < c.val ∧ c.val ≤ 64 ∧ 0 < l.val ∧ l.val ≤ 64 ∧ a.val < c.val ∧ a.val < l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.service_bounded",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 81,
+      "statement": "theorem service_bounded (a c l : U64) (h : routing.service_admit a c l = ok true) :\n    a.val + 1 ≤ c.val ∧ a.val + 1 ≤ l.val ∧ a.val + 1 ≤ 64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_admission_at_live_limit",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 86,
+      "statement": "theorem no_admission_at_live_limit (a c l : U64) (h : l.val ≤ a.val) : routing.service_admit a c l = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.no_admission_to_disabled",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 88,
+      "statement": "theorem no_admission_to_disabled (a c : U64) : routing.service_admit a c 0#u64 = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.subtree_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 91,
+      "statement": "theorem subtree_eq (p f : Slice U8) : routing.subtree p f = ok (decide (subtreePolicy p f))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.subtree_boundary",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 95,
+      "statement": "theorem subtree_boundary (p f : Slice U8) (h : routing.subtree p f = ok true) (hf : f.val ≠ [47#u8]) :\n    p.val.take f.val.length = f.val ∧ (p.val.drop f.val.length = [] ∨ (1 < f.val.length ∧ (p.val.drop f.val.length).head? = some 47#u8))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.stem_eq",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 107,
+      "statement": "theorem stem_eq (p : Slice U8) : routing.stem p = ok (stemPolicy p)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.stem_canonical",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 111,
+      "statement": "theorem stem_canonical (p s : Slice U8) (h : routing.stem p = ok (some s)) : canonical s.val = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.stem_preserves_bytes",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 120,
+      "statement": "theorem stem_preserves_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    p = s",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.stem_shape",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 128,
+      "statement": "theorem stem_shape (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    p.val = s.val ∨ p.val = s.val ++ [47#u8]",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.stem_input_bytes",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 132,
+      "statement": "theorem stem_input_bytes (p s : Slice U8) (h : routing.stem p = ok (some s)) :\n    ∀ b ∈ p.val, allowedByte b = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.route_total",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 146,
+      "statement": "theorem route_total (v d s r x : Bool) (p f : Slice U8) :\n    (∃ result, routing.select v d s r x = ok result) ∧\n    (∃ result, routing.stem p = ok result) ∧\n    (∃ result, routing.subtree p f = ok result)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RoutingProofs.limits_total",
+      "source": "proofs/RoutingProofs.lean",
+      "line": 152,
+      "statement": "theorem limits_total (n l b c h t a : U64) (r d : Bool) (opt : Option U64) :\n    (∃ result, routing.body_limit l r = ok result) ∧\n    (∃ result, routing.body_fits n l r = ok result) ∧\n    (∃ result, routing.chunk_fits a n l = ok result) ∧\n    (∃ result, routing.time_limits b c h t = ok result) ∧\n    (∃ result, routing.service_admit a c l = ok result) ∧\n    (∃ result, routing.request_framing n l r d = ok result) ∧\n    (∃ result, routing.response_framing opt l r d = ok result)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.target_loop_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 15,
+      "statement": "theorem target_loop_eq (p : Slice U8) (s : State) (i : Usize)\n    (_hi : i.val ≤ p.val.length) :\n    rules.valid_target_loop p s i = ok (run s (p.val.drop i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.valid_target_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 30,
+      "statement": "theorem valid_target_eq (p : Slice U8) : rules.valid_target p = ok (targetCanonical p.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.contains_path_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 45,
+      "statement": "theorem contains_path_eq (p : Slice U8) (rs : Slice rules.Publication) (i : Usize)\n    (_hi : i.val ≤ rs.val.length) :\n    rules.contains_path p rs i = ok (contains p.val (rs.val.drop i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.valid_rules_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 63,
+      "statement": "theorem valid_rules_eq (rs : Slice rules.Publication) (i : Usize)\n    (_hi : i.val ≤ rs.val.length) :\n    rules.valid_rules rs i = ok (validRules (rs.val.drop i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compile_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 83,
+      "statement": "theorem compile_eq (rs : Slice rules.Publication) :\n    rules.compile rs = ok (if admissible rs.val then some rs else none)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compile_iff",
+      "source": "proofs/RulesProofs.lean",
+      "line": 91,
+      "statement": "theorem compile_iff (rs out : Slice rules.Publication) :\n    rules.compile rs = ok (some out) ↔ admissible rs.val = true ∧ out = rs",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compile_total",
+      "source": "proofs/RulesProofs.lean",
+      "line": 105,
+      "statement": "theorem compile_total (rs : Slice rules.Publication) :\n    ∃ result, rules.compile rs = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compile_preserves_declarations",
+      "source": "proofs/RulesProofs.lean",
+      "line": 108,
+      "statement": "theorem compile_preserves_declarations (rs out : Slice rules.Publication)\n    (h : rules.compile rs = ok (some out)) : out = rs",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_from_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 117,
+      "statement": "theorem lookup_from_eq (p : Slice U8) (rs : Slice rules.Publication) (i : Usize)\n    (_hi : i.val ≤ rs.val.length) :\n    rules.lookup_from p rs i = ok (lookupSpec p.val (rs.val.drop i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_eq",
+      "source": "proofs/RulesProofs.lean",
+      "line": 134,
+      "statement": "theorem lookup_eq (p : Slice U8) (rs : Slice rules.Publication) :\n    rules.lookup p rs = ok (if rs.val.length ≤ 4096 ∧ canonical p.val = true\n      then lookupSpec p.val rs.val else none)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_total",
+      "source": "proofs/RulesProofs.lean",
+      "line": 143,
+      "statement": "theorem lookup_total (p : Slice U8) (rs : Slice rules.Publication) :\n    ∃ result, rules.lookup p rs = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.target_canonical_iff",
+      "source": "proofs/RulesProofs.lean",
+      "line": 146,
+      "statement": "theorem target_canonical_iff (xs : List U8) :\n    targetCanonical xs = true ↔ xs ≠ [] ∧ canonical (47#u8 :: xs) = true ∧ run .Root xs ≠ .Separator",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.valid_rules_contract",
+      "source": "proofs/RulesProofs.lean",
+      "line": 151,
+      "statement": "theorem valid_rules_contract (rs : List rules.Publication) :\n    validRules rs = true ↔\n      (∀ r ∈ rs, canonical r.path.val = true ∧ targetCanonical r.target.val = true) ∧\n      rs.Pairwise (fun r s => r.path.val ≠ s.path.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compile_contract",
+      "source": "proofs/RulesProofs.lean",
+      "line": 163,
+      "statement": "theorem compile_contract (rs out : Slice rules.Publication) :\n    rules.compile rs = ok (some out) ↔\n      out = rs ∧ (0 < rs.val.length ∧ rs.val.length ≤ 4096) ∧\n      (∀ r ∈ rs.val, canonical r.path.val = true ∧ targetCanonical r.target.val = true) ∧\n      rs.val.Pairwise (fun r s => r.path.val ≠ s.path.val)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_spec_sound",
+      "source": "proofs/RulesProofs.lean",
+      "line": 172,
+      "statement": "theorem lookup_spec_sound (p : List U8) (rs : List rules.Publication) (target : Slice U8)\n    (h : lookupSpec p rs = some target) :\n    ∃ r ∈ rs, p = r.path.val ∧ r.target = target ∧ targetCanonical target.val = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_spec_complete",
+      "source": "proofs/RulesProofs.lean",
+      "line": 188,
+      "statement": "theorem lookup_spec_complete (rs : List rules.Publication) (h : validRules rs = true)\n    (r : rules.Publication) (hr : r ∈ rs) : lookupSpec r.path.val rs = some r.target",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.compiled_lookup_iff",
+      "source": "proofs/RulesProofs.lean",
+      "line": 208,
+      "statement": "theorem compiled_lookup_iff (p target : Slice U8) (rs out : Slice rules.Publication)\n    (h : rules.compile rs = ok (some out)) :\n    rules.lookup p out = ok (some target) ↔\n      ∃ r ∈ rs.val, p.val = r.path.val ∧ r.target = target",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.lookup_safe",
+      "source": "proofs/RulesProofs.lean",
+      "line": 228,
+      "statement": "theorem lookup_safe (p target : Slice U8) (rs : Slice rules.Publication)\n    (h : rules.lookup p rs = ok (some target)) :\n    canonical p.val = true ∧ targetCanonical target.val = true ∧\n      ∃ r ∈ rs.val, p.val = r.path.val ∧ r.target = target",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.target_not_absolute",
+      "source": "proofs/RulesProofs.lean",
+      "line": 239,
+      "statement": "theorem target_not_absolute (xs : List U8) (h : targetCanonical xs = true) :\n    ∀ rest, xs ≠ 47#u8 :: rest",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.target_no_traversal",
+      "source": "proofs/RulesProofs.lean",
+      "line": 244,
+      "statement": "theorem target_no_traversal (xs : List U8) (h : targetCanonical xs = true) :\n    ∀ before after, 47#u8 :: xs ≠ before ++ 47#u8 :: 46#u8 :: after",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.resolved_target_no_traversal",
+      "source": "proofs/RulesProofs.lean",
+      "line": 251,
+      "statement": "theorem resolved_target_no_traversal (p target : Slice U8) (rs : Slice rules.Publication)\n    (h : rules.lookup p rs = ok (some target)) :\n    ∀ before after, 47#u8 :: target.val ≠ before ++ 47#u8 :: 46#u8 :: after",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RulesProofs.target_no_directory_suffix",
+      "source": "proofs/RulesProofs.lean",
+      "line": 256,
+      "statement": "theorem target_no_directory_suffix (xs : List U8) :\n    targetCanonical (xs ++ [47#u8]) = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.commit_contract",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 9,
+      "statement": "theorem commit_contract (c e : U64) (p i s d : Bool) :\n    ∃ next, runtime.commit_generation c e p i s d = ok next ∧\n      next.val = if commitPolicy c e p i s d then c.val + 1 else c.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.commit_total",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 22,
+      "statement": "theorem commit_total (c e : U64) (p i s d : Bool) :\n    ∃ next, runtime.commit_generation c e p i s d = ok next",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.failed_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 27,
+      "statement": "theorem failed_retains (c e : U64) (p i s d : Bool)\n    (h : ¬ commitPolicy c e p i s d) : runtime.commit_generation c e p i s d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.draining_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 33,
+      "statement": "theorem draining_retains (c e : U64) (p i s : Bool) :\n    runtime.commit_generation c e p i s true = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.stale_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 37,
+      "statement": "theorem stale_retains (c e : U64) (p i s d : Bool) (h : c ≠ e) :\n    runtime.commit_generation c e p i s d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.identity_mismatch_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 41,
+      "statement": "theorem identity_mismatch_retains (c e : U64) (p s d : Bool) :\n    runtime.commit_generation c e p false s d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.unsafe_storage_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 45,
+      "statement": "theorem unsafe_storage_retains (c e : U64) (p i d : Bool) :\n    runtime.commit_generation c e p i false d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.unprepared_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 49,
+      "statement": "theorem unprepared_retains (c e : U64) (i s d : Bool) :\n    runtime.commit_generation c e false i s d = ok c",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.exhausted_retains",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 53,
+      "statement": "theorem exhausted_retains (e : U64) (p i s d : Bool) :\n    runtime.commit_generation 18446744073709551615#u64 e p i s d = ok 18446744073709551615#u64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.ready_eq",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 57,
+      "statement": "theorem ready_eq (d s t c : Bool) :\n    runtime.ready d s t c = ok (decide (d = false ∧ s = true ∧ (t = false ∨ c = true)))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.ready_contract",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 61,
+      "statement": "theorem ready_contract (d s t c : Bool) :\n    runtime.ready d s t c = ok true ↔ d = false ∧ s = true ∧ (t = false ∨ c = true)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.no_ready_while_draining",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 65,
+      "statement": "theorem no_ready_while_draining (s t c : Bool) : runtime.ready true s t c = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RuntimeProofs.no_ready_without_tls_certificate",
+      "source": "proofs/RuntimeProofs.lean",
+      "line": 68,
+      "statement": "theorem no_ready_without_tls_certificate (d s : Bool) : runtime.ready d s true false = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.lookup_subset",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 8,
+      "statement": "theorem lookup_subset (old new oldOut newOut : Slice rules.Publication)\n    (ho : rules.compile old = ok (some oldOut))\n    (hn : rules.compile new = ok (some newOut))\n    (subset : ∀ r ∈ new.val, r ∈ old.val)\n    (p target : Slice U8) (h : rules.lookup p newOut = ok (some target)) :\n    rules.lookup p oldOut = ok (some target)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.authorization_subset",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 18,
+      "statement": "theorem authorization_subset (old new oldOut newOut : Slice rules.Publication)\n    (ho : rules.compile old = ok (some oldOut))\n    (hn : rules.compile new = ok (some newOut))\n    (subset : ∀ r ∈ new.val, r ∈ old.val)\n    (m host site target : Slice U8) (grant : serving.Grant)\n    (h : serving.authorize m host site target newOut = ok (some grant)) :\n    serving.authorize m host site target oldOut = ok (some grant)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.revoked_lookup",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 30,
+      "statement": "theorem revoked_lookup (rs out : Slice rules.Publication)\n    (hc : rules.compile rs = ok (some out)) (p : Slice U8)\n    (absent : ∀ r ∈ rs.val, p.val ≠ r.path.val) :\n    rules.lookup p out = ok none",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.revoked_authorization",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 42,
+      "statement": "theorem revoked_authorization (rs out : Slice rules.Publication)\n    (hc : rules.compile rs = ok (some out)) (m host site target p : Slice U8)\n    (path : serving.request_path target = ok (some p))\n    (absent : ∀ r ∈ rs.val, p.val ≠ r.path.val) (grant : serving.Grant) :\n    serving.authorize m host site target out ≠ ok (some grant)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.stale_after_success",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 55,
+      "statement": "theorem stale_after_success (current next : U64)\n    (room : current.val < 18446744073709551615)\n    (first : runtime.commit_generation current current true true true false = ok next)\n    (prepared identity storage draining : Bool) :\n    runtime.commit_generation next current prepared identity storage draining = ok next",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.service_tightening",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 70,
+      "statement": "theorem service_tightening (active oldConfig oldLive newConfig newLive : U64)\n    (hc : newConfig.val ≤ oldConfig.val) (hl : newLive.val ≤ oldLive.val)\n    (vc : oldConfig.val ≤ 64) (vl : oldLive.val ≤ 64)\n    (h : routing.service_admit active newConfig newLive = ok true) :\n    routing.service_admit active oldConfig oldLive = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.deadline_tightening",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 79,
+      "statement": "theorem deadline_tightening (elapsed small large : U64) (draining : Bool)\n    (le : small.val ≤ large.val) (valid : large.val ≤ 120000)\n    (h : delivery.phase_live elapsed small draining = ok true) :\n    delivery.phase_live elapsed large draining = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.early_restriction",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 88,
+      "statement": "theorem early_restriction (read published newRead newPublished sensitive newSensitive : Bool)\n    (body newBody : U64)\n    (hr : newRead = true → read = true)\n    (hp : newPublished = true → published = true)\n    (hs : sensitive = true → newSensitive = true)\n    (hb : body.val ≤ newBody.val)\n    (h : delivery.early_allowed false newRead newPublished newBody newSensitive = ok true) :\n    delivery.early_allowed false read published body sensitive = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "SafetyProofs.wire_run_accounting",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 109,
+      "statement": "theorem wire_run_accounting (limit first final : U64) (chunks : List U64)\n    (run : WireRun limit first chunks final) :\n    final.val = first.val + (chunks.map (fun n => n.val)).sum",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "SafetyProofs.wire_run_bounded",
+      "source": "proofs/SafetyProofs.lean",
+      "line": 119,
+      "statement": "theorem wire_run_bounded (limit first final : U64) (chunks : List U64)\n    (cap : limit.val ≤ 134283264) (initial : first.val ≤ limit.val)\n    (run : WireRun limit first chunks final) :\n    first.val + (chunks.map (fun n => n.val)).sum ≤ limit.val ∧\n    first.val + (chunks.map (fun n => n.val)).sum < 2^64",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ServingProofs.pathCount_le",
+      "source": "proofs/ServingProofs.lean",
+      "line": 12,
+      "statement": "theorem pathCount_le (xs : List U8) : pathCount xs ≤ xs.length",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.path_loop_spec",
+      "source": "proofs/ServingProofs.lean",
+      "line": 17,
+      "statement": "theorem path_loop_spec (p : Slice U8) (i : Usize) (hi : i.val ≤ p.val.length) :\n    ∃ n, serving.path_length_loop p i = ok n ∧\n      n.val = i.val + pathCount (p.val.drop i.val) ∧ n.val ≤ p.val.length",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.path_length_spec",
+      "source": "proofs/ServingProofs.lean",
+      "line": 45,
+      "statement": "theorem path_length_spec (p : Slice U8) :\n    ∃ n, serving.path_length p = ok n ∧ n.val = pathCount p.val ∧ n.val ≤ p.val.length",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.query_loop_eq",
+      "source": "proofs/ServingProofs.lean",
+      "line": 51,
+      "statement": "theorem query_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :\n    serving.query_bytes_loop p i = ok ((p.val.drop i.val).all queryByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.query_bytes_eq",
+      "source": "proofs/ServingProofs.lean",
+      "line": 65,
+      "statement": "theorem query_bytes_eq (p : Slice U8) :\n    serving.query_bytes p = ok (p.val.all queryByte)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.split_parts",
+      "source": "proofs/ServingProofs.lean",
+      "line": 75,
+      "statement": "theorem split_parts (p : Slice U8) (n : Usize) (hn : n.val = pathCount p.val) :\n    core.slice.Slice.split_at p n = ok (pathPart p, queryPart p)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.request_path_eq",
+      "source": "proofs/ServingProofs.lean",
+      "line": 84,
+      "statement": "theorem request_path_eq (p : Slice U8) : serving.request_path p = ok (requestSpec p)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.request_path_contract",
+      "source": "proofs/ServingProofs.lean",
+      "line": 92,
+      "statement": "theorem request_path_contract (p out : Slice U8) :\n    serving.request_path p = ok (some out) ↔\n      out = pathPart p ∧ p.val.length ≤ 8192 ∧ canonical out.val = true ∧\n      (queryPart p).val.all queryByte = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.request_path_total",
+      "source": "proofs/ServingProofs.lean",
+      "line": 101,
+      "statement": "theorem request_path_total (p : Slice U8) :\n    ∃ result, serving.request_path p = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.request_path_unchanged",
+      "source": "proofs/ServingProofs.lean",
+      "line": 105,
+      "statement": "theorem request_path_unchanged (p out : Slice U8)\n    (h : serving.request_path p = ok (some out)) :\n    out.val = p.val.take (pathCount p.val) ∧ ∃ rest, p.val = out.val ++ rest",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.authorize_eq",
+      "source": "proofs/ServingProofs.lean",
+      "line": 131,
+      "statement": "theorem authorize_eq (m h c t : Slice U8) (rs : Slice rules.Publication) :\n    serving.authorize m h c t rs = ok (authorizeResult m h c t rs)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.authorize_total",
+      "source": "proofs/ServingProofs.lean",
+      "line": 140,
+      "statement": "theorem authorize_total (m h c t : Slice U8) (rs : Slice rules.Publication) :\n    ∃ result, serving.authorize m h c t rs = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.authorize_contract",
+      "source": "proofs/ServingProofs.lean",
+      "line": 143,
+      "statement": "theorem authorize_contract (m h c t : Slice U8) (rs : Slice rules.Publication) (g : serving.Grant) :\n    serving.authorize m h c t rs = ok (some g) ↔\n      (m.val = getBytes ∨ m.val = headBytes) ∧ h.val = c.val ∧\n      g.send_body = (m.val == getBytes) ∧\n      ∃ p, serving.request_path t = ok (some p) ∧ rules.lookup p rs = ok (some g.target)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.deny_wrong_host",
+      "source": "proofs/ServingProofs.lean",
+      "line": 155,
+      "statement": "theorem deny_wrong_host (m h c t : Slice U8) (rs : Slice rules.Publication)\n    (hne : h.val ≠ c.val) : serving.authorize m h c t rs = ok none",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.deny_wrong_method",
+      "source": "proofs/ServingProofs.lean",
+      "line": 159,
+      "statement": "theorem deny_wrong_method (m h c t : Slice U8) (rs : Slice rules.Publication)\n    (hg : m.val ≠ getBytes) (hh : m.val ≠ headBytes) :\n    serving.authorize m h c t rs = ok none",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.head_has_no_body",
+      "source": "proofs/ServingProofs.lean",
+      "line": 164,
+      "statement": "theorem head_has_no_body (m h c t : Slice U8) (rs : Slice rules.Publication) (g : serving.Grant)\n    (hm : m.val = headBytes) (hg : serving.authorize m h c t rs = ok (some g)) :\n    g.send_body = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.granted_target_safe",
+      "source": "proofs/ServingProofs.lean",
+      "line": 170,
+      "statement": "theorem granted_target_safe (m h c t : Slice U8) (rs : Slice rules.Publication) (g : serving.Grant)\n    (hg : serving.authorize m h c t rs = ok (some g)) :\n    targetCanonical g.target.val = true ∧\n      ∃ p, serving.request_path t = ok (some p) ∧\n        canonical p.val = true ∧ ∃ r ∈ rs.val, p.val = r.path.val ∧ r.target = g.target",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.file_allowed_eq",
+      "source": "proofs/ServingProofs.lean",
+      "line": 184,
+      "statement": "theorem file_allowed_eq (p o : serving.FileFacts) :\n    serving.file_allowed p o = ok (decide (filePolicy p o))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.file_allowed_contract",
+      "source": "proofs/ServingProofs.lean",
+      "line": 193,
+      "statement": "theorem file_allowed_contract (p o : serving.FileFacts) :\n    serving.file_allowed p o = ok true ↔ filePolicy p o",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.file_allowed_total",
+      "source": "proofs/ServingProofs.lean",
+      "line": 197,
+      "statement": "theorem file_allowed_total (p o : serving.FileFacts) :\n    ∃ result, serving.file_allowed p o = ok result",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ServingProofs.file_identity_preserved",
+      "source": "proofs/ServingProofs.lean",
+      "line": 200,
+      "statement": "theorem file_identity_preserved (p o : serving.FileFacts)\n    (h : serving.file_allowed p o = ok true) :\n    p.device = o.device ∧ p.inode = o.inode ∧ p.size = o.size",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.request_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 5,
+      "statement": "theorem request_eq (e g u v k o : Bool) (l p : U64) :\n    streaming.upgrade_request e g l p u v k o = ok (decide (e = true ∧ g = true ∧ l.val = 0 ∧ p.val = 0 ∧ u = true ∧ v = true ∧ k = true ∧ o = true))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.response_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 10,
+      "statement": "theorem response_eq (r v u a p x l t : Bool) (s : U16) :\n    streaming.upgrade_response r v s u a p x l t = ok (decide (r = true ∧ v = true ∧ s.val = 101 ∧ u = true ∧ a = true ∧ p = true ∧ x = true ∧ l = false ∧ t = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.disabled_request",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 15,
+      "statement": "theorem disabled_request (g u v k o : Bool) (l p : U64) : streaming.upgrade_request false g l p u v k o = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.no_unrequested_upgrade",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 17,
+      "statement": "theorem no_unrequested_upgrade (v u a p x l t : Bool) (s : U16) : streaming.upgrade_response false v s u a p x l t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.request_bodyless",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 19,
+      "statement": "theorem request_bodyless (e g u v k o : Bool) (l p : U64) (h : streaming.upgrade_request e g l p u v k o = ok true) :\n    l.val = 0 ∧ p.val = 0 ∧ g = true ∧ o = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.upgrade_no_http_framing",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 24,
+      "statement": "theorem upgrade_no_http_framing (r v u a p x l t : Bool) (s : U16) (h : streaming.upgrade_response r v s u a p x l t = ok true) :\n    r = true ∧ s.val = 101 ∧ a = true ∧ p = true ∧ x = true ∧ l = false ∧ t = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.invalid_accept",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 29,
+      "statement": "theorem invalid_accept (r v u p x l t : Bool) (s : U16) : streaming.upgrade_response r v s u false p x l t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.invalid_extensions",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 31,
+      "statement": "theorem invalid_extensions (r v u a p l t : Bool) (s : U16) : streaming.upgrade_response r v s u a p false l t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.sse_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 33,
+      "statement": "theorem sse_eq (e h m c : Bool) (s : U16) : streaming.sse_response e h s m c = ok (decide (e = true ∧ h = false ∧ s.val = 200 ∧ m = true ∧ c = false))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.no_encoded_sse",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 37,
+      "statement": "theorem no_encoded_sse (e h m : Bool) (s : U16) : streaming.sse_response e h s m true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.byte_limit_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 39,
+      "statement": "theorem byte_limit_eq (l : U64) : streaming.byte_limit l = ok (decide (0 < l.val ∧ l.val ≤ 1073741824))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.bytes_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 43,
+      "statement": "theorem bytes_eq (u n l : U64) : streaming.bytes_fit u n l = ok (decide (0 < l.val ∧ l.val ≤ 1073741824 ∧ u.val + n.val ≤ l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.bytes_bounded",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 56,
+      "statement": "theorem bytes_bounded (u n l : U64) (h : streaming.bytes_fit u n l = ok true) :\n    u.val + n.val ≤ l.val ∧ l.val ≤ 1073741824",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.time_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 61,
+      "statement": "theorem time_eq (i t : U64) : streaming.time_limits i t = ok (decide (100 ≤ i.val ∧ i.val ≤ 300000 ∧ i.val ≤ t.val ∧ t.val ≤ 3600000))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.running_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 65,
+      "statement": "theorem running_eq (s : Bool) (e q i t : U64) : streaming.running s e q i t = ok (decide (s = false ∧ 100 ≤ i.val ∧ i.val ≤ 300000 ∧ i.val ≤ t.val ∧ t.val ≤ 3600000 ∧ e.val < t.val ∧ q.val < i.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.stop_ends_stream",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 69,
+      "statement": "theorem stop_ends_stream (e q i t : U64) : streaming.running true e q i t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.expired_total",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 71,
+      "statement": "theorem expired_total (s : Bool) (e q i t : U64) (h : t.val ≤ e.val) : streaming.running s e q i t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.expired_idle",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 74,
+      "statement": "theorem expired_idle (s : Bool) (e q i t : U64) (h : i.val ≤ q.val) : streaming.running s e q i t = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.admission_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 77,
+      "statement": "theorem admission_eq (a : U64) (s : Bool) : streaming.admission a s = ok (decide (s = false ∧ a.val < 16))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.admission_bounded",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 80,
+      "statement": "theorem admission_bounded (a : U64) (s : Bool) (h : streaming.admission a s = ok true) : a.val + 1 ≤ 16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.no_admission_stopped",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 84,
+      "statement": "theorem no_admission_stopped (a : U64) : streaming.admission a true = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.limits_total",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 86,
+      "statement": "theorem limits_total (a u n l e q i t : U64) (s : Bool) :\n    (∃ r, streaming.bytes_fit u n l = ok r) ∧ (∃ r, streaming.time_limits i t = ok r) ∧\n    (∃ r, streaming.running s e q i t = ok r) ∧ (∃ r, streaming.admission a s = ok r)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.peer_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 90,
+      "statement": "theorem peer_eq (a p : U64) (s : Bool) : streaming.peer_admission a p s = ok (decide (s = false ∧ a.val < 16 ∧ p.val < 8))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.peer_bounded",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 94,
+      "statement": "theorem peer_bounded (a p : U64) (s : Bool) (h : streaming.peer_admission a p s = ok true) : a.val + 1 ≤ 16 ∧ p.val + 1 ≤ 8 ∧ s = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.service_limit_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 98,
+      "statement": "theorem service_limit_eq (n : U64) : streaming.service_limit n = ok (decide (0 < n.val ∧ n.val ≤ 16))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.service_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 102,
+      "statement": "theorem service_eq (a c l : U64) : streaming.service_admission a c l = ok (decide (0 < c.val ∧ c.val ≤ 16 ∧ 0 < l.val ∧ l.val ≤ 16 ∧ a.val < c.val ∧ a.val < l.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.service_bounded_across_reload",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 106,
+      "statement": "theorem service_bounded_across_reload (a c l : U64) (h : streaming.service_admission a c l = ok true) : a.val + 1 ≤ c.val ∧ a.val + 1 ≤ l.val ∧ l.val ≤ 16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.revoked_service",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 110,
+      "statement": "theorem revoked_service (a c : U64) : streaming.service_admission a c 0#u64 = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.origin_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 112,
+      "statement": "theorem origin_eq (p s l : Bool) : streaming.origin_allowed p s l = ok (decide (p = false ∨ s = true ∨ l = true))",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.foreign_origin_requires_allowlist",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 115,
+      "statement": "theorem foreign_origin_requires_allowlist (s l : Bool) (hs : s = false) (h : streaming.origin_allowed true s l = ok true) : l = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.origin_denied",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 117,
+      "statement": "theorem origin_denied : streaming.origin_allowed true false false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.deflate_eq",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 119,
+      "statement": "theorem deflate_eq (e o s a b p : Bool) : streaming.deflate_allowed e o s a b p = ok (decide (s = false ∨ (e = true ∧ o = true ∧ a = true ∧ b = true ∧ p = true)))",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.deflate_requires_opt_in_offer_and_resets",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 123,
+      "statement": "theorem deflate_requires_opt_in_offer_and_resets (e o a b p : Bool) (h : streaming.deflate_allowed e o true a b p = ok true) : e = true ∧ o = true ∧ a = true ∧ b = true ∧ p = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.no_unsolicited_deflate",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 125,
+      "statement": "theorem no_unsolicited_deflate (e a b p : Bool) : streaming.deflate_allowed e false true a b p = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.no_context_takeover",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 127,
+      "statement": "theorem no_context_takeover (e o p : Bool) : streaming.deflate_allowed e o true false true p = ok false ∧ streaming.deflate_allowed e o true true false p = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "StreamingProofs.optional_uncompressed",
+      "source": "proofs/StreamingProofs.lean",
+      "line": 129,
+      "statement": "theorem optional_uncompressed (e o a b p : Bool) : streaming.deflate_allowed e o false a b p = ok true",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.identity_eq",
+      "source": "proofs/TlsProofs.lean",
+      "line": 6,
+      "statement": "theorem identity_eq (s h c : Slice U8) :\n    tls.identity_allowed s h c = ok (decide (s.val ≠ [] ∧ s.val = h.val ∧ h.val = c.val))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.identity_contract",
+      "source": "proofs/TlsProofs.lean",
+      "line": 12,
+      "statement": "theorem identity_contract (s h c : Slice U8) :\n    tls.identity_allowed s h c = ok true ↔ s.val ≠ [] ∧ s.val = h.val ∧ h.val = c.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.no_domain_fronting",
+      "source": "proofs/TlsProofs.lean",
+      "line": 16,
+      "statement": "theorem no_domain_fronting (s h c : Slice U8) (hne : s.val ≠ h.val) :\n    tls.identity_allowed s h c = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.no_missing_sni",
+      "source": "proofs/TlsProofs.lean",
+      "line": 19,
+      "statement": "theorem no_missing_sni (h c : Slice U8) (s : Slice U8) (he : s.val = []) :\n    tls.identity_allowed s h c = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.secret_eq",
+      "source": "proofs/TlsProofs.lean",
+      "line": 27,
+      "statement": "theorem secret_eq (p o : tls.SecretFacts) (uid : U32) :\n    tls.secret_allowed p o uid = ok (decide (secretPolicy p o uid))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.secret_contract",
+      "source": "proofs/TlsProofs.lean",
+      "line": 32,
+      "statement": "theorem secret_contract (p o : tls.SecretFacts) (uid : U32) :\n    tls.secret_allowed p o uid = ok true ↔ secretPolicy p o uid",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.no_public_secret",
+      "source": "proofs/TlsProofs.lean",
+      "line": 35,
+      "statement": "theorem no_public_secret (p o : tls.SecretFacts) (uid : U32) (hm : o.mode ≠ 384#u32) :\n    tls.secret_allowed p o uid = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.secret_identity",
+      "source": "proofs/TlsProofs.lean",
+      "line": 38,
+      "statement": "theorem secret_identity (p o : tls.SecretFacts) (uid : U32)\n    (h : tls.secret_allowed p o uid = ok true) : p.device = o.device ∧ p.inode = o.inode",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.activate_eq",
+      "source": "proofs/TlsProofs.lean",
+      "line": 43,
+      "statement": "theorem activate_eq (b e n : U64) (k h p : Bool) :\n    tls.activate b e n k h p = ok (decide (k = true ∧ h = true ∧ p = true ∧ b.val ≤ n.val ∧ n.val < e.val))",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.activate_contract",
+      "source": "proofs/TlsProofs.lean",
+      "line": 48,
+      "statement": "theorem activate_contract (b e n : U64) (k h p : Bool) :\n    tls.activate b e n k h p = ok true ↔ k = true ∧ h = true ∧ p = true ∧ b.val ≤ n.val ∧ n.val < e.val",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.no_unpersisted_activation",
+      "source": "proofs/TlsProofs.lean",
+      "line": 52,
+      "statement": "theorem no_unpersisted_activation (b e n : U64) (k h : Bool) :\n    tls.activate b e n k h false = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.no_expired_activation",
+      "source": "proofs/TlsProofs.lean",
+      "line": 55,
+      "statement": "theorem no_expired_activation (b e n : U64) (k h p : Bool) (hex : e.val ≤ n.val) :\n    tls.activate b e n k h p = ok false",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.renewal_eq",
+      "source": "proofs/TlsProofs.lean",
+      "line": 61,
+      "statement": "theorem renewal_eq (b e n : U64) : tls.renewal_due b e n = ok (decide (renewPolicy b e n))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.renewal_contract",
+      "source": "proofs/TlsProofs.lean",
+      "line": 77,
+      "statement": "theorem renewal_contract (b e n : U64) :\n    tls.renewal_due b e n = ok true ↔ renewPolicy b e n",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.renew_at_expiration",
+      "source": "proofs/TlsProofs.lean",
+      "line": 80,
+      "statement": "theorem renew_at_expiration (b e n : U64) (h : e.val ≤ n.val) :\n    tls.renewal_due b e n = ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "TlsProofs.lifecycle_total",
+      "source": "proofs/TlsProofs.lean",
+      "line": 83,
+      "statement": "theorem lifecycle_total (b e n : U64) (k h p : Bool) :\n    (∃ result, tls.activate b e n k h p = ok result) ∧\n    (∃ result, tls.renewal_due b e n = ok result)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.probe_eq",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 5,
+      "statement": "theorem probe_eq (g c r : Bool) (b n : U64) :\n    upstream.probe_allowed g b c r n = ok (decide (g = true ∧ b.val = 0 ∧ c = false ∧ r = true ∧ 0 < n.val ∧ n.val ≤ 32))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.probe_read_only",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 10,
+      "statement": "theorem probe_read_only (g c r : Bool) (b n : U64)\n    (h : upstream.probe_allowed g b c r n = ok true) :\n    g = true ∧ b.val = 0 ∧ c = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.probe_bounded",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 16,
+      "statement": "theorem probe_bounded (g c r : Bool) (b n : U64)\n    (h : upstream.probe_allowed g b c r n = ok true) : 0 < n.val ∧ n.val ≤ 32",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.next_eq",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 21,
+      "statement": "theorem next_eq (s : U16) (n : U64) :\n    upstream.probe_next s n = ok (decide (s = 404#u16 ∧ 0 < n.val ∧ n.val < 32))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.only_absence_falls_through",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 26,
+      "statement": "theorem only_absence_falls_through (s : U16) (n : U64)\n    (h : upstream.probe_next s n = ok true) : s = 404#u16",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.no_retry_after_last",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 31,
+      "statement": "theorem no_retry_after_last (s : U16) : upstream.probe_next s 0#u64 = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.owned_eq",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 33,
+      "statement": "theorem owned_eq (s : U16) : upstream.probe_owned s = ok (decide\n    ((200 ≤ s.val ∧ s.val < 300) ∨ s = 401#u16 ∨ s = 403#u16 ∨ s = 410#u16))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.authorization_is_final",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 38,
+      "statement": "theorem authorization_is_final (n : U64) :\n    upstream.probe_owned 401#u16 = ok true ∧ upstream.probe_next 401#u16 n = ok false ∧\n    upstream.probe_owned 403#u16 = ok true ∧ upstream.probe_next 403#u16 n = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.gone_is_final",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 43,
+      "statement": "theorem gone_is_final (n : U64) : upstream.probe_owned 410#u16 = ok true ∧ upstream.probe_next 410#u16 n = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.server_error_is_not_owner",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 45,
+      "statement": "theorem server_error_is_not_owner (s : U16) (h : 500 ≤ s.val) : upstream.probe_owned s = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.query_eq",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 52,
+      "statement": "theorem query_eq (e a : Bool) : upstream.query_match e a = ok (e || a)",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "UpstreamProofs.encoded_query_applies",
+      "source": "proofs/UpstreamProofs.lean",
+      "line": 55,
+      "statement": "theorem encoded_query_applies (e : Bool) : upstream.query_match e true = ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    }
+  ]
+}

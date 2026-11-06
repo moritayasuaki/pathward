@@ -715,3 +715,71 @@ fn events(
 #[cfg(test)]
 #[path = "streaming_tests.rs"]
 mod tests;
+
+/// HTTP/2 and HTTP/3 carry decoded SSE bytes in DATA frames, without H1 chunks.
+pub(crate) struct Events {
+    live: Live,
+    input: Vec<u8>,
+    offset: usize,
+    decoder: Decoder,
+    progress: Instant,
+    pub limits: ProxyLimits,
+}
+impl Events {
+    pub fn new(mut live: Live, limits: ProxyLimits) -> io::Result<Self> {
+        let Mode::Sse { length, chunked } = live.mode else {
+            return Err(invalid());
+        };
+        live.socket.set_nonblocking(true)?;
+        let input = std::mem::take(&mut live.prefix);
+        Ok(Self {
+            progress: live.started,
+            live,
+            input,
+            offset: 0,
+            decoder: Decoder::new(length, chunked, limits.stream_download_bytes),
+            limits,
+        })
+    }
+    pub fn deadline(&self) -> Instant {
+        (self.live.started + Duration::from_millis(self.limits.stream_total_ms))
+            .min(self.progress + Duration::from_millis(self.limits.stream_idle_ms))
+    }
+    pub fn sent(&mut self) {
+        self.progress = Instant::now();
+    }
+    pub async fn next(&mut self) -> io::Result<Option<Vec<u8>>> {
+        loop {
+            http::remaining(self.deadline())?;
+            if self.decoder.done() {
+                return if self.offset == self.input.len() {
+                    Ok(None)
+                } else {
+                    Err(invalid())
+                };
+            }
+            if self.offset < self.input.len() {
+                let (count, bytes) = self.decoder.step(&self.input[self.offset..])?;
+                self.offset += count;
+                if !bytes.is_empty() {
+                    return Ok(Some(bytes.to_vec()));
+                }
+            } else {
+                self.input.resize(16384, 0);
+                let deadline = self.deadline();
+                let n = crate::async_http::read(&mut self.live.socket, &mut self.input, deadline)
+                    .await?;
+                self.input.truncate(n);
+                self.offset = 0;
+                if n == 0 {
+                    return if self.decoder.eof() {
+                        Ok(None)
+                    } else {
+                        Err(invalid())
+                    };
+                }
+                self.progress = Instant::now();
+            }
+        }
+    }
+}

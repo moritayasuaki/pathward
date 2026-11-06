@@ -71,17 +71,18 @@ default host, wildcard, lowercasing, or port stripping in this API. The HTTP ada
 adapter also requires SNI consistency.
 
 Static publication/redirect paths follow the [core policy](../README.md#policy): 1–4096 bytes, ASCII,
-starting with `/`; components start/end with alphanumeric, `_`, or `-`, with
+starting with `/`; components start/end with alphanumeric, `_`, `-`, or `+`, with
 interior dots allowed. Relative file paths use the same component grammar and
 are 1–4095 bytes. Absolute targets, `.`/`..`, hidden components, empty components,
 percent escapes, backslashes, trailing dots, and controls are rejected. URL paths may have one terminal slash; filesystem targets may not.
+A literal `+` remains a plus byte; it is never decoded as a space, and `%2B` remains rejected.
 Roots use the absolute URL grammar as a conservative Unix lexical grammar.
 The Linux opener uses descriptor-relative lookup and handles filesystem-specific
 component/permission errors by denying the request. The separate server `check`
 command preflights files through this opener. Configuration-only checking
 does not perform that filesystem lookup.
 
-Bounded `redirect`, `redirect-prefix` and `header` declarations are described in
+Bounded `redirect`, `redirect-prefix`, `redirect-fallback` and `header` declarations are described in
 [production basics](production-basics.md); prefix matching applies only to redirects,
 never file grants. There are no includes, environment substitutions, globs,
 rewrites or implicit file grants. Proxy delegation is explicit, optionally scoped by `proxy-path`. Directive order does not change lookup.
@@ -94,7 +95,7 @@ The entire UTF-8 document is limited to **1,048,576 bytes**. A bounded reader st
 after one byte beyond that limit; callers of the string API already own their
 input allocation. A linear, nonrecursive preflight admits only:
 
-- Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`,
+- Bare node names `site`, `root`, `publish`, `tls`, `redirect`, `redirect-prefix`, `redirect-fallback`,
   `header`, `reverse-proxy`, `deny`, `proxy-path`, `proxy-limit` and
   `proxy-timeout`, with the validated schemas.
 - Ordinary, single-line double-quoted strings. Literal characters inside values
@@ -160,3 +161,10 @@ origins require `proxy-stream "websocket"`. See [streaming policy](streaming.md)
 
 For explicit directory publications, typed cache rules, large files and resource
 upstream routing, see [site compatibility](site-compatibility.md).
+
+## Representation encoding
+
+An optional site-level `encode "gzip"`, `"zstd"`, or `"gzip,zstd"` enables bounded
+HTTP encoding. It defaults off, survives generation/reload, and is independent
+of WebSocket compression. Per-service `connections` now accepts 1–64 (default 2).
+See [Modern HTTP](modern-http.md) for exclusions, budgets and protocol settings.

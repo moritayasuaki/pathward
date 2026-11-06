@@ -1,5 +1,8 @@
 //! Local-only integration driver; the production CLI keeps its fixed public CA origins.
 #![forbid(unsafe_code)]
+#[cfg(any(target_os = "linux", test))]
+#[path = "support/h2_limits.rs"]
+mod h2_limits;
 #[cfg(target_os = "linux")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use pathward_server::{Server, acme, control, deployment, tls};
@@ -14,6 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread,
     };
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if std::env::var("PATHWARD_TEST_H2_DIAGNOSTICS").as_deref() == Ok("1") {
+        h2_limits::install();
+    }
     if args.len() != 5 && args.len() != 7 {
         return Err(
             "expected CONTROL CACHE LOCAL_DIRECTORY CA_PEM TLS_PORT [HTTP_PORT MONITOR_PORT]"
@@ -111,7 +117,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let monitoring = scope.spawn(|| {
             control::monitor(monitor, &server, Some(&identity), &signals.shutdown, &done)
         });
-        let result = server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, &tls);
+        let result = if std::env::var("PATHWARD_TEST_HTTP3").as_deref() == Ok("1") {
+            let udp = std::net::UdpSocket::bind(listener.local_addr()?)?;
+            server.serve_tls_http3(listener, Some(redirect), udp, &signals.shutdown, &tls)
+        } else {
+            server.serve_tls_with_redirect(listener, redirect, &signals.shutdown, &tls)
+        };
         signals.shutdown.store(true, Ordering::Release);
         done.store(true, Ordering::Release);
         acme.join()

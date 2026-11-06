@@ -49,7 +49,7 @@ jobs:
       - name: Test real TLS-ALPN-01 issuance, renewal, restart and persistence failure
         run: make acme-integration
       - name: Check concurrent ACME renewal and managed release churn
-        run: make soak SOAK_SECONDS=120 SOAK_REPORT=.tools/soak-ci.json
+        run: PATHWARD_TEST_HTTP3=1 make soak SOAK_SECONDS=120 SOAK_REPORT=.tools/soak-ci.json
       - name: Verify extraction, Lean proofs, and axioms
         run: make proof-check
 

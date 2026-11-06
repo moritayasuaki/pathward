@@ -1,5 +1,8 @@
 # Explicit capacity for shared NAT
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 The optional first top-level KDL directive selects a finite startup profile:
 
 ```kdl

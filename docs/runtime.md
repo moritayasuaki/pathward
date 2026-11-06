@@ -1,5 +1,8 @@
 # Reload, shutdown, logs and monitoring
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 On Linux, both CLI serving modes install SIGHUP, SIGTERM and SIGINT handlers before
 starting worker threads. Existing KDL files continue to work. The later
 [production basics](production-basics.md) extension adds headers/redirects and an

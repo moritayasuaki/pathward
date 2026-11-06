@@ -1,5 +1,8 @@
 # Bounded local reverse proxy
 
+Current transport/concurrency additions are described in [Modern HTTP](modern-http.md).
+The dated results and earlier limits below describe their recorded revisions.
+
 PathWard can delegate an entire configured hostname to one explicitly selected
 local HTTP application. It can also coexist with explicit local and denied routes
 using [mixed routing and per-service limits](routing-and-limits.md). This is not a claim of Caddy

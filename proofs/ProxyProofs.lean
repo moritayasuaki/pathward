@@ -59,6 +59,26 @@ theorem response_no_ambiguous_length (n : U64) (d : Bool) :
 theorem response_no_duplicate_length (n : Option U64) (t : Bool) :
     proxy.response_framing n t true = ok false := by cases n <;> simp [response_framing_eq]
 
+/-- Even a noncompliant upstream prefetched cannot select body forwarding for HEAD. -/
+theorem head_discards_prefix (status : U16) (prefetched : Bool) :
+    proxy.upstream_body_mode true status prefetched = ok 1#u8 := rfl
+
+theorem bodyless_prefix_rejected (status : U16)
+    (h : status = 204#u16 ∨ status = 304#u16) :
+    proxy.upstream_body_mode false status true = ok 2#u8 := by
+  rcases h with h | h <;> subst status <;> rfl
+
+theorem ordinary_response_reads_body (status : U16) (prefetched : Bool)
+    (h204 : status ≠ 204#u16) (h304 : status ≠ 304#u16) :
+    proxy.upstream_body_mode false status prefetched = ok 0#u8 := by
+  simp [proxy.upstream_body_mode, h204, h304]
+
+theorem response_body_mode_total (head prefetched : Bool) (status : U16) :
+    ∃ mode, proxy.upstream_body_mode head status prefetched = ok mode ∧
+      mode.val ≤ 2 := by
+  cases head <;> cases prefetched <;> simp [proxy.upstream_body_mode]
+  all_goals split_ifs <;> simp
+
 def targetByte (b : U8) : Bool := decide (33 ≤ b.val ∧ b.val ≤ 126 ∧ b.val ≠ 35 ∧ b.val ≠ 92)
 theorem target_loop_eq (p : Slice U8) (i : Usize) (_hi : i.val ≤ p.val.length) :
     proxy.target_bytes_loop p i = ok ((p.val.drop i.val).all targetByte) := by

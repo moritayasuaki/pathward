@@ -6,7 +6,7 @@ use pathward::proxy as policy;
 use pathward_config::ProxyLimits;
 use std::{
     collections::BTreeSet,
-    io::{self, Read},
+    io,
     net::{SocketAddr, TcpStream},
     time::{Duration, Instant},
 };
@@ -17,6 +17,13 @@ pub(crate) struct Response {
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
     pub live: Option<Live>,
+    pub delivery_lease: Option<crate::delivery::Lease>,
+}
+
+pub(crate) struct ResponseBudget<'a> {
+    pub budget: &'a crate::delivery::Budget,
+    pub peer: std::net::IpAddr,
+    pub stopping: &'a dyn Fn() -> bool,
 }
 
 fn forwarded_authority(req: &Request<'_>, external_port: u16, encrypted: bool) -> String {
@@ -54,7 +61,7 @@ fn field_value(value: &[u8]) -> bool {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn forward(
+pub(crate) async fn forward_async(
     upstream: SocketAddr,
     req: &Request<'_>,
     prefetched: &[u8],
@@ -65,6 +72,7 @@ pub(crate) fn forward(
     limits: ProxyLimits,
     origins: &[String],
     routes: &[UpstreamRoute],
+    response_budget: Option<ResponseBudget<'_>>,
 ) -> Result<Response, Rejection> {
     if !limits.valid() {
         return Err(Rejection(502));
@@ -141,6 +149,7 @@ pub(crate) fn forward(
     if local_options {
         return Ok(Response {
             status: 204,
+            delivery_lease: None,
             live: None,
             length: None,
             body: Vec::new(),
@@ -156,7 +165,7 @@ pub(crate) fn forward(
     while (body.len() as u64) < req.content_length {
         client.deadline(body_deadline).map_err(|_| Rejection(408))?;
         let size = buffer.len().min(req.content_length as usize - body.len());
-        let n = match client.read(&mut buffer[..size]) {
+        let n = match crate::async_http::read(client, &mut buffer[..size], body_deadline).await {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
             Err(e) => {
                 return Err(Rejection(
@@ -186,11 +195,14 @@ pub(crate) fn forward(
         external_port,
         deadline,
         limits,
-    )?;
+    )
+    .await?;
     let timeout = http::remaining(deadline)
         .map_err(failure)?
         .min(Duration::from_millis(limits.connect_ms));
-    let mut socket = TcpStream::connect_timeout(&upstream, timeout).map_err(failure)?;
+    let mut socket = crate::async_http::connect(upstream, timeout)
+        .await
+        .map_err(failure)?;
     let method = std::str::from_utf8(req.method).map_err(|_| Rejection(400))?;
     let target = std::str::from_utf8(req.target).map_err(|_| Rejection(400))?;
     let authority = forwarded_authority(req, external_port, encrypted);
@@ -224,19 +236,46 @@ pub(crate) fn forward(
         head.push_str(&format!("X-Forwarded-For: {peer}\r\n"));
     }
     head.push_str("\r\n");
-    http::write_all(&mut socket, head.as_bytes(), deadline).map_err(failure)?;
-    http::write_all(&mut socket, &body, deadline).map_err(failure)?;
+    crate::async_http::write_all(&mut socket, head.as_bytes(), deadline)
+        .await
+        .map_err(failure)?;
+    crate::async_http::write_all(&mut socket, &body, deadline)
+        .await
+        .map_err(failure)?;
     // Ordinary bodies are validated in full; opt-in streams validate their head
     // before commitment and close on later errors without a second HTTP response.
-    receive(
+    receive_async(
         socket,
         req.method == b"HEAD",
         deadline,
         deadline.min(Instant::now() + Duration::from_millis(limits.head_ms)),
         limits,
         upgrade.as_ref(),
+        response_budget,
     )
+    .await
     .map_err(failure)
+}
+
+#[cfg(test)]
+fn receive(
+    socket: TcpStream,
+    head_only: bool,
+    deadline: Instant,
+    head_deadline: Instant,
+    limits: ProxyLimits,
+    upgrade: Option<&streaming::Upgrade>,
+) -> io::Result<Response> {
+    socket.set_nonblocking(true)?;
+    futures_lite::future::block_on(receive_async(
+        socket,
+        head_only,
+        deadline,
+        head_deadline,
+        limits,
+        upgrade,
+        None,
+    ))
 }
 
 struct Wire {
@@ -246,7 +285,7 @@ struct Wire {
     deadline: Instant,
 }
 impl Wire {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+    async fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         if self.offset < self.prefix.len() {
             http::remaining(self.deadline)?;
             let n = out.len().min(self.prefix.len() - self.offset);
@@ -256,17 +295,17 @@ impl Wire {
         } else {
             loop {
                 self.socket.deadline(self.deadline)?;
-                match self.socket.read(out) {
+                match crate::async_http::read(&mut self.socket, out, self.deadline).await {
                     Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                     result => return result,
                 }
             }
         }
     }
-    fn exact(&mut self, out: &mut [u8]) -> io::Result<()> {
+    async fn exact(&mut self, out: &mut [u8]) -> io::Result<()> {
         let mut offset = 0;
         while offset < out.len() {
-            let n = self.read(&mut out[offset..])?;
+            let n = self.read(&mut out[offset..]).await?;
             if n == 0 {
                 return Err(invalid());
             }
@@ -274,14 +313,14 @@ impl Wire {
         }
         Ok(())
     }
-    fn line(&mut self) -> io::Result<Vec<u8>> {
+    async fn line(&mut self) -> io::Result<Vec<u8>> {
         let mut line = Vec::new();
         loop {
             if line.len() >= 128 {
                 return Err(invalid());
             }
             let mut byte = [0];
-            self.exact(&mut byte)?;
+            self.exact(&mut byte).await?;
             line.push(byte[0]);
             if line.ends_with(b"\r\n") {
                 line.truncate(line.len() - 2);
@@ -297,16 +336,17 @@ impl Wire {
     }
 }
 
-fn receive(
+async fn receive_async(
     mut socket: TcpStream,
     head_only: bool,
     deadline: Instant,
     head_deadline: Instant,
     limits: ProxyLimits,
     upgrade: Option<&streaming::Upgrade>,
+    response_budget: Option<ResponseBudget<'_>>,
 ) -> io::Result<Response> {
     let limit = limits.response_bytes;
-    let raw = http::read_head(&mut socket, head_deadline)?;
+    let raw = crate::async_http::read_head(&mut socket, head_deadline).await?;
     http::remaining(head_deadline)?;
     let end = raw
         .windows(4)
@@ -449,6 +489,7 @@ fn receive(
     if let Some(mode) = mode {
         return Ok(Response {
             status,
+            delivery_lease: None,
             length: None,
             headers: outgoing,
             body: Vec::new(),
@@ -461,29 +502,54 @@ fn receive(
         offset: 0,
         deadline,
     };
-    let bodyless = head_only || status == 204 || status == 304;
+    let mode = pathward::proxy::upstream_body_mode(head_only, status, wire.unused());
+    if mode == 2 {
+        return Err(invalid());
+    }
+    let bodyless = mode == 1;
+    let body_capacity = if bodyless { 0 } else { length.unwrap_or(limit) };
+    // Request/header storage was reserved before connecting. Response storage
+    // is charged here, once validated Content-Length identifies its actual cap.
+    // Unknown-length responses still reserve the full configured body limit.
+    let credit = body_capacity
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(crate::delivery::HEAD_BYTES as u64))
+        .ok_or_else(invalid)?;
+    if !pathward::delivery::response_storage(body_capacity, credit) {
+        return Err(invalid());
+    }
+    let delivery_lease = if let Some(out) = response_budget {
+        let until = deadline.min(Instant::now() + crate::delivery::QUEUE_BUDGET);
+        Some(loop {
+            if (out.stopping)() || Instant::now() >= until {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            if let Some(lease) = out.budget.reserve(out.peer, credit, false) {
+                break lease;
+            }
+            crate::async_http::pause().await;
+        })
+    } else {
+        None
+    };
     // Reserve once, within the already-validated framing limit. This avoids
     // transient geometric growth while ordinary response bodies are validated.
-    let mut body = Vec::with_capacity(if bodyless {
-        0
-    } else {
-        length.unwrap_or(limit) as usize
-    });
+    let mut body = Vec::with_capacity(body_capacity as usize);
     let declared = if bodyless {
-        if wire.unused() {
-            return Err(invalid());
-        }
+        // This socket carries only this request and is never reused. HEAD
+        // discards any noncompliant prefetched bytes by dropping it; they
+        // cannot become a downstream body or the next response.
         length
     } else if chunked {
         loop {
-            let line = wire.line()?;
+            let line = wire.line().await?;
             if line.is_empty() || line.len() > 16 || !line.iter().all(u8::is_ascii_hexdigit) {
                 return Err(invalid());
             }
             let count = u64::from_str_radix(std::str::from_utf8(&line).map_err(|_| invalid())?, 16)
                 .map_err(|_| invalid())?;
             if count == 0 {
-                if !wire.line()?.is_empty() {
+                if !wire.line().await?.is_empty() {
                     return Err(invalid());
                 }
                 break;
@@ -493,9 +559,9 @@ fn receive(
             }
             let old = body.len();
             body.resize(old + count as usize, 0);
-            wire.exact(&mut body[old..])?;
+            wire.exact(&mut body[old..]).await?;
             let mut crlf = [0; 2];
-            wire.exact(&mut crlf)?;
+            wire.exact(&mut crlf).await?;
             if crlf != *b"\r\n" {
                 return Err(invalid());
             }
@@ -506,7 +572,7 @@ fn receive(
         Some(body.len() as u64)
     } else if let Some(n) = length {
         body.resize(n as usize, 0);
-        wire.exact(&mut body)?;
+        wire.exact(&mut body).await?;
         if wire.unused() {
             return Err(invalid());
         }
@@ -514,7 +580,7 @@ fn receive(
     } else {
         let mut buffer = [0u8; 16_384];
         loop {
-            let n = wire.read(&mut buffer)?;
+            let n = wire.read(&mut buffer).await?;
             if n == 0 {
                 break;
             }
@@ -531,6 +597,7 @@ fn receive(
     http::remaining(deadline)?;
     Ok(Response {
         status,
+        delivery_lease,
         live: None,
         length: declared,
         headers: outgoing,
@@ -550,7 +617,7 @@ pub(crate) struct UpstreamRoute {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_upstream(
+async fn select_upstream(
     default: SocketAddr,
     routes: &[UpstreamRoute],
     req: &Request<'_>,
@@ -613,10 +680,16 @@ fn select_upstream(
         let timeout = http::remaining(deadline)
             .map_err(failure)?
             .min(Duration::from_millis(limits.connect_ms));
-        let mut socket = TcpStream::connect_timeout(&candidate, timeout).map_err(failure)?;
+        let mut socket = crate::async_http::connect(candidate, timeout)
+            .await
+            .map_err(failure)?;
         let head_deadline = deadline.min(Instant::now() + Duration::from_millis(limits.head_ms));
-        http::write_all(&mut socket, probe.as_bytes(), head_deadline).map_err(failure)?;
-        let status = probe_status(&mut socket, head_deadline).map_err(failure)?;
+        crate::async_http::write_all(&mut socket, probe.as_bytes(), head_deadline)
+            .await
+            .map_err(failure)?;
+        let status = probe_status(&mut socket, head_deadline)
+            .await
+            .map_err(failure)?;
         if pathward::upstream::probe_owned(status) {
             return Ok(candidate);
         }
@@ -629,8 +702,8 @@ fn select_upstream(
     Err(Rejection(404))
 }
 
-fn probe_status(socket: &mut TcpStream, deadline: Instant) -> io::Result<u16> {
-    let raw = http::read_head(socket, deadline)?;
+async fn probe_status(socket: &mut TcpStream, deadline: Instant) -> io::Result<u16> {
+    let raw = crate::async_http::read_head(socket, deadline).await?;
     http::remaining(deadline)?;
     let end = raw
         .windows(4)
