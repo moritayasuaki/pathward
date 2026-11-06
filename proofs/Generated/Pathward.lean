@@ -1451,6 +1451,51 @@ def recovery.upgrade_action
     else ok recovery.UpgradeAction.Reject
   else ok recovery.UpgradeAction.Reject
 
+/-- [pathward::recovery::migration_allowed]:
+    Source: 'src/recovery.rs', lines 92:0-106:1
+    Visibility: public -/
+def recovery.migration_allowed
+  (separate_records : Bool) (same_units : Bool) (source_stable : Bool)
+  (target_ready : Bool) (same_selection : Bool) (fallback_valid : Bool) :
+  RustM Bool
+  := do
+  if separate_records
+  then
+    if same_units
+    then
+      if source_stable
+      then
+        if target_ready
+        then if same_selection
+             then ok fallback_valid
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::recovery::collection_allowed]:
+    Source: 'src/recovery.rs', lines 109:0-118:1
+    Visibility: public -/
+def recovery.collection_allowed
+  (completed : Bool) (later_boot : Bool) (quiet : Bool) (pinned : Bool)
+  (older : Bool) (managed : Bool) :
+  RustM Bool
+  := do
+  if completed
+  then
+    if later_boot
+    then
+      if quiet
+      then if pinned
+           then ok false
+           else if older
+                then ok managed
+                else ok false
+      else ok false
+    else ok false
+  else ok false
+
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/

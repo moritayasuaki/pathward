@@ -19,7 +19,8 @@
     "ConnectionProofs": "ACME接続試行の上限・共通期限と所有権の遷移モデル",
     "CutoverProofs": "管理者切替の判断・期限・永続世代とプロセス障害モデル",
     "RecoveryProofs": "再起動時の旧新選択・起動許可・書込み中断と永続化のモデル",
-    "GuardUpgradeProofs": "復旧ガード更新の世代照合・再試行判断と中断可能な更新の状態モデル"
+    "GuardUpgradeProofs": "復旧ガード更新の世代照合・再試行判断と中断可能な更新の状態モデル",
+    "PlanMigrationProofs": "別の復旧計画への同一サービス移行、再起動後の世代回収と保護参照"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -56,7 +57,18 @@
     "GuardUpgradeProofs.run_never_decreases_epoch",
     "GuardUpgradeProofs.retries_are_idempotent",
     "GuardUpgradeProofs.interrupted_activation_preserves_safe",
-    "GuardUpgradeProofs.upgrade_preserves_application"
+    "GuardUpgradeProofs.upgrade_preserves_application",
+    "PlanMigrationProofs.initial_safe",
+    "PlanMigrationProofs.step_preserves_safe",
+    "PlanMigrationProofs.interrupted_prefix_safe",
+    "PlanMigrationProofs.source_retained",
+    "PlanMigrationProofs.target_selection_agrees",
+    "PlanMigrationProofs.either_durable_pointer_safe",
+    "PlanMigrationProofs.remove_preserves_roots",
+    "PlanMigrationProofs.remove_retry_idempotent",
+    "PlanMigrationProofs.interrupted_collection_preserves_roots",
+    "PlanMigrationProofs.current_and_parent_survive",
+    "PlanMigrationProofs.reachable_is_marked"
   ],
   "axioms": {
     "Classical.choice": {
@@ -435,9 +447,39 @@
     {
       "id": "GUARD-PLAN-MIGRATION",
       "priority": "P1",
+      "status": "proved",
+      "title": "同じサービス役割を保つ復旧計画の変更",
+      "acceptance": "計画・判断カーネル・取引ID・独立したjournal/permitを変更する移行を実装。旧新計画の検証済み配信先が一致し、旧構成が有効な場合だけ世代参照を切り替える。実Rustの許可条件と、旧計画保持・配信先一致を保つ中断モデルを証明。Python/systemdとの全面対応はDEPLOY-CRASH。サービス名・役割・unit契約自体の変更は別移行。",
+      "theorems": [
+        "PlanMigrationProofs.migration_iff",
+        "PlanMigrationProofs.shared_records_denied",
+        "PlanMigrationProofs.disagreeing_selection_denied",
+        "PlanMigrationProofs.interrupted_prefix_safe",
+        "PlanMigrationProofs.source_retained",
+        "PlanMigrationProofs.target_selection_agrees"
+      ]
+    },
+    {
+      "id": "GUARD-COLLECTION",
+      "priority": "P1",
+      "status": "proved",
+      "title": "保護された世代・参照を残した再試行可能な回収",
+      "acceptance": "完了受領票と別boot、静止した検証済み現行構成を要求し、現行・直前・準備中・明示保持・それらの参照を残す。管理領域内の古い世代だけを専用trashへ退避して削除し、途中削除を同じ要求で再試行。Rustの拒否条件と保護集合・参照到達モデルを証明。実Pythonの参照走査、fsync、再起動観測は信頼境界。元の計画・鍵・公開データ・外部リリースは削除しない。",
+      "theorems": [
+        "PlanMigrationProofs.collection_iff",
+        "PlanMigrationProofs.same_boot_collection_denied",
+        "PlanMigrationProofs.pinned_collection_denied",
+        "PlanMigrationProofs.current_and_parent_survive",
+        "PlanMigrationProofs.reachable_is_marked",
+        "PlanMigrationProofs.remove_retry_idempotent"
+      ]
+    },
+    {
+      "id": "GUARD-ROLE-MIGRATION",
+      "priority": "P2",
       "status": "planned",
-      "title": "復旧ガードの契約・計画自体を変更する移行",
-      "acceptance": "今回のschema 1更新は同じ計画・カーネル・公開サービス・unit契約だけを許可する。別の計画や判断カーネルへの変更、複数契約の共存、旧世代の安全なGCは独立した移行として検証する。",
+      "title": "サービス役割・unit契約が異なる復旧構成への移行",
+      "acceptance": "今回の計画変更は同じサービス名とOLD/NEW役割、schema 1 unit契約を保持する。役割や契約を変える移行、管理外リリースや孤立した準備途中ファイルの削除は追加の検証・管理手順が必要。",
       "theorems": []
     }
   ]

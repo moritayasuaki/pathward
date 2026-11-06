@@ -239,13 +239,13 @@ def prepare(store, units, plan_path, plan_sha, legacy_helper, legacy_sha,
     return r.digest_file(request)
 
 
-def action(value, active, ready, is_stable):
+def action(value, active, ready, is_stable, compatibility=None):
     base, target = value['base'], value['target']
     at_base = (active == base) or (active is None and base['epoch'] == 0)
     at_target = active == target
     result = r.command([value['kernel'], 'upgrade', str(base['epoch']), str(target['epoch']),
                         str(int(at_base)), str(int(at_target)), str(int(ready)),
-                        str(int(compatible(base,target))), str(int(is_stable))]).stdout
+                        str(int(compatible(base,target) if compatibility is None else compatibility)), str(int(is_stable))]).stdout
     r.require(result in ['INSTALL\n','FINISH\n','REJECT\n'], 'Invalid upgrade policy reply')
     r.require(result != 'REJECT\n', 'Stale, incompatible or unstable guard upgrade')
     return result.strip()
@@ -294,8 +294,18 @@ def apply(request, expected, checkpoint=lambda _: None):
                                 (target['old_unit'],'ExecStartPre'),(target['new_unit'],'ExecStartPre')]:
         loaded = r.command(['systemctl','show',unit,'--property='+property_name,'--value']).stdout
         r.require(target['helper'] in loaded and target['plan_sha256'] in loaded, 'Loaded guard differs; retry apply')
+    return completed(store, base, target, checkpoint)
+
+
+def completed(store, base, target, checkpoint=lambda _: None):
     receipt = {'base': identity(base), 'target': identity(target), 'epoch': target['epoch'],
                'plan_sha256': target['plan_sha256']}
+    prior = r.read_record(store/'last-applied.json') or {}
+    boot = prior.get('boot_id')
+    if not (all(prior.get(k) == v for k,v in receipt.items()) and
+            type(boot) is str and re.fullmatch('[0-9a-f-]{36}', boot)):
+        boot = r.BOOT_ID.read_text().strip()
+    receipt['boot_id'] = boot
     r.write_record(store/'last-applied.json', receipt, lambda p: checkpoint('receipt:'+p))
     return receipt
 

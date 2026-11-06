@@ -87,3 +87,32 @@ pub fn upgrade_action(
         UpgradeAction::Reject
     }
 }
+
+/// Two independently recoverable plans must agree on the running service.
+pub fn migration_allowed(
+    separate_records: bool,
+    same_units: bool,
+    source_stable: bool,
+    target_ready: bool,
+    same_selection: bool,
+    fallback_valid: bool,
+) -> bool {
+    separate_records
+        && same_units
+        && source_stable
+        && target_ready
+        && same_selection
+        && fallback_valid
+}
+
+/// Only unpinned, strictly older, managed objects can be retired after a reboot.
+pub fn collection_allowed(
+    completed: bool,
+    later_boot: bool,
+    quiet: bool,
+    pinned: bool,
+    older: bool,
+    managed: bool,
+) -> bool {
+    completed && later_boot && quiet && !pinned && older && managed
+}
