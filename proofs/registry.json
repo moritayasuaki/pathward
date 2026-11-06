@@ -9,7 +9,7 @@
     "propext": 513
   },
   "source_sha256": {
-    "proofs/BootstrapProofs.lean": "ee3f0938267272bf046878bb79e47b1e1a973e1e0ad61f358c17dc89da22ef9a",
+    "proofs/BootstrapProofs.lean": "734b5f49564ceb6a6c73427dcb5b91424005bd976351269fd8ea0e853928c807",
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
     "proofs/ConnectionProofs.lean": "733b4ef54040445d2748b6e1cecc08c2c8066bc2eee6ac7358f27315d7dc9973",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
@@ -343,7 +343,7 @@
     {
       "name": "BootstrapProofs.bridge_step_preserves_exclusion",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 115,
+      "line": 117,
       "statement": "theorem bridge_step_preserves_exclusion (a b : BridgeState) (h : BridgeStep a b)\n    (safe : BridgeSafe a) : BridgeSafe b",
       "axioms": [
         "propext"
@@ -353,7 +353,7 @@
     {
       "name": "BootstrapProofs.bridge_step_epoch_nondecreasing",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 118,
+      "line": 120,
       "statement": "theorem bridge_step_epoch_nondecreasing (a b : BridgeState) (h : BridgeStep a b) :\n    a.epoch ≤ b.epoch",
       "axioms": [],
       "scope": "transition_model"
@@ -361,7 +361,7 @@
     {
       "name": "BootstrapProofs.every_bridge_interleaving_excludes_writers",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 128,
+      "line": 131,
       "statement": "theorem every_bridge_interleaving_excludes_writers (a b : BridgeState)\n    (h : BridgeRun a b) (safe : BridgeSafe a) : BridgeSafe b",
       "axioms": [
         "propext"
@@ -371,7 +371,7 @@
     {
       "name": "BootstrapProofs.bridge_run_epoch_nondecreasing",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 133,
+      "line": 136,
       "statement": "theorem bridge_run_epoch_nondecreasing (a b : BridgeState) (h : BridgeRun a b) :\n    a.epoch ≤ b.epoch",
       "axioms": [],
       "scope": "transition_model"
@@ -379,7 +379,7 @@
     {
       "name": "BootstrapProofs.switch_rejects_staged_publication",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 140,
+      "line": 143,
       "statement": "theorem switch_rejects_staged_publication (s : BridgeState) :\n    ¬ EpochMatches {s with switching",
       "axioms": [],
       "scope": "transition_model"
@@ -387,7 +387,7 @@
     {
       "name": "BootstrapProofs.rollback_to_same_mode_cannot_revive_stale_upload",
       "source": "proofs/BootstrapProofs.lean",
-      "line": 144,
+      "line": 147,
       "statement": "theorem rollback_to_same_mode_cannot_revive_stale_upload (before after : BridgeState)\n    (h : before.epoch < after.epoch) : ¬ EpochMatches after before.epoch",
       "axioms": [],
       "scope": "transition_model"

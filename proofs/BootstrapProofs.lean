@@ -109,6 +109,8 @@ def BridgeSafe (s : BridgeState) : Prop := s.switching = true → s.readers = 0
 inductive BridgeStep : BridgeState → BridgeState → Prop
   | acquire (s) (h : s.switching = false) : BridgeStep s {s with readers := s.readers + 1}
   | release (s) (h : s.readers > 0) : BridgeStep s {s with readers := s.readers - 1}
+  | exclusive (s) (h : s.readers = 0) (q : s.switching = false) :
+      BridgeStep s {s with switching := true}
   | switch (s) (h : s.readers = 0) (q : s.switching = false) :
       BridgeStep s {s with switching := true, epoch := s.epoch + 1}
   | finish (s) : BridgeStep s {s with switching := false}
@@ -120,6 +122,7 @@ theorem bridge_step_epoch_nondecreasing (a b : BridgeState) (h : BridgeStep a b)
   cases h with
   | acquire => exact Nat.le_refl _
   | release => exact Nat.le_refl _
+  | exclusive => exact Nat.le_refl _
   | switch => exact Nat.le_succ _
   | finish => exact Nat.le_refl _
 inductive BridgeRun : BridgeState → BridgeState → Prop

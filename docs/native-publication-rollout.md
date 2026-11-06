@@ -110,6 +110,10 @@ public response before accepting the publication. Failure uses the existing
 conditional rollback. An unprivileged `describe` or `apply` cannot use a manual
 profile. `mode` may inspect it without granting publication access. These
 operations do not execute a helper from the uploaded release.
+The cooperative Lean model includes this exclusive action without a bridge
+epoch change; exclusion and epoch monotonicity hold for every modeled
+interleaving including manual publication. Content changes remain subject to
+the existing manifest/current-release comparison and conditional rollback.
 
 Backend profiles can bind the service's environment using
 `environment_sha256` instead of storing its text in public profile metadata.
