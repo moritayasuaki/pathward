@@ -1407,6 +1407,50 @@ def recovery.fallback_allowed
     else ok false
   else ok false
 
+/-- [pathward::recovery::UpgradeAction]
+    Source: 'src/recovery.rs', lines 58:0-62:1
+    Visibility: public -/
+@[discriminant isize]
+inductive recovery.UpgradeAction where
+| Reject : recovery.UpgradeAction
+| Install : recovery.UpgradeAction
+| Finish : recovery.UpgradeAction
+
+/-- [pathward::recovery::upgrade_action]:
+    Source: 'src/recovery.rs', lines 65:0-89:1
+    Visibility: public -/
+def recovery.upgrade_action
+  (base_epoch : Std.U64) (target_epoch : Std.U64) (current_is_base : Bool)
+  (current_is_target : Bool) (ready : Bool) (compatible : Bool) (stable : Bool)
+  :
+  RustM recovery.UpgradeAction
+  := do
+  if ready
+  then
+    if compatible
+    then
+      if stable
+      then
+        if base_epoch = core.num.U64.MAX
+        then ok recovery.UpgradeAction.Reject
+        else
+          let i ← base_epoch + 1#u64
+          if target_epoch != i
+          then ok recovery.UpgradeAction.Reject
+          else
+            if current_is_base
+            then
+              if current_is_target
+              then ok recovery.UpgradeAction.Reject
+              else ok recovery.UpgradeAction.Install
+            else
+              if current_is_target
+              then ok recovery.UpgradeAction.Finish
+              else ok recovery.UpgradeAction.Reject
+      else ok recovery.UpgradeAction.Reject
+    else ok recovery.UpgradeAction.Reject
+  else ok recovery.UpgradeAction.Reject
+
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/

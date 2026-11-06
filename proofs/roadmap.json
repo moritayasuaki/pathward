@@ -18,7 +18,8 @@
     "CancellationProofs": "キャンセル優先の判断と接続内の保留・実行状態モデル",
     "ConnectionProofs": "ACME接続試行の上限・共通期限と所有権の遷移モデル",
     "CutoverProofs": "管理者切替の判断・期限・永続世代とプロセス障害モデル",
-    "RecoveryProofs": "再起動時の旧新選択・起動許可・書込み中断と永続化のモデル"
+    "RecoveryProofs": "再起動時の旧新選択・起動許可・書込み中断と永続化のモデル",
+    "GuardUpgradeProofs": "復旧ガード更新の世代照合・再試行判断と中断可能な更新の状態モデル"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -47,7 +48,15 @@
     "RecoveryProofs.no_committed_name_no_promotion",
     "RecoveryProofs.renamed_commit_recovers_only_verified_target",
     "RecoveryProofs.directory_sync_agrees_on_committed_record",
-    "RecoveryProofs.torn_record_falls_back_after_any_write"
+    "RecoveryProofs.torn_record_falls_back_after_any_write",
+    "GuardUpgradeProofs.initial_safe",
+    "GuardUpgradeProofs.step_preserves_safe",
+    "GuardUpgradeProofs.every_interrupted_prefix_safe",
+    "GuardUpgradeProofs.step_never_decreases_epoch",
+    "GuardUpgradeProofs.run_never_decreases_epoch",
+    "GuardUpgradeProofs.retries_are_idempotent",
+    "GuardUpgradeProofs.interrupted_activation_preserves_safe",
+    "GuardUpgradeProofs.upgrade_preserves_application"
   ],
   "axioms": {
     "Classical.choice": {
@@ -73,7 +82,8 @@
     "ホスティング側のPythonスナップショット生成・受領票・systemd連携。Leanで証明済みのRust設定検証とCASを通すが、Python/OS実装全体は未証明。",
     "ACMEアダプターが同じInstantと予算を保持し、試行数を正しく渡すこと。DNS候補の由来・選択とFuture/ソケットのDrop実行は回帰試験・レビュー対象。",
     "管理者アダプターのcutover-policy呼出し、boot ID・単調時計・systemd状態の観測、ロックとatomic/fsync記録。Rust CLIは判断だけを返し権限や外部検証を付与しない。",
-    "復旧計画と既存旧設定が別々に永続化済みであること、JSONチェックサム・権限検査の正しさ、fsync/renameとsystemd依存・競合制御。媒体全損、root攻撃者、悪意あるマウントは対象外。"
+    "復旧計画と既存旧設定が別々に永続化済みであること、JSONチェックサム・権限検査の正しさ、fsync/renameとsystemd依存・競合制御。媒体全損、root攻撃者、悪意あるマウントは対象外。",
+    "復旧ガードの互換Pythonコードのレビュー、世代一式のfsyncと原子的symlink置換、root管理下で共有される管理ロック。Rustゲートは観測値の真正性を証明しない。"
   ],
   "goals": [
     {
@@ -410,9 +420,24 @@
     {
       "id": "RECOVERY-UPGRADE",
       "priority": "P1",
+      "status": "proved",
+      "title": "同一計画の復旧ガードを世代管理して安全に更新・再試行する",
+      "acceptance": "同じ計画・公開サービスを保つ互換ガードの更新を実装。旧一式を保持し、世代番号と内容IDを照合して参照先を原子的に切り替える。Rust判断では未検証・切替途中・古い要求・世代の飛越し／上限を拒否し、適用済みなら完了処理のみ許可。永続一式と原子的参照を前提に中断可能な遷移モデルの世代単調性と公開状態の保存を証明。Python/systemd/OS全体との対応はDEPLOY-CRASHに残す。",
+      "theorems": [
+        "GuardUpgradeProofs.install_iff",
+        "GuardUpgradeProofs.stale_request_rejects",
+        "GuardUpgradeProofs.installed_retry_only_finishes",
+        "GuardUpgradeProofs.every_interrupted_prefix_safe",
+        "GuardUpgradeProofs.run_never_decreases_epoch",
+        "GuardUpgradeProofs.upgrade_preserves_application"
+      ]
+    },
+    {
+      "id": "GUARD-PLAN-MIGRATION",
+      "priority": "P1",
       "status": "planned",
-      "title": "既存復旧ガード自身の更新と再試行の可用性",
-      "acceptance": "初回導入とは別に、既存の計画・unit・実行ファイルを更新中に中断しても旧復旧ガードか新復旧ガードが起動できる配布プロトコルを検証する。現在は異なる既存ガードの上書きを拒否し、専用移行を要求する。",
+      "title": "復旧ガードの契約・計画自体を変更する移行",
+      "acceptance": "今回のschema 1更新は同じ計画・カーネル・公開サービス・unit契約だけを許可する。別の計画や判断カーネルへの変更、複数契約の共存、旧世代の安全なGCは独立した移行として検証する。",
       "theorems": []
     }
   ]

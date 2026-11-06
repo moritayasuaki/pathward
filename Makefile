@@ -26,6 +26,7 @@ check: rust-check config-check server-check proof-check soak-check recovery-chec
 recovery-check:
 	cargo build --offline --locked --release --bin pathward-recovery
 	python3 -m unittest discover -s scripts -p 'test_recovery.py'
+	python3 -m unittest discover -s scripts -p 'test_guard_upgrade.py'
 
 .PHONY: config-setup config-check
 

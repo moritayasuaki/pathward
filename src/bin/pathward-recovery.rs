@@ -17,9 +17,43 @@ fn selection(s: &str) -> Result<Selection, ()> {
         _ => Err(()),
     }
 }
+fn epoch(s: &str) -> Result<u64, ()> {
+    if s.is_empty()
+        || s.len() > 20
+        || !s.bytes().all(|b| b.is_ascii_digit())
+        || (s.len() > 1 && s.starts_with('0'))
+    {
+        return Err(());
+    }
+    s.parse().map_err(|_| ())
+}
 fn evaluate(words: &[String]) -> Result<String, ()> {
     let text: Vec<_> = words.iter().map(String::as_str).collect();
     let allowed = match text.as_slice() {
+        [
+            "upgrade",
+            base,
+            next,
+            at_base,
+            at_target,
+            ready,
+            compatible,
+            stable,
+        ] => {
+            return Ok(format!(
+                "{:?}",
+                recovery::upgrade_action(
+                    epoch(base)?,
+                    epoch(next)?,
+                    boolean(at_base)?,
+                    boolean(at_target)?,
+                    boolean(ready)?,
+                    boolean(compatible)?,
+                    boolean(stable)?
+                )
+            )
+            .to_ascii_uppercase());
+        }
         ["fallback", selected, boot, plan, failed, old] => recovery::fallback_allowed(
             boolean(selected)?,
             boolean(boot)?,

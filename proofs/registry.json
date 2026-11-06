@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 463,
-  "axiom_free_count": 30,
+  "theorem_count": 483,
+  "axiom_free_count": 32,
   "axiom_counts": {
-    "Classical.choice": 393,
-    "Quot.sound": 393,
-    "propext": 433
+    "Classical.choice": 411,
+    "Quot.sound": 411,
+    "propext": 451
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
@@ -14,7 +14,8 @@
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "85b5b2b299b0ab79e40fd15976bf43e1c4de8024469ec40ede937b8cc4e10cf5",
+    "proofs/Generated/Pathward.lean": "7ed617be24d77565ae85ba8444eb3b71e9accac0ab62b1aed45e93cacb39e53a",
+    "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/RecoveryProofs.lean": "cfd7a898f0bfc7315ca17620f002b0b2ef98d04eab4e61df32bdcf89d0e4f8d6",
@@ -28,14 +29,14 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "da30a0f6b344d30621b5723022ce99ac8a63f215df01d8a381b6f8f562327963",
+    "scripts/extract.py": "cce56df57e72e615c42312c5a627183090a345e7fa152c4e99c300d3122ce713",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
     "src/lib.rs": "52c0de5926e2f2a8ea226025d4e33938a94913dda9bd3ae968ca9450b13d8a8c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
-    "src/recovery.rs": "6713d8a6785253d896d1cd77a52ef126d482e28f85aa0e8b804957ecd41832dc",
+    "src/recovery.rs": "937e14c8151afd801fd0660be9c3fd1d1075fad9029c0f5d316d9d1eec2258eb",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
     "src/routing.rs": "3b8389ea373035950377b1f52624c1a7db144725b0033860bf67e0f4a7aac460",
@@ -1442,6 +1443,238 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.action_eq",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 12,
+      "statement": "theorem action_eq (base target : U64) (a b ready compatible stable : Bool) :\n    upgrade_action base target a b ready compatible stable = ok (decision base target a b ready compatible stable)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.install_iff",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 34,
+      "statement": "theorem install_iff (base target : U64) (a b r c s : Bool) :\n    upgrade_action base target a b r c s = ok .Install ↔\n      r = true ∧ c = true ∧ s = true ∧ base.val < 18446744073709551615 ∧\n      target.val = base.val + 1 ∧ a = true ∧ b = false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.finish_iff",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 41,
+      "statement": "theorem finish_iff (base target : U64) (a b r c s : Bool) :\n    upgrade_action base target a b r c s = ok .Finish ↔\n      r = true ∧ c = true ∧ s = true ∧ base.val < 18446744073709551615 ∧\n      target.val = base.val + 1 ∧ a = false ∧ b = true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.unready_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 48,
+      "statement": "theorem unready_rejects (base target : U64) (a b c s : Bool) :\n    upgrade_action base target a b false c s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.incompatible_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 51,
+      "statement": "theorem incompatible_rejects (base target : U64) (a b r s : Bool) :\n    upgrade_action base target a b r false s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.pending_cutover_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 54,
+      "statement": "theorem pending_cutover_rejects (base target : U64) (a b r c : Bool) :\n    upgrade_action base target a b r c false = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.stale_request_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 57,
+      "statement": "theorem stale_request_rejects (base target : U64) (r c s : Bool) :\n    upgrade_action base target false false r c s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.ambiguous_identity_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 61,
+      "statement": "theorem ambiguous_identity_rejects (base target : U64) (r c s : Bool) :\n    upgrade_action base target true true r c s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.exhausted_epoch_rejects",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 65,
+      "statement": "theorem exhausted_epoch_rejects (target : U64) (a b r c s : Bool) :\n    upgrade_action 18446744073709551615#u64 target a b r c s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.cannot_skip_or_rewind",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 69,
+      "statement": "theorem cannot_skip_or_rewind (base target : U64) (a b r c s : Bool)\n    (wrong : target.val ≠ base.val + 1) :\n    upgrade_action base target a b r c s = ok .Reject",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.installed_retry_only_finishes",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 74,
+      "statement": "theorem installed_retry_only_finishes (base target : U64)\n    (space : base.val < 18446744073709551615) (next : target.val = base.val + 1) :\n    upgrade_action base target false true true true true = ok .Finish",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.install_strictly_increases_epoch",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 79,
+      "statement": "theorem install_strictly_increases_epoch (base target : U64) (a b r c s : Bool)\n    (h : upgrade_action base target a b r c s = ok .Install) : base.val < target.val",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "GuardUpgradeProofs.initial_safe",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 113,
+      "statement": "theorem initial_safe (base app : Nat) : safe base app ⟨base, false, false, false, app⟩",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.step_preserves_safe",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 116,
+      "statement": "theorem step_preserves_safe (base app : Nat) (a b : State)\n    (h : safe base app a) (step : Step base a b) : safe base app b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.every_interrupted_prefix_safe",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 120,
+      "statement": "theorem every_interrupted_prefix_safe (base app : Nat) (a b : State)\n    (h : safe base app a) (run : Run base a b) : safe base app b",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.step_never_decreases_epoch",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 126,
+      "statement": "theorem step_never_decreases_epoch (base : Nat) (a b : State) (h : Step base a b) : a.current ≤ b.current",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.run_never_decreases_epoch",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 129,
+      "statement": "theorem run_never_decreases_epoch (base : Nat) (a b : State) (h : Run base a b) : a.current ≤ b.current",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.retries_are_idempotent",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 134,
+      "statement": "theorem retries_are_idempotent (s : State) : complete (complete s) = complete s",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.interrupted_activation_preserves_safe",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 141,
+      "statement": "theorem interrupted_activation_preserves_safe (base app : Nat) (targetSurvived : Bool) :\n    safe base app (recoveredActivation base app targetSurvived)",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "GuardUpgradeProofs.upgrade_preserves_application",
+      "source": "proofs/GuardUpgradeProofs.lean",
+      "line": 147,
+      "statement": "theorem upgrade_preserves_application (base app : Nat) (a b : State)\n    (h : safe base app a) (run : Run base a b) : b.application = app",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
     },
     {
       "name": "PathwardProofs.name_byte_eq",

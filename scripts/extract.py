@@ -127,6 +127,7 @@ def main():
                         "--start-from", "pathward::cutover::disarm_allowed",
                         "--start-from", "pathward::cutover::watchdog_required",
                         "--start-from", "pathward::recovery::select",
+                        "--start-from", "pathward::recovery::upgrade_action",
                         "--start-from", "pathward::recovery::start_allowed",
                         "--start-from", "pathward::recovery::stop_old_allowed",
                         "--start-from", "pathward::recovery::trial_allowed",

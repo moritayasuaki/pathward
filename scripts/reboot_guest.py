@@ -33,7 +33,7 @@ def file(path, data, mode=0o644):
     r.replace_bytes(path,data.encode() if isinstance(data,str) else data,mode)
 
 
-def initialize():
+def initialize(start_case=True):
     # There is deliberately no NIC. Do not spend each cold boot waiting for
     # a network device that this fixture cannot have; recovery uses loopback.
     command('systemctl','mask','systemd-networkd-wait-online.service')
@@ -92,7 +92,7 @@ WantedBy=multi-user.target
     # Deliberately enable both: enablement must not override the decision.
     command('systemctl','enable','test-old.service','test-new.service','pathward-recovery.service','test-case.service')
     command('systemd-run','--unit=lost-transient-guard','--on-active=3600s','/bin/true')
-    command('systemctl','start','--no-block','test-case.service')
+    if start_case: command('systemctl','start','--no-block','test-case.service')
 
 
 def selected_body(expected):
