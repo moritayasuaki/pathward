@@ -137,6 +137,10 @@ fn run() -> Result<()> {
     }
     let stamp = codec::parse(get("--stamp")?.as_bytes())?;
     require(
+        stamp["routing"] == "pathward",
+        "native acknowledgement requires PathWard",
+    )?;
+    require(
         stamp["profile"] == profile
             && stamp["routing"] == current["routing"]
             && stamp["policy_sha256"] == current["policy_sha256"]

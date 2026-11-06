@@ -637,13 +637,19 @@ pub fn public_manifest(path: &Path) -> Result<Value> {
         .read_to_string(&mut text)?;
     require(text.len() <= codec::LIMIT, "manifest grew")?;
     let mut out = json!({});
+    let mut seen = BTreeSet::new();
     for line in text.lines() {
         let (h, n) = line.split_once("  public/").ok_or("manifest line")?;
         require(
-            codec::digest(h) && io::relative(n) && out.get(n).is_none(),
+            codec::digest(h)
+                && (io::relative(n) || n == ".nojekyll")
+                && seen.insert(n)
+                && seen.len() <= io::MAX_FILES,
             "duplicate or escaping manifest",
         )?;
-        out[n] = h.into();
+        if n != ".nojekyll" {
+            out[n] = h.into();
+        }
     }
     require(
         !out.as_object().ok_or("manifest")?.is_empty()
@@ -836,6 +842,10 @@ pub fn publish<S: System>(
     f::sync_dir(&base.join("releases"))?;
     let files = selected_files(p, profile, manifest)?;
     let stamp = begin(p, receipt, owner, profile, sys, &clock()?)?;
+    require(
+        stamp["routing"] == "pathward",
+        "native publish requires active PathWard acknowledgement",
+    )?;
     require(
         io::reference(&base_fd)? == expected,
         "source changed before switch",

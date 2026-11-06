@@ -322,3 +322,57 @@ fn publisher_lock_and_unsafe_metadata_are_refused() -> Result<()> {
     assert!(confined::metadata(&p, 0).is_err());
     Ok(())
 }
+
+#[test]
+fn publication_kill_child() -> Result<()> {
+    let Ok(base) = std::env::var("PATHWARD_PUBLICATION_KILL_ROOT") else {
+        return Ok(());
+    };
+    let root = PathBuf::from(base);
+    let policy = codec::parse(&fs::read(root.join("policy.json"))?)?;
+    let fixture = Fixture { root, policy };
+    let mut bridge = fixture.bridge();
+    let point: usize = std::env::var("PATHWARD_PUBLICATION_KILL_POINT")?.parse()?;
+    let mut n = 0;
+    bridge.reconcile(&fixture.policy, &Fixture::now(), &mut |_| {
+        let kill = n == point;
+        n += 1;
+        if kill {
+            rustix::process::kill_process(
+                rustix::process::getpid(),
+                rustix::process::Signal::KILL,
+            )?;
+        }
+        Ok(())
+    })?;
+    Err("kill boundary not reached".into())
+}
+#[test]
+fn real_process_death_at_every_publication_write_boundary_retries() -> Result<()> {
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::{Command, Stdio};
+    let x = Fixture::new()?;
+    let mut count = 0;
+    x.bridge().reconcile(&x.policy, &Fixture::now(), &mut |_| {
+        count += 1;
+        Ok(())
+    })?;
+    for point in 0..count {
+        let x = Fixture::new()?;
+        fs::write(x.root.join("policy.json"), p::encoded(&x.policy))?;
+        let status = Command::new(std::env::current_exe()?)
+            .args(["--exact", "publication_kill_child"])
+            .env("PATHWARD_PUBLICATION_KILL_ROOT", &x.root)
+            .env("PATHWARD_PUBLICATION_KILL_POINT", point.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        assert_eq!(status.signal(), Some(9), "point {point}");
+        let mut b = x.bridge();
+        let r = b.reconcile(&x.policy, &Fixture::now(), &mut |_| Ok(()))?;
+        assert_eq!(codec::parse(&fs::read(&b.receipt)?)?, r);
+    }
+    println!("real publication SIGKILL boundaries: {count}");
+    Ok(())
+}

@@ -254,6 +254,19 @@ fn setup_publication() -> Result<()> {
         "linked ready release accepted",
     )?;
     ready("TWO")?;
+    // A bind mount on the same filesystem is not caught by st_dev comparison.
+    let mounted = b("source/releases/three/public/mounted");
+    f::directory(&mounted)?;
+    command(&[
+        "/usr/bin/mount",
+        "--bind",
+        b("source/releases/one/public").to_str().unwrap(),
+        mounted.to_str().unwrap(),
+    ])?;
+    let root = pathward_admin::confined::absolute(&b("source/releases/three/public"))?;
+    let denied = pathward_admin::confined::child(&root, "mounted").is_err();
+    command(&["/usr/bin/umount", mounted.to_str().unwrap()])?;
+    require(denied, "same-device bind mount accepted")?;
     Ok(())
 }
 fn add_legacy_retired() -> Result<String> {

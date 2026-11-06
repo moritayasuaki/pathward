@@ -33,7 +33,9 @@ pub fn absolute(path: &Path) -> Result<File> {
     )?;
     let mut fd = File::from(rustix::fs::open("/", DIR, Mode::empty())?);
     for name in s[1..].split('/') {
-        fd = child(&fd, name)?;
+        // The reviewed source base may be on a separate mounted filesystem.
+        // Once pinned, every descendant lookup below it forbids mount crossings.
+        fd = File::from(rustix::fs::openat(&fd, name, DIR, Mode::empty())?);
     }
     Ok(fd)
 }
@@ -42,12 +44,23 @@ pub fn child(parent: &File, name: &str) -> Result<File> {
         relative(name) && !name.contains('/'),
         "invalid directory component",
     )?;
-    Ok(File::from(rustix::fs::openat(
+    below(parent, name, DIR)
+}
+fn below(parent: &File, name: &str, flags: OFlags) -> Result<File> {
+    #[cfg(target_os = "linux")]
+    let fd = rustix::fs::openat2(
         parent,
         name,
-        DIR,
+        flags,
         Mode::empty(),
-    )?))
+        rustix::fs::ResolveFlags::BENEATH
+            | rustix::fs::ResolveFlags::NO_SYMLINKS
+            | rustix::fs::ResolveFlags::NO_MAGICLINKS
+            | rustix::fs::ResolveFlags::NO_XDEV,
+    )?;
+    #[cfg(not(target_os = "linux"))]
+    let fd = rustix::fs::openat(parent, name, flags, Mode::empty())?;
+    Ok(File::from(fd))
 }
 pub fn descend(parent: &File, name: &str) -> Result<File> {
     require(relative(name), "invalid relative directory")?;
@@ -63,12 +76,11 @@ pub fn leaf(parent: &File, name: &str) -> Result<File> {
         Some((d, n)) => (descend(parent, d)?, n),
         None => (parent.try_clone()?, name),
     };
-    let f = File::from(rustix::fs::openat(
+    let f = below(
         &dir,
         name,
         OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-        Mode::empty(),
-    )?);
+    )?;
     let m = f.metadata()?;
     require(
         m.is_file() && m.nlink() == 1 && m.len() <= MAX_FILE,

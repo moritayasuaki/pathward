@@ -69,6 +69,10 @@ All writers of `current` must use this same command/lock. `begin` and `ack` also
 exist for reviewed integrations that retain their own transaction protocol;
 `ack --stamp` consumes the JSON returned by `begin`. Publishers must read the
 service UID from administrator-controlled configuration, not a public receipt.
+`publish`/`ack` require an active PathWard receipt. `begin` may identify Caddy
+routing for an outer integration, but Caddy-only publication still needs its
+existing public HTTP verification; this command never reports it as a PathWard
+acknowledgement. `.nojekyll` manifest metadata is ignored and never published.
 
 Do not run the Python and Rust bridges together. Receipt schema 2 intentionally
 rejects the old Python reader/receipt combination. A service-contract migration

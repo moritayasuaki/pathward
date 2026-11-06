@@ -17,10 +17,14 @@ theorem receipt_iff (p b r s f : Bool) (a o n : U64) :
   split_ifs <;> simp_all
 theorem old_receipt_denied (p b r s f : Bool) (a o n : U64) (old : o.val ≤ a.val) :
     publication.receipt_allowed p b r s f a o n ≠ ok true := by
-  intro h; have := (receipt_iff ..).mp h; omega
+  intro h
+  rcases (receipt_iff ..).mp h with ⟨_, _, _, _, _, ha, _⟩
+  exact (Nat.not_lt.mpr old) ha
 theorem future_receipt_denied (p b r s f : Bool) (a o n : U64) (future : n.val < o.val) :
     publication.receipt_allowed p b r s f a o n ≠ ok true := by
-  intro h; have := (receipt_iff ..).mp h; omega
+  intro h
+  rcases (receipt_iff ..).mp h with ⟨_, _, _, _, _, _, hn⟩
+  exact (Nat.not_lt.mpr hn) future
 theorem previous_boot_denied (p r s f : Bool) (a o n : U64) :
     publication.receipt_allowed p false r s f a o n ≠ ok true := by simp [receipt_iff]
 theorem changed_policy_denied (b r s f : Bool) (a o n : U64) :
@@ -33,7 +37,8 @@ theorem changed_file_set_denied (p b r s : Bool) (a o n : U64) :
     publication.receipt_allowed p b r s false a o n ≠ ok true := by simp [receipt_iff]
 theorem receipt_time_order (p b r s f : Bool) (a o n : U64)
     (h : publication.receipt_allowed p b r s f a o n = ok true) : a.val < n.val := by
-  have := (receipt_iff ..).mp h; omega
+  rcases (receipt_iff ..).mp h with ⟨_, _, _, _, _, ha, hn⟩
+  exact Nat.lt_of_lt_of_le ha hn
 
 theorem collection_iff (s b o p e : Bool) :
     publication.collection_allowed s b o p e = ok true ↔
