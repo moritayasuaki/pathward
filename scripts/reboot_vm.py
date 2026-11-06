@@ -25,6 +25,10 @@ def main():
     mode=parser.add_mutually_exclusive_group()
     mode.add_argument('--guard-upgrade',action='store_true')
     mode.add_argument('--plan-migration',action='store_true')
+    mode.add_argument('--role-contract',action='store_true')
+    parser.add_argument('--admin-binary',type=Path)
+    parser.add_argument('--role-guest',type=Path)
+    parser.add_argument('--role-fixture',type=Path)
     parser.add_argument('--initial-kernel-binary',type=Path)
     args=parser.parse_args()
     assert hashlib.sha256(args.base_image.read_bytes()).hexdigest()==BASE_SHA
@@ -42,13 +46,18 @@ def main():
     if args.initial_kernel_binary:
         assert args.plan_migration and args.initial_kernel_binary.read_bytes()[:4]==b'\x7fELF'
         files['initial-recovery']=args.initial_kernel_binary
+    if args.role_contract:
+        for name,path in [('pathward-admin',args.admin_binary),('role_vm_guest',args.role_guest),('role_fixture',args.role_fixture)]:
+            assert path is not None and path.read_bytes()[:4]==b'\x7fELF','Reviewed Linux native test binaries required'
+            files[name]=path
     entries=[]
     for name,path in files.items():
-        entries.append({'path':'/opt/pathward-reboot-test/'+name,'permissions':'0755' if name in ['pathward-recovery','initial-recovery'] else '0600',
+        entries.append({'path':'/opt/pathward-reboot-test/'+name,'permissions':'0755' if name in ['pathward-recovery','initial-recovery','pathward-admin','role_vm_guest','role_fixture'] else '0600',
                         'encoding':'b64','content':base64.b64encode(path.read_bytes()).decode()})
     user={'package_update':False,'package_upgrade':False,'ssh_deletekeys':False,
           'write_files':entries,'runcmd':[['/usr/bin/python3','/opt/pathward-reboot-test/'+
                        ('plan_migration_guest.py' if args.plan_migration else 'guard_upgrade_guest.py' if args.guard_upgrade else 'reboot_guest.py'),'--initialize']]}
+    if args.role_contract:user['runcmd']=[['/opt/pathward-reboot-test/role_vm_guest','--initialize']]
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(user))
     (seed/'meta-data').write_text('instance-id: pathward-recovery-isolated\nlocal-hostname: recovery-test\n')
     (seed/'network-config').write_text('version: 2\nethernets: {}\n')
@@ -61,7 +70,7 @@ def main():
     disk=args.output/'disk.qcow2'
     subprocess.run(['qemu-img','create','-f','qcow2','-F','qcow2','-b',str(args.base_image.resolve()),str(disk),'4G'],check=True)
     results=[]
-    for attempt in range(12 if args.plan_migration else 8):
+    for attempt in range(14 if args.role_contract else 12 if args.plan_migration else 8):
         log=args.output/f'boot-{attempt}.log'
         command=['qemu-system-x86_64','-accel','tcg,thread=multi','-m','1024','-smp','2',
                  '-display','none','-monitor','none','-serial','file:'+str(log),'-nic','none','-no-reboot',
@@ -70,7 +79,9 @@ def main():
         with (args.output/f'qemu-{attempt}.log').open('w') as stderr:
             process=subprocess.Popen(command,stdout=subprocess.DEVNULL,stderr=stderr)
             try:
-                deadline=time.monotonic()+420
+                # Initial native fixture provisioning under CPU emulation can
+                # exceed a normal boot. Service/health deadlines remain intact.
+                deadline=time.monotonic()+(900 if args.role_contract and attempt==0 else 420)
                 while time.monotonic()<deadline:
                     text=log.read_text(errors='replace') if log.exists() else ''
                     if 'PW_VM_FAILURE ' in text:raise RuntimeError(f'Guest assertion failed: {log}')

@@ -1,20 +1,21 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 508,
-  "axiom_free_count": 46,
+  "theorem_count": 543,
+  "axiom_free_count": 71,
   "axiom_counts": {
     "Classical.choice": 411,
     "Quot.sound": 411,
-    "propext": 462
+    "propext": 472
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
     "proofs/ConnectionProofs.lean": "733b4ef54040445d2748b6e1cecc08c2c8066bc2eee6ac7358f27315d7dc9973",
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
+    "proofs/ContractMigrationProofs.lean": "90b90df4b459e7f9d7ac7fb25098b17024c0457a98ffef8204501f347df67c69",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "fcc6219847379ab5e880e033dc5189fe5ed5f646fa984b75b719ed0f9b3948fb",
+    "proofs/Generated/Pathward.lean": "81c14a370e504323661d8fbedcb98da01046c511eb42ded01d7a7f5c89bd9f7e",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
@@ -30,14 +31,14 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "b68e8c5c067ef883249ac5d8a8bc69f01f296fd983fa4b494390afd6d8419c5b",
+    "scripts/extract.py": "dcdb19abd6a7c0cec1235337730fbc585436e46d5629c167aaec0f3b916a44d1",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
     "src/lib.rs": "52c0de5926e2f2a8ea226025d4e33938a94913dda9bd3ae968ca9450b13d8a8c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
-    "src/recovery.rs": "dbe3c4ca7f883a1653ab357b2d1ca3d43fe0e8e58289bdfef24dd1689fadea0e",
+    "src/recovery.rs": "54b03d1cf25d4b795eaf6aa0233630d7d0aac9b703fc59e181e93d7cdde74f99",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
     "src/routing.rs": "3b8389ea373035950377b1f52624c1a7db144725b0033860bf67e0f4a7aac460",
@@ -692,6 +693,306 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.install_iff",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 6,
+      "statement": "theorem install_iff (a b c d e f : Bool) :\n    contract_install_allowed a b c d e f = ok true ↔\n    a = true ∧ b = true ∧ c = true ∧ d = true ∧ e = true ∧ f = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.missing_rescue_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 10,
+      "statement": "theorem missing_rescue_denied (b c d e f : Bool) :\n    contract_install_allowed false b c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.running_source_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 12,
+      "statement": "theorem running_source_denied (a c d e f : Bool) :\n    contract_install_allowed a false c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.pending_jobs_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 14,
+      "statement": "theorem pending_jobs_denied (a b d e f : Bool) :\n    contract_install_allowed a b false d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.live_permit_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 16,
+      "statement": "theorem live_permit_denied (a b c e f : Bool) :\n    contract_install_allowed a b c false e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.stale_install_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 18,
+      "statement": "theorem stale_install_denied (a b c d f : Bool) :\n    contract_install_allowed a b c d false f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.unverified_contract_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 20,
+      "statement": "theorem unverified_contract_denied (a b c d e : Bool) :\n    contract_install_allowed a b c d e false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.commit_iff",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 23,
+      "statement": "theorem commit_iff (a b c d e f : Bool) :\n    contract_commit_allowed a b c d e f = ok true ↔\n    a = true ∧ b = true ∧ c = true ∧ d = true ∧ e = true ∧ f = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.failed_health_cannot_commit",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 27,
+      "statement": "theorem failed_health_cannot_commit (a b c e f : Bool) :\n    contract_commit_allowed a b c false e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.missing_fallback_cannot_commit",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 29,
+      "statement": "theorem missing_fallback_cannot_commit (a b c d f : Bool) :\n    contract_commit_allowed a b c d false f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.mixed_running_contract_cannot_commit",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 31,
+      "statement": "theorem mixed_running_contract_cannot_commit (a b d e f : Bool) :\n    contract_commit_allowed a b false d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.gate_iff",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 34,
+      "statement": "theorem gate_iff (choice : ContractChoice) (m b r p i : Bool) :\n    contract_gate_allowed choice m b r p i = ok true ↔\n    choice ≠ ContractChoice.Hold ∧ m = true ∧ b = true ∧ r = true ∧ p = true ∧ i = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.held_gate_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 39,
+      "statement": "theorem held_gate_denied (m b r p i : Bool) :\n    contract_gate_allowed ContractChoice.Hold m b r p i = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.old_boot_cannot_start",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 41,
+      "statement": "theorem old_boot_cannot_start (choice : ContractChoice) (m r p i : Bool) :\n    contract_gate_allowed choice m false r p i ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.old_request_cannot_start",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 44,
+      "statement": "theorem old_request_cannot_start (choice : ContractChoice) (m b p i : Bool) :\n    contract_gate_allowed choice m b false p i ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.nonmember_cannot_start",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 47,
+      "statement": "theorem nonmember_cannot_start (choice : ContractChoice) (b r p i : Bool) :\n    contract_gate_allowed choice false b r p i ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.partially_installed_contract_cannot_start",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 50,
+      "statement": "theorem partially_installed_contract_cannot_start (choice : ContractChoice) (m b r p : Bool) :\n    contract_gate_allowed choice m b r p false ≠ ok true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.uncommitted_boot_uses_source",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 54,
+      "statement": "theorem uncommitted_boot_uses_source (f p o : Bool) :\n    contract_recovery_choice false f p o true = ok ContractChoice.Source",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.uncommitted_never_selects_primary",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 56,
+      "statement": "theorem uncommitted_never_selects_primary (f p o s : Bool) :\n    contract_recovery_choice false f p o s ≠ ok ContractChoice.Primary",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.failed_primary_uses_verified_fallback",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 58,
+      "statement": "theorem failed_primary_uses_verified_fallback (s : Bool) :\n    contract_recovery_choice true false false true s = ok ContractChoice.Fallback",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.requested_fallback_does_not_restart_primary",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 60,
+      "statement": "theorem requested_fallback_does_not_restart_primary (p s : Bool) :\n    contract_recovery_choice true true p true s = ok ContractChoice.Fallback",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.no_verified_role_holds",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 62,
+      "statement": "theorem no_verified_role_holds (c f : Bool) :\n    contract_recovery_choice c f false false false = ok ContractChoice.Hold",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.primary_requires_commit_and_validation",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 64,
+      "statement": "theorem primary_requires_commit_and_validation (c f p o s : Bool)\n    (h : contract_recovery_choice c f p o s = ok ContractChoice.Primary) :\n    c = true ∧ f = false ∧ p = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.invalid_target_can_restore_source",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 68,
+      "statement": "theorem invalid_target_can_restore_source (f : Bool) :\n    contract_recovery_choice true f false false true = ok ContractChoice.Source",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.watchdog_iff",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 71,
+      "statement": "theorem watchdog_iff (c i r : Bool) :\n    contract_watchdog_allowed c i r = ok true ↔ c = false ∧ i = true ∧ r = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.watchdog_cannot_undo_commit",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 74,
+      "statement": "theorem watchdog_cannot_undo_commit (i r : Bool) :\n    contract_watchdog_allowed true i r = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.stale_watchdog_denied",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 76,
+      "statement": "theorem stale_watchdog_denied (c i : Bool) :\n    contract_watchdog_allowed c i false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "ContractMigrationProofs.rescue_boundary_safe",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 112,
+      "statement": "theorem rescue_boundary_safe (source : Nat) :\n    safe ⟨some source,some source,some source,true,true⟩",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.step_preserves_contract_safety",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 114,
+      "statement": "theorem step_preserves_contract_safety (a b : State) (h : safe a) (step : Step a b) : safe b",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.every_interrupted_prefix_safe",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 127,
+      "statement": "theorem every_interrupted_prefix_safe (a b : State) (h : safe a) (run : Run a b) : safe b",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.partial_install_has_no_start_authority",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 131,
+      "statement": "theorem partial_install_has_no_start_authority (s : State) (h : safe s) (mixed : s.installed = none) :\n    s.permit = none ∧ s.running = none",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.permit_and_running_contract_agree",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 140,
+      "statement": "theorem permit_and_running_contract_agree (s : State) (h : safe s) (p r : Nat)\n    (hp : s.permit = some p) (hr : s.running = some r) : p = r",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.changing_contract_requires_drain",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 143,
+      "statement": "theorem changing_contract_requires_drain (a b : State) (step : Step a b)\n    (changed : a.installed ≠ b.installed) : a.permit = none ∧ a.running = none",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.source_and_rescue_survive",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 149,
+      "statement": "theorem source_and_rescue_survive (a b : State) (h : safe a) (run : Run a b) :\n    b.rescue = true ∧ b.sourceKept = true",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "ContractMigrationProofs.reboot_revokes_all_volatile_authority",
+      "source": "proofs/ContractMigrationProofs.lean",
+      "line": 153,
+      "statement": "theorem reboot_revokes_all_volatile_authority (s : State) :\n    ({s with permit",
+      "axioms": [],
+      "scope": "transition_model"
     },
     {
       "name": "CutoverProofs.stop_old_eq",

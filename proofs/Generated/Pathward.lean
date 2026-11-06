@@ -1496,6 +1496,155 @@ def recovery.collection_allowed
     else ok false
   else ok false
 
+/-- [pathward::recovery::ContractChoice]
+    Source: 'src/recovery.rs', lines 121:0-126:1
+    Visibility: public -/
+@[discriminant isize]
+inductive recovery.ContractChoice where
+| Hold : recovery.ContractChoice
+| Source : recovery.ContractChoice
+| Fallback : recovery.ContractChoice
+| Primary : recovery.ContractChoice
+
+/-- [pathward::recovery::contract_install_allowed]:
+    Source: 'src/recovery.rs', lines 130:0-144:1
+    Visibility: public -/
+def recovery.contract_install_allowed
+  (rescue_durable : Bool) (all_stopped : Bool) (no_jobs : Bool)
+  (permit_revoked : Bool) (request_current : Bool) (contract_verified : Bool) :
+  RustM Bool
+  := do
+  if rescue_durable
+  then
+    if all_stopped
+    then
+      if no_jobs
+      then
+        if permit_revoked
+        then if request_current
+             then ok contract_verified
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::recovery::contract_commit_allowed]:
+    Source: 'src/recovery.rs', lines 146:0-160:1
+    Visibility: public -/
+def recovery.contract_commit_allowed
+  (trial : Bool) (request_current : Bool) (only_target_running : Bool)
+  (healthy : Bool) (fallback_verified : Bool) (loaded_contract : Bool) :
+  RustM Bool
+  := do
+  if trial
+  then
+    if request_current
+    then
+      if only_target_running
+      then
+        if healthy
+        then if fallback_verified
+             then ok loaded_contract
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [pathward::recovery::contract_gate_allowed]:
+    Source: 'src/recovery.rs', lines 162:0-174:1
+    Visibility: public -/
+def recovery.contract_gate_allowed
+  (choice : recovery.ContractChoice) (member : Bool) (same_boot : Bool)
+  (same_request : Bool) (phase_allows : Bool) (installed_contract : Bool) :
+  RustM Bool
+  := do
+  match choice with
+  | recovery.ContractChoice.Hold => ok false
+  | recovery.ContractChoice.Source =>
+    if member
+    then
+      if same_boot
+      then
+        if same_request
+        then if phase_allows
+             then ok installed_contract
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  | recovery.ContractChoice.Fallback =>
+    if member
+    then
+      if same_boot
+      then
+        if same_request
+        then if phase_allows
+             then ok installed_contract
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  | recovery.ContractChoice.Primary =>
+    if member
+    then
+      if same_boot
+      then
+        if same_request
+        then if phase_allows
+             then ok installed_contract
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [pathward::recovery::contract_recovery_choice]:
+    Source: 'src/recovery.rs', lines 178:0-194:1
+    Visibility: public -/
+def recovery.contract_recovery_choice
+  (committed : Bool) (fallback_requested : Bool) (primary_valid : Bool)
+  (fallback_valid : Bool) (source_valid : Bool) :
+  RustM recovery.ContractChoice
+  := do
+  if committed
+  then
+    if fallback_requested
+    then
+      if fallback_valid
+      then ok recovery.ContractChoice.Fallback
+      else
+        if source_valid
+        then ok recovery.ContractChoice.Source
+        else ok recovery.ContractChoice.Hold
+    else
+      if primary_valid
+      then ok recovery.ContractChoice.Primary
+      else
+        if fallback_valid
+        then ok recovery.ContractChoice.Fallback
+        else
+          if source_valid
+          then ok recovery.ContractChoice.Source
+          else ok recovery.ContractChoice.Hold
+  else
+    if source_valid
+    then ok recovery.ContractChoice.Source
+    else ok recovery.ContractChoice.Hold
+
+/-- [pathward::recovery::contract_watchdog_allowed]:
+    Source: 'src/recovery.rs', lines 196:0-198:1
+    Visibility: public -/
+def recovery.contract_watchdog_allowed
+  (committed : Bool) (incomplete : Bool) (request_current : Bool) :
+  RustM Bool
+  := do
+  if committed
+  then ok false
+  else if incomplete
+       then ok request_current
+       else ok false
+
 /-- [pathward::rules::valid_target]: loop 0:
     Source: 'src/rules.rs', lines 22:4-25:5
     Visibility: public -/

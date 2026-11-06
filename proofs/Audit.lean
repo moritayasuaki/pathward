@@ -2,6 +2,7 @@
 import CancellationProofs
 import ConnectionProofs
 import ContentProofs
+import ContractMigrationProofs
 import CutoverProofs
 import DeliveryProofs
 import GuardUpgradeProofs
@@ -75,6 +76,41 @@ import UpstreamProofs
 #print axioms ContentProofs.no_credential_cache
 #print axioms ContentProofs.no_unpublished_cache
 #print axioms ContentProofs.cache_status_and_duration
+#print axioms ContractMigrationProofs.install_iff
+#print axioms ContractMigrationProofs.missing_rescue_denied
+#print axioms ContractMigrationProofs.running_source_denied
+#print axioms ContractMigrationProofs.pending_jobs_denied
+#print axioms ContractMigrationProofs.live_permit_denied
+#print axioms ContractMigrationProofs.stale_install_denied
+#print axioms ContractMigrationProofs.unverified_contract_denied
+#print axioms ContractMigrationProofs.commit_iff
+#print axioms ContractMigrationProofs.failed_health_cannot_commit
+#print axioms ContractMigrationProofs.missing_fallback_cannot_commit
+#print axioms ContractMigrationProofs.mixed_running_contract_cannot_commit
+#print axioms ContractMigrationProofs.gate_iff
+#print axioms ContractMigrationProofs.held_gate_denied
+#print axioms ContractMigrationProofs.old_boot_cannot_start
+#print axioms ContractMigrationProofs.old_request_cannot_start
+#print axioms ContractMigrationProofs.nonmember_cannot_start
+#print axioms ContractMigrationProofs.partially_installed_contract_cannot_start
+#print axioms ContractMigrationProofs.uncommitted_boot_uses_source
+#print axioms ContractMigrationProofs.uncommitted_never_selects_primary
+#print axioms ContractMigrationProofs.failed_primary_uses_verified_fallback
+#print axioms ContractMigrationProofs.requested_fallback_does_not_restart_primary
+#print axioms ContractMigrationProofs.no_verified_role_holds
+#print axioms ContractMigrationProofs.primary_requires_commit_and_validation
+#print axioms ContractMigrationProofs.invalid_target_can_restore_source
+#print axioms ContractMigrationProofs.watchdog_iff
+#print axioms ContractMigrationProofs.watchdog_cannot_undo_commit
+#print axioms ContractMigrationProofs.stale_watchdog_denied
+#print axioms ContractMigrationProofs.rescue_boundary_safe
+#print axioms ContractMigrationProofs.step_preserves_contract_safety
+#print axioms ContractMigrationProofs.every_interrupted_prefix_safe
+#print axioms ContractMigrationProofs.partial_install_has_no_start_authority
+#print axioms ContractMigrationProofs.permit_and_running_contract_agree
+#print axioms ContractMigrationProofs.changing_contract_requires_drain
+#print axioms ContractMigrationProofs.source_and_rescue_survive
+#print axioms ContractMigrationProofs.reboot_revokes_all_volatile_authority
 #print axioms CutoverProofs.stop_old_eq
 #print axioms CutoverProofs.cannot_stop_without_guard
 #print axioms CutoverProofs.window_eq
