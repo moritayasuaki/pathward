@@ -105,6 +105,9 @@ def prepare_migration(store,units,plan,plan_sha,candidate,candidate_sha,kernel,k
     blob=store/'blobs'/(candidate_sha+'.py')
     if blob.exists():r.require(r.digest_file(blob)==candidate_sha,'Conflicting helper')
     else:r.replace_bytes(blob,candidate.read_bytes())
+    # A killed previous preparation may have renamed the blob but not synced
+    # its directory. Re-verify and persist both inode and name before reusing it.
+    sync_input(blob,candidate_sha)
     target=u.generation(base['epoch']+1,u.identity(base),blob,candidate_sha,plan,plan_sha,base['old_unit'],base['new_unit'])
     r.require(target['units']==u.unit_files(blob,plan,plan_sha,base['old_unit'],base['new_unit'],module),'Unsupported unit contract')
     old,new=plan_pair(base,target,store,units)

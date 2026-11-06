@@ -64,6 +64,34 @@ class Fixture(b.Fixture):
 
 
 class PlanMigrationTests(unittest.TestCase):
+    def test_interrupted_preparation_resyncs_the_existing_helper_before_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f=Fixture(Path(tmp));boot,command=f.contexts()
+            with boot,command:
+                current=u.current(f.store);real=r.replace_bytes
+                child=os.fork()
+                if child==0:
+                    def replacing(path,raw,mode=0o600,checkpoint=lambda _:None):
+                        def cut(point):
+                            if Path(path).parent==f.store/'blobs' and point=='renamed':os.kill(os.getpid(),signal.SIGKILL)
+                            checkpoint(point)
+                        return real(path,raw,mode,cut)
+                    try:
+                        with patch.object(r,'replace_bytes',side_effect=replacing):f.migration(2)
+                    except BaseException:os._exit(2)
+                    os._exit(3)
+                _,status=os.waitpid(child,0);self.assertTrue(os.WIFSIGNALED(status))
+                request=f.root/'migrate2';plan=f.root/'plan2';self.assertFalse(request.exists())
+                args=(f.store,f.units,plan,r.digest_file(plan),f.candidate,r.digest_file(f.candidate),b.KERNEL,r.digest_file(b.KERNEL),request)
+                sync=r.sync_directory
+                def fail_name(path):
+                    if Path(path).resolve()==(f.store/'blobs').resolve():raise OSError('injected helper name sync failure')
+                    return sync(path)
+                with patch.object(r,'sync_directory',side_effect=fail_name):
+                    with self.assertRaisesRegex(OSError,'helper name sync'):m.prepare_migration(*args)
+                self.assertFalse(request.exists());self.assertEqual(u.current(f.store),current)
+                digest=m.prepare_migration(*args);self.assertEqual(m.apply_migration(request,digest)['epoch'],2)
+
     def test_migration_every_interruption_can_retry_after_a_new_boot(self):
         with tempfile.TemporaryDirectory() as tmp:
             f=Fixture(Path(tmp));boot,command=f.contexts();points=[]
