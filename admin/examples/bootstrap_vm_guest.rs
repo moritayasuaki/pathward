@@ -235,7 +235,7 @@ fn configure_publisher() -> Result<Value> {
         .trim()
         .parse::<u32>()?;
     let mut config = json!({"schema":1,"hosting_policy":format!("{INSTALL}/hosting.json"),"receipt":format!("{INSTALL}/receipts/receipt.json"),"receipt_owner":uid,"profiles":{
-        "portal":{"kind":"release","host":"example.test","origin":"http://127.0.0.1:18081","work":path("publisher/portal"),"checks":{}},
+        "portal":{"kind":"release","host":"example.test","origin":"http://127.0.0.1:18081","work":path("publisher/portal"),"checks":{},"extra_checks":[{"host":"backend.test","origin":"http://127.0.0.1:18081","path":"/","status":200}]},
         "backend":{"kind":"backend","host":"backend.test","origin":"http://127.0.0.1:18081","work":path("publisher/backend"),"checks":{},"root":path("backend-release/public"),"unit":"backend.service","upstream":"127.0.0.1:18089","executable":path("role_fixture"),"properties":props,"sealed_files":filemap(&[&path("role_fixture"),&Path::new(UNITS).join("backend.service")])?,"immutable_prefixes":["avatars/"],"additive_prefixes":["avatars/v6/"]}
     }});
     put(&path("publisher.json"), &codec::canonical(&config), 0o644)?;
@@ -330,7 +330,8 @@ fn cases() -> Result<()> {
         native("apply", "portal", &["--stage", stage.to_str().unwrap()])?;
         let current = fs::read_link(path("source/current"))?;
         let mut bad = config.clone();
-        bad["profiles"]["portal"]["checks"]["/missing.txt"] = codec::hash(b"missing").into();
+        bad["profiles"]["portal"]["extra_checks"][0]["headers"] =
+            json!({"content-type":"text/invalid"});
         put(&path("publisher.json"), &codec::canonical(&bad), 0o644)?;
         let (stage, m) = upload("portal", "BAD")?;
         require(
@@ -396,6 +397,7 @@ fn cases() -> Result<()> {
         )?;
         report["initial_power_cut_resume_no_source_restart"] = true.into();
         report["static_http_failure_rollback"] = true.into();
+        report["cross_host_header_failure_rollback"] = true.into();
         report["backend_process_kill_recovery"] = true.into();
         report["native_runtime_no_python"] = true.into();
         report["proc_and_systemd_executable_observation"] = true.into();

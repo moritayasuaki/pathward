@@ -24,8 +24,10 @@ Publication data never selects an arbitrary destination: its complete expected
 description must match root-owned profile data and live routing/process identity.
 SSH arguments are restricted and are not evaluated from package content. No
 uploaded helper is executed. Public verification disables curl config/proxies,
-requires HTTP 200 with exact body hashes, does not follow redirects, and retains
-normal TLS verification. Loopback HTTP is explicit and constrained to high ports.
+requires HTTP 200 with exact body hashes for published files, does not follow
+redirects, and retains normal TLS verification. Extra cross-site checks can
+require exact redirect headers or a private-path 404; duplicate or different
+headers fail. Loopback HTTP is explicit and constrained to high ports.
 
 Backups and transaction intent precede live writes; resources precede HTML.
 Rollback rechecks backend identity and each current file, and only restores this

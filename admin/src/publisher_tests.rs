@@ -320,6 +320,60 @@ fn preflight_cannot_run_the_application_or_use_public_network() -> Result<()> {
 }
 
 #[test]
+fn public_extra_checks_verify_redirect_headers_and_private_paths() -> Result<()> {
+    use std::net::TcpListener;
+    let x = Fixture::new()?;
+    for (response, status, headers, ok) in [
+        (
+            "HTTP/1.1 308 Permanent Redirect\r\nLocation: https://other.test/?x=1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            308,
+            json!({"location":"https://other.test/?x=1"}),
+            true,
+        ),
+        (
+            "HTTP/1.1 308 Permanent Redirect\r\nLocation: https://wrong.test/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            308,
+            json!({"location":"https://other.test/"}),
+            false,
+        ),
+        (
+            "HTTP/1.1 308 Permanent Redirect\r\nLocation: https://other.test/\r\nLocation: https://wrong.test/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            308,
+            json!({"location":"https://other.test/"}),
+            false,
+        ),
+        (
+            "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            404,
+            json!({}),
+            true,
+        ),
+        (
+            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            200,
+            json!({}),
+            false,
+        ),
+    ] {
+        let l = TcpListener::bind("127.0.0.1:0")?;
+        let origin = format!("http://{}", l.local_addr()?);
+        let t = std::thread::spawn(move || {
+            let (mut stream, _) = l.accept().unwrap();
+            let mut b = [0u8; 4096];
+            let _ = stream.read(&mut b);
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+        let v = json!({"checks":{},"extra_checks":[{"host":"other.test","origin":origin,"path":"/.git/config?x=1","status":status,"headers":headers}]});
+        let result = Curl.check(&v, &json!({}), &x.base);
+        t.join().unwrap();
+        assert_eq!(result.is_ok(), ok);
+    }
+    assert!(http_check_contract(&json!({"host":"example.test","origin":"https://unrelated.test","path":"/","status":200})).is_err());
+    assert!(http_check_contract(&json!({"host":"example.test","origin":"https://example.test","path":"/\r\nx-header:value","status":200})).is_err());
+    Ok(())
+}
+
+#[test]
 fn offline_report_binds_exact_files_and_excludes_release_metadata() -> Result<()> {
     let x = Fixture::new()?;
     let src = x.base.join("offline");

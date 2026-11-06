@@ -65,6 +65,12 @@ normally; plain HTTP is accepted only for explicit high-port loopback fixtures.
 Redirects, proxies, ambient curl configuration and TLS-verification bypasses are
 not accepted by the HTTP checker. It hashes bounded response bodies and checks
 every published file plus configured health/content checks inside rollback scope.
+Optional `extra_checks` retain cross-site, redirect and private-path checks: each
+entry declares `origin`, `host`, `path`, expected `status` (200/308/404), optional
+`sha256`, and optional exact single-valued lowercase `headers`. Without a digest,
+HTTP 200 must have a nonempty body. There are at most 128 extra checks; output and
+body sizes are bounded. Configure all existing checks when migrating a portal;
+another site's failed check also triggers the publishing site's rollback.
 
 `release` profiles publish immutable `releases/ID/public` directories using the
 native receipt and current-link protocol. `backend` profiles update the existing
@@ -138,6 +144,6 @@ The source code contains the precise assertions; the PR records the observed run
 and file-restore models. It does not verify JSON, copying, SSH, curl, systemd, the
 kernel, storage durability or the correspondence of every adapter to the model.
 No new Rust dependencies or features are introduced. Existing OS `systemd`,
-`getent`, `useradd`, `runuser`, SSH, rsync and curl are explicit trusted executables;
+`getent`, `useradd`, `runuser`, SSH, rsync and curl (7.83+ for `header_json`) are explicit trusted executables;
 the RustSec report covers Rust packages, not those OS packages. Production OS
 security updates and reviewed tool configuration remain required operational work.

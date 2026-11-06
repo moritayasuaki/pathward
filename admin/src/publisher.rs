@@ -9,7 +9,6 @@ use crate::{
 use serde_json::{Value, json};
 use std::{
     fs::{self, File},
-    io::Write,
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
 };
@@ -168,6 +167,13 @@ pub fn profile<'a>(config: &'a Value, id: &str) -> Result<&'a Value> {
                 && h.as_str().is_some_and(codec::digest),
             "public check path/digest",
         )?;
+    }
+    if let Some(extra) = v.get("extra_checks") {
+        let extra = extra.as_array().ok_or("extra public checks")?;
+        require(extra.len() <= 128, "extra public check count")?;
+        for check in extra {
+            http_check_contract(check)?;
+        }
     }
     Ok(v)
 }
@@ -472,10 +478,136 @@ pub trait Verify {
     fn check(&mut self, v: &Value, files: &Value, work: &Path) -> Result<()>;
 }
 pub struct Curl;
+fn http_check_contract(v: &Value) -> Result<()> {
+    let host = string(v, "host")?;
+    let base = string(v, "origin")?;
+    let path = string(v, "path")?;
+    require(
+        !host.is_empty()
+            && host.len() <= 253
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b".-".contains(&b))
+            && origin(base)
+            && (!base.starts_with("https:") || base == format!("https://{host}"))
+            && path.starts_with('/')
+            && path.len() <= 2048
+            && path
+                .bytes()
+                .all(|b| (33..=126).contains(&b) && !b"#\\".contains(&b))
+            && [json!(200), json!(308), json!(404)].contains(&v["status"]),
+        "public check URL/status contract",
+    )?;
+    if let Some(hash) = v.get("sha256") {
+        require(
+            hash.as_str().is_some_and(codec::digest),
+            "public check digest",
+        )?;
+    }
+    if let Some(headers) = v.get("headers") {
+        let headers = headers.as_object().ok_or("public check headers")?;
+        require(headers.len() <= 32, "public check header count")?;
+        for (key, value) in headers {
+            require(
+                !key.is_empty()
+                    && key.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+                    && value
+                        .as_str()
+                        .is_some_and(|s| s.len() <= 8192 && !s.bytes().any(|b| b < 32 || b == 127)),
+                "public check header contract",
+            )?;
+        }
+    }
+    Ok(())
+}
+fn curl_check(v: &Value, work: &Path) -> Result<()> {
+    http_check_contract(v)?;
+    let base = string(v, "origin")?;
+    let path = string(v, "path")?;
+    let host = string(v, "host")?;
+    let target = work.join(format!("download-{}", nonce()?));
+    // The enclosing workspace is private; the result is never an uploaded path.
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)?;
+    let limit = if v.get("sha256").is_some() {
+        io::MAX_FILE
+    } else {
+        1 << 20
+    };
+    let args = words(&[
+        "/usr/bin/curl",
+        "--disable",
+        "--silent",
+        "--show-error",
+        "--noproxy",
+        "*",
+        "--proto",
+        if base.starts_with("https:") {
+            "=https"
+        } else {
+            "=http"
+        },
+        "--globoff",
+        "--path-as-is",
+        "--max-redirs",
+        "0",
+        "--connect-timeout",
+        "10",
+        "--max-time",
+        "30",
+        "--max-filesize",
+        &limit.to_string(),
+        "--header",
+        "Accept-Encoding: identity",
+        "--header",
+        "Cache-Control: no-cache",
+        "--header",
+        &format!("Host: {host}"),
+        "--output",
+        target.to_str().unwrap(),
+        "--write-out",
+        "%{http_code}\n%{header_json}",
+        &format!("{base}{path}"),
+    ]);
+    let result = (|| {
+        let (ok, text) = crate::system::capture(&args, 40, 65536)?;
+        let (status, headers) = text.split_once('\n').ok_or("HTTP observation")?;
+        require(
+            ok && status.len() == 3 && status.parse::<u64>().ok() == v["status"].as_u64(),
+            "public HTTP validation failed",
+        )?;
+        let headers = codec::parse(headers.as_bytes())?;
+        if let Some(expected) = v["headers"].as_object() {
+            for (key, value) in expected {
+                require(
+                    headers[key] == json!([value]),
+                    "public response header differs",
+                )?;
+            }
+        }
+        let fd = io::absolute(work)?;
+        let item = io::stream(
+            io::leaf(&fd, target.file_name().unwrap().to_str().unwrap())?,
+            None,
+            limit,
+        )?;
+        if let Some(hash) = v.get("sha256") {
+            require(item["sha256"] == *hash, "public response digest differs")?;
+        } else if v["status"] == 200 {
+            require(
+                item["bytes"].as_u64().is_some_and(|n| n > 0),
+                "empty public response",
+            )?;
+        }
+        Ok(())
+    })();
+    fs::remove_file(target)?;
+    result
+}
 impl Verify for Curl {
     fn check(&mut self, v: &Value, files: &Value, work: &Path) -> Result<()> {
-        let base = string(v, "origin")?;
-        require(origin(base), "public verification origin")?;
         let mut checks = v["checks"].as_object().ok_or("checks")?.clone();
         for (name, h) in files.as_object().ok_or("files")? {
             require(safe_asset(name), "verification path")?;
@@ -489,73 +621,22 @@ impl Verify for Curl {
             );
         }
         for (path, hash) in checks {
-            let target = work.join(format!("download-{}", nonce()?));
-            // Exclusive private placeholder, curl cannot follow an attacker path.
-            let mut f = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&target)?;
-            f.write_all(b"")?;
-            drop(f);
-            let host = string(v, "host")?;
-            require(
-                !host.is_empty()
-                    && host
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b".-".contains(&b)),
-                "verification host header",
+            curl_check(
+                &json!({"origin":v["origin"],"host":v["host"],"path":path,"status":200,"sha256":hash}),
+                work,
             )?;
-            let args = words(&[
-                "/usr/bin/curl",
-                "--disable",
-                "--silent",
-                "--show-error",
-                "--fail",
-                "--noproxy",
-                "*",
-                "--proto",
-                if base.starts_with("https:") {
-                    "=https"
-                } else {
-                    "=http"
-                },
-                "--max-redirs",
-                "0",
-                "--connect-timeout",
-                "10",
-                "--max-time",
-                "30",
-                "--max-filesize",
-                "1073741824",
-                "--header",
-                "Accept-Encoding: identity",
-                "--header",
-                "Cache-Control: no-cache",
-                "--header",
-                &format!("Host: {host}"),
-                "--output",
-                target.to_str().unwrap(),
-                "--write-out",
-                "%{http_code}",
-                &format!("{base}{path}"),
-            ]);
-            let result = (|| {
-                let (ok, status) = crate::system::capture(&args, 40, 64)?;
-                require(ok && status == "200", "public HTTP validation failed")?;
-                let fd = io::absolute(work)?;
-                let item = io::stream(
-                    io::leaf(&fd, target.file_name().unwrap().to_str().unwrap())?,
-                    None,
-                    io::MAX_FILE,
-                )?;
-                require(item["sha256"] == hash, "public response digest differs")
-            })();
-            fs::remove_file(target)?;
-            result?;
+        }
+        if let Some(extra) = v.get("extra_checks") {
+            let extra = extra.as_array().ok_or("extra public checks")?;
+            require(extra.len() <= 128, "extra public check count")?;
+            for check in extra {
+                curl_check(check, work)?;
+            }
         }
         Ok(())
     }
 }
+
 fn hashes(root: &Path, names: &Value) -> Result<Value> {
     let mut out = json!({});
     let fd = io::absolute(root)?;
