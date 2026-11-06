@@ -597,6 +597,37 @@ fn sealed_records_and_startup_hooks_are_strict() -> Result<()> {
 }
 
 #[test]
+fn executable_alias_must_keep_its_single_sealed_target() -> Result<()> {
+    let f = Fixture::new()?;
+    let mut c = contract::materialize(&f.input["target"])?;
+    let alias = f.base.join("interpreter");
+    std::os::unix::fs::symlink(f.exe.file_name().unwrap(), &alias)?;
+    let side = &mut c["new"];
+    let name = side["units"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .next()
+        .unwrap()
+        .clone();
+    side["units"][&name] = unit(&alias, "fixture", "simple").into();
+    side["executable_aliases"] = json!({alias.to_str().unwrap():f.exe});
+    contract::validate(&c)?;
+    let mut sys = Mock {
+        base: f.base.clone(),
+    };
+    contract::verified(&mut sys, &c["new"], false)?;
+    for target in ["unsealed", "../fixture", "second-link"] {
+        fs::remove_file(&alias)?;
+        std::os::unix::fs::symlink(target, &alias)?;
+        assert!(contract::verified(&mut sys, &c["new"], false).is_err());
+    }
+    c["new"]["executable_aliases"][alias.to_str().unwrap()] = json!(f.base.join("unsealed"));
+    assert!(contract::validate(&c).is_err());
+    Ok(())
+}
+
+#[test]
 fn competing_changes_and_foreign_targets_are_refused() -> Result<()> {
     let f = Fixture::new()?;
     let id = f.prepare()?;

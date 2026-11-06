@@ -39,6 +39,20 @@ pub fn nonce() -> Result<String> {
 }
 pub fn safe_asset(name: &str) -> bool {
     let p = Path::new(name);
+    public_path(name)
+        && (p.extension().and_then(|n| n.to_str()).is_some_and(|s| {
+            [
+                "html", "css", "js", "mjs", "json", "svg", "png", "jpg", "jpeg", "webp", "ico",
+                "txt", "md", "xml", "pdf", "zip", "gz", "wasm", "onnx", "udpipe", "lean", "map",
+                "woff", "woff2",
+            ]
+            .contains(&s.to_ascii_lowercase().as_str())
+        }) || p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|s| ["LICENSE", "NOTICE", "COPYING", "ATTRIBUTION"].contains(&s)))
+}
+fn public_path(name: &str) -> bool {
     io::relative(name)
         && !name.split('/').any(|n| {
             [
@@ -53,19 +67,46 @@ pub fn safe_asset(name: &str) -> bool {
             ]
             .contains(&n)
         })
-        && (p.extension().and_then(|n| n.to_str()).is_some_and(|s| {
-            [
-                "html", "css", "js", "mjs", "json", "svg", "png", "jpg", "jpeg", "webp", "ico",
-                "txt", "md", "xml", "pdf", "zip", "gz", "wasm", "onnx", "udpipe", "lean", "map",
-                "woff", "woff2",
-            ]
-            .contains(&s.to_ascii_lowercase().as_str())
-        }) || p
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|s| ["LICENSE", "NOTICE", "COPYING", "ATTRIBUTION"].contains(&s)))
+}
+fn asset_contract(v: &Value) -> Result<()> {
+    let index = v["index"].as_str().unwrap_or("index.html");
+    require(
+        safe_asset(index) && !index.contains('/'),
+        "public root index",
+    )?;
+    if let Some(names) = v.get("reviewed_assets") {
+        let names = names.as_array().ok_or("reviewed asset names")?;
+        let mut seen = std::collections::BTreeSet::new();
+        require(names.len() <= 256, "reviewed asset count")?;
+        for name in names {
+            let name = name.as_str().ok_or("reviewed asset name")?;
+            require(
+                public_path(name)
+                    && seen.insert(name)
+                    && Path::new(name)
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(|s| ["pem", "sig", "ps1", "traineddata"].contains(&s)),
+                "unsupported reviewed asset",
+            )?;
+        }
+    }
+    Ok(())
+}
+fn permitted_asset(v: &Value, name: &str) -> bool {
+    pathward::bootstrap::reviewed_asset_allowed(
+        public_path(name),
+        safe_asset(name),
+        v["reviewed_assets"]
+            .as_array()
+            .is_some_and(|a| a.iter().any(|n| n == name)),
+    )
 }
 pub fn scan(path: &Path) -> Result<Value> {
+    scan_reviewed(path, &json!({}))
+}
+fn scan_reviewed(path: &Path, authority: &Value) -> Result<Value> {
+    asset_contract(authority)?;
     let root = io::absolute(path)?;
     let mut out = json!({});
     let mut total = 0;
@@ -73,13 +114,19 @@ pub fn scan(path: &Path) -> Result<Value> {
         if name == "_headers" {
             continue;
         }
-        require(safe_asset(&name), "nonpublic asset path or type")?;
+        require(
+            permitted_asset(authority, &name),
+            "nonpublic asset path or type",
+        )?;
         let item = io::stream(io::leaf(&root, &name)?, None, io::MAX_FILE)?;
         total += item["bytes"].as_u64().ok_or("asset size")?;
         require(total <= TOTAL, "publication capacity")?;
         out[&name] = item["sha256"].clone();
     }
-    require(out["index.html"].is_string(), "index.html required")?;
+    require(
+        out[authority["index"].as_str().unwrap_or("index.html")].is_string(),
+        "declared root index required",
+    )?;
     require(
         codec::canonical(&out).len() < codec::LIMIT / 2,
         "inventory metadata bound",
@@ -151,6 +198,7 @@ pub fn profile<'a>(config: &'a Value, id: &str) -> Result<&'a Value> {
     let v = config["profiles"]
         .get(id)
         .ok_or("unknown publisher profile")?;
+    asset_contract(v)?;
     require(
         ["release", "backend"].contains(&string(v, "kind")?)
             && f::absolute(Path::new(string(v, "work")?))
@@ -209,12 +257,22 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
     require(
         expected.get("NoNewPrivileges") == Some(&json!("yes"))
             && expected.contains_key("WorkingDirectory")
-            && expected.contains_key("Environment")
+            && (expected.contains_key("Environment")
+                || v["environment_sha256"].as_str().is_some_and(codec::digest))
             && expected.contains_key("FragmentPath"),
         "backend isolation/routing contract required",
     )?;
     require(property("ActiveState")? == "active", "backend is inactive")?;
     let mut out = json!({});
+    if let Some(hash) = v.get("environment_sha256") {
+        require(
+            !expected.contains_key("Environment") && hash.as_str().is_some_and(codec::digest),
+            "choose exact environment or digest binding",
+        )?;
+        let actual = codec::hash(property("Environment")?.as_bytes());
+        require(hash == &actual, "backend environment changed")?;
+        out["environment_sha256"] = actual.into();
+    }
     for (key, value) in expected {
         require(
             [
@@ -330,6 +388,8 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
     Ok(out)
 }
 pub fn describe<S: System>(config: &Value, id: &str, sys: &mut S) -> Result<Value> {
+    let _lease = crate::publication_gate::publisher(config, None)?;
+    let epoch = crate::publication_gate::native_epoch(config, sys)?;
     let v = profile(config, id)?;
     let policy = read_policy(config)?;
     p::validate(&policy)?;
@@ -346,6 +406,31 @@ pub fn describe<S: System>(config: &Value, id: &str, sys: &mut S) -> Result<Valu
         "verification host differs from routing",
     )?;
     let mut out = json!({"schema":1,"profile":id,"config_sha256":codec::hash(&codec::canonical(config)),"policy_sha256":codec::hash(&p::encoded(&policy)),"work":v["work"]});
+    let index = v["index"].as_str().unwrap_or("index.html");
+    require(
+        site["index"] == index,
+        "publisher root index differs from hosting policy",
+    )?;
+    if let Some(names) = v["reviewed_assets"].as_array() {
+        for name in names {
+            let url = format!("/{}", name.as_str().ok_or("asset name")?);
+            require(
+                site["public_paths"]
+                    .as_array()
+                    .is_some_and(|a| a.iter().any(|p| p == &url)),
+                "reviewed asset must be explicitly public in hosting policy",
+            )?;
+        }
+        out["reviewed_assets"] = v["reviewed_assets"].clone();
+    }
+    out["index"] = index.into();
+    if let Some(epoch) = epoch {
+        require(
+            epoch["policy_sha256"] == out["policy_sha256"],
+            "native bridge policy differs",
+        )?;
+        out["epoch"] = epoch;
+    }
     let root = if v["kind"] == "release" {
         require(site["source_base"].is_string(), "static source required")?;
         let base = Path::new(string(site, "source_base")?);
@@ -383,7 +468,7 @@ pub fn describe<S: System>(config: &Value, id: &str, sys: &mut S) -> Result<Valu
         sys.property("pathward.service", "ActiveState")? == "active",
         "publisher requires active PathWard",
     )?;
-    out["files"] = scan(&root)?;
+    out["files"] = scan_reviewed(&root, &out)?;
     out["root"] = json!(root);
     Ok(out)
 }
@@ -460,7 +545,7 @@ pub fn prepare(
         stage.symlink_metadata().is_err(),
         "staging directory already exists",
     )?;
-    let files = scan(source)?;
+    let files = scan_reviewed(source, expected)?;
     if let Some(list) = allowlist {
         let text = fs::read_to_string(list)?;
         require(text.len() <= codec::LIMIT, "allowlist limit")?;
@@ -488,7 +573,7 @@ pub fn prepare(
         )?;
     }
     require(
-        scan(&public)? == files && scan(source)? == files,
+        scan_reviewed(&public, expected)? == files && scan_reviewed(source, expected)? == files,
         "publication source changed",
     )?;
     let manifest = json!({"schema":1,"operation":nonce()?,"expected":expected,"files":files});
@@ -636,15 +721,11 @@ impl Verify for Curl {
     fn check(&mut self, v: &Value, files: &Value, work: &Path) -> Result<()> {
         let mut checks = v["checks"].as_object().ok_or("checks")?.clone();
         for (name, h) in files.as_object().ok_or("files")? {
-            require(safe_asset(name), "verification path")?;
-            checks.insert(
-                if name == "index.html" {
-                    "/".into()
-                } else {
-                    format!("/{name}")
-                },
-                h.clone(),
-            );
+            require(permitted_asset(v, name), "verification path")?;
+            checks.insert(format!("/{name}"), h.clone());
+            if name == v["index"].as_str().unwrap_or("index.html") {
+                checks.insert("/".into(), h.clone());
+            }
         }
         for (path, hash) in checks {
             curl_check(
@@ -711,6 +792,8 @@ pub fn recover<S: System>(
     sys: &mut S,
     cp: Checkpoint<'_>,
 ) -> Result<()> {
+    let _lease = crate::publication_gate::publisher(config, Some(id))?;
+    crate::publication_gate::native_epoch(config, sys)?;
     require(operation(operation_id), "operation identity")?;
     let v = profile(config, id)?;
     let work = Path::new(string(v, "work")?);
@@ -830,6 +913,8 @@ pub fn apply<S: System, V: Verify>(
     verify: &mut V,
     cp: Checkpoint<'_>,
 ) -> Result<Value> {
+    let _lease = crate::publication_gate::publisher(config, Some(id))?;
+    crate::publication_gate::native_epoch(config, sys)?;
     let v = profile(config, id)?;
     let work = Path::new(string(v, "work")?);
     private(work)?;
@@ -857,7 +942,7 @@ pub fn apply<S: System, V: Verify>(
     )?;
     let expected = &manifest["expected"];
     let files = &manifest["files"];
-    let sealed = scan(&stage.join("public"))? == *files;
+    let sealed = scan_reviewed(&stage.join("public"), v)? == *files;
     let unchanged = describe(config, id, sys)? == *expected;
     let meta = fs::symlink_metadata(stage)?;
     require(
@@ -879,7 +964,7 @@ pub fn apply<S: System, V: Verify>(
     private(&incoming)?;
     let src = io::absolute(&stage.join("public"))?;
     for (name, hash) in files.as_object().ok_or("files")? {
-        require(safe_asset(name), "public file name")?;
+        require(permitted_asset(v, name), "public file name")?;
         if v["kind"] == "backend" {
             let old = &expected["files"][name];
             require(
@@ -941,7 +1026,14 @@ pub fn apply<S: System, V: Verify>(
             files,
             sys,
             cp,
-            &mut || verify.check(v, files, &job),
+            &mut |sys| {
+                verify.check(v, files, &job)?;
+                require(
+                    crate::publication_gate::native_epoch(config, sys)?
+                        == expected.get("epoch").cloned(),
+                    "bridge restarted during publication",
+                )
+            },
         )?;
         transaction["reference"] = release.into();
     } else {
@@ -976,7 +1068,7 @@ pub fn apply<S: System, V: Verify>(
                     backend(sys, v)? == expected["backend"],
                     "backend changed before asset replacement",
                 )?;
-                let observed = scan(root)?;
+                let observed = scan_reviewed(root, v)?;
                 require(
                     observed[&name] == expected["files"][&name],
                     "concurrent public edit",
@@ -989,6 +1081,7 @@ pub fn apply<S: System, V: Verify>(
             require(
                 after["backend"] == expected["backend"]
                     && after["policy_sha256"] == expected["policy_sha256"]
+                    && after["epoch"] == expected["epoch"]
                     && hashes(root, files)? == *files,
                 "backend or public files changed during verification",
             )?;

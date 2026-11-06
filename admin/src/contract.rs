@@ -163,6 +163,21 @@ pub fn validate(c: &Value) -> Result<()> {
                 "invalid resource",
             )?;
         }
+        if let Some(aliases) = r.get("executable_aliases") {
+            let aliases = aliases.as_object().ok_or("executable aliases")?;
+            require(aliases.len() <= 4, "executable alias count")?;
+            for (alias, target) in aliases {
+                let target = target.as_str().ok_or("alias target")?;
+                require(
+                    storage::absolute(Path::new(alias))
+                        && storage::absolute(Path::new(target))
+                        && alias != target
+                        && !files.contains_key(alias)
+                        && files.contains_key(target),
+                    "alias must name a sealed concrete executable",
+                )?;
+            }
+        }
         for operation in ["check", "health"] {
             let args = command(&r[operation])?;
             require(files.contains_key(&args[0]), "validator must be sealed")?;
@@ -176,7 +191,7 @@ pub fn validate(c: &Value) -> Result<()> {
             }) {
                 let exe = value.split_whitespace().next().ok_or("missing program")?;
                 require(
-                    files.contains_key(exe),
+                    files.contains_key(exe) || r["executable_aliases"].get(exe).is_some(),
                     "application executable must be sealed",
                 )?;
             }
@@ -191,6 +206,28 @@ pub fn verified<S: System>(s: &mut S, role: &Value, durable: bool) -> Result<()>
             digest.as_str().ok_or("digest required")?,
             durable,
         )?;
+    }
+    if let Some(aliases) = role["executable_aliases"].as_object() {
+        use std::os::unix::fs::MetadataExt;
+        for (alias, target) in aliases {
+            let alias = Path::new(alias);
+            storage::trusted(alias)?;
+            let m = std::fs::symlink_metadata(alias)?;
+            let link = std::fs::read_link(alias)?;
+            let resolved = if link.is_absolute() {
+                link
+            } else {
+                alias.parent().ok_or("alias parent")?.join(link)
+            };
+            require(
+                m.file_type().is_symlink()
+                    && m.uid() == rustix::process::geteuid().as_raw()
+                    && m.nlink() == 1
+                    && resolved == Path::new(target.as_str().ok_or("alias target")?)
+                    && storage::absolute(&resolved),
+                "executable alias changed",
+            )?;
+        }
     }
     let (ok, _) = s.run(&command(&role["check"])?, 45)?;
     require(ok, "configuration validation failed")

@@ -1,9 +1,11 @@
+pub mod bridge_rollout;
 pub mod codec;
 pub mod confined;
 pub mod contract;
 pub mod engine;
 pub mod provision;
 pub mod publication;
+pub mod publication_gate;
 pub mod publisher;
 pub mod storage;
 pub mod system;

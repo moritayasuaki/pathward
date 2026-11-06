@@ -66,7 +66,7 @@ pub fn clock() -> Result<Value> {
 }
 pub fn validate(p: &Value) -> Result<()> {
     require(
-        p["schema"] == 1 && p["capacity"] == "shared-nat",
+        (p["schema"] == 1 || p["schema"] == 2) && p["capacity"] == "shared-nat",
         "hosting schema",
     )?;
     let sites = p["sites"].as_array().ok_or("sites")?;
@@ -789,7 +789,7 @@ pub fn publish<S: System>(
         manifest,
         sys,
         cp,
-        &mut || Ok(()),
+        &mut |_| Ok(()),
     )
 }
 
@@ -805,7 +805,7 @@ pub fn publish_checked<S: System>(
     manifest: &Value,
     sys: &mut S,
     cp: Checkpoint<'_>,
-    verify: &mut dyn FnMut() -> Result<()>,
+    verify: &mut dyn FnMut(&mut S) -> Result<()>,
 ) -> Result<String> {
     require(
         io::release(expected) && io::release(next) && expected != next,
@@ -909,7 +909,7 @@ pub fn publish_checked<S: System>(
                 && after["boot"] == stamp["boot"],
             "routing changed during publication",
         )?;
-        verify()?;
+        verify(sys)?;
         require(
             io::reference(&base_fd)? == next,
             "publication changed during public verification",

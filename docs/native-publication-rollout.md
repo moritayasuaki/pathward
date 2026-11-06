@@ -1,0 +1,106 @@
+# Coordinated publication bridge rollout
+
+This migration replaces a legacy publication bridge while the HTTP/TLS server
+and application backends keep running. Only the two bridge units enter the
+recovery engine's unit universe. A committed reverse migration makes the legacy
+bridge primary again, including after reboot. Neither direction requests ACME
+certificates, restarts application backends, or changes listening ports.
+
+The administrator reviews a private input and SHA-256, then uses:
+
+```
+pathward-admin --root /opt/private-publication-recovery bridge-prepare INPUT SHA256
+pathward-admin --root /opt/private-publication-recovery bridge-native INPUT SHA256
+pathward-admin --root /opt/private-publication-recovery bridge-legacy INPUT SHA256
+```
+
+`bridge-prepare` requires already installed root-owned binaries, profiles, old
+and new policies and unit templates. The initial account identity is pinned;
+new snapshot and publisher work directories get explicit unprivileged owners.
+It builds snapshots using the retained server binary and repeats that build
+under the actual new unit restrictions with networking disabled. Preparation
+then installs the existing durable recovery protocol without starting the new
+bridge. It can be retried with the same immutable input. The input format and a
+complete isolated fixture are in `admin/examples/support/bridge_vm.rs`.
+
+Both contracts seal the publisher config and the private
+`publication-fence.json` record. They name exactly one bridge unit each. Old and
+new roles include their checked resources and a `bridge-health CONFIG MODE`
+command. Health waits for a fresh receipt, checks all configured public roots and
+rechecks bridge identity. Health checks must avoid pinning mutable page hashes
+that would prevent later legitimate publication or reboot recovery.
+
+The existing role engine seals regular executable files. A narrowly reviewed
+`executable_aliases` map supports an existing interpreter entry such as
+`/usr/bin/python3` pointing directly to a sealed `/usr/bin/python3.12`. The alias
+must be owned by the administrator, have trusted ancestors and match the exact
+single-hop target; arbitrary link chains and unsealed targets are rejected.
+The operating system's interpreter libraries remain trusted dependencies for
+the retained legacy fallback.
+
+## Publication exclusion and compatibility
+
+The root-owned publisher config's `rollout` object declares `lock`,
+`legacy_unit`, `native_unit`, `legacy_policy_sha256` and `native_policy_sha256`.
+Each profile declares `legacy_lock: {path, owner}`. The private recovery fence
+record is `{schema: 1, lock, writers: [{path, owner}, ...]}`. Existing lock inodes
+are never replaced. Shared native publication leases exclude administrator
+changes. The administrator also takes every existing legacy writer lock; a
+native writer takes its own legacy lock. Contention refuses the operation
+before service or public-file changes. Boot recovery and failure recovery use
+the same fencing path.
+
+These are advisory locks for the reviewed, cooperative deployment tools. A
+deployment account with direct filesystem write access can ignore its own lock;
+this is not protection from a malicious administrator or deployment account.
+
+Native mode uses a separate **schema 2 hosting policy** and separate snapshot
+state. The legacy policy stays schema 1. The routes must be equal after removing
+the version and the explicit, reviewed directory-index order. The distinct
+policy digest makes the existing legacy reader reject native receipts.
+**Receipt schema 2 alone does not fence an old reader that ignores its schema.**
+The old bridge and old local entry points remain available for rollback.
+
+`pathward-publish mode --config CONFIG --profile PROFILE` returns either native
+or legacy only when exactly one bridge is active and its receipt is recent,
+belongs to that policy and was observed after the bridge's process start.
+Legacy receipts must live under volatile `/run`; native receipts also carry the
+current boot ID. The wrapper fails closed during transition or ambiguous/stale
+state. It never silently chooses legacy after an SSH or observation failure.
+
+Native descriptions bind policy, boot ID, process ID and start time. Switching
+away and back or restarting the bridge invalidates a previously staged upload,
+even when the public content is unchanged. The final public verification also
+checks that process epoch before acknowledging success. A failed publication
+retains the existing conditional rollback protections.
+
+## Reviewed site differences
+
+The profile's optional `index` must match its hosting policy. HTTP verification
+checks the declared root file at both `/` and its file URL, preserving a custom
+standalone entry point. Optional `reviewed_assets` allows only exact named
+`.pem`, `.sig`, `.ps1` or `.traineddata` public assets explicitly present in that
+site's `public_paths`. It never relaxes traversal or private-directory checks;
+an unlisted file or unsupported extension remains refused. This is path/type
+authorization, not a content classifier for private information.
+
+Backend profiles can bind the service's environment using
+`environment_sha256` instead of storing its text in public profile metadata.
+The digest and exact `properties.Environment` are mutually exclusive. Executable,
+unit, routing, isolation, PID and start time checks remain in effect.
+
+## Verification boundary
+
+The new extracted Rust decisions and Lean model are recorded in
+`BootstrapProofs.lean` and the generated theorem registry. The cooperative
+interleaving model proves exclusion and monotone epochs; its epoch is an abstract
+generation, represented operationally by boot/process/start-time identity.
+OS lock semantics, stable inodes, PID 1, clock observations, cryptography,
+HTTP, SSH and the complete I/O-to-model correspondence remain assumptions.
+
+The NIC-free VM scenario accepts separately reviewed legacy bridge/reader and
+retained server binaries. It records their hashes, exercises nine fixture hosts,
+native publication, legacy-reader rejection, both writer locks, failed candidate
+health, unchanged application PIDs, a hard power cut during unit replacement,
+retry, stale upload rejection and reboot after committed rollback. A separate
+deployment-specific rehearsal must check the real host routes and permissions.

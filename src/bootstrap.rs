@@ -11,3 +11,9 @@ pub fn asset_allowed(known: bool, additive: bool, immutable: bool, equal: bool) 
 pub fn restore_allowed(same_backend: bool, ours: bool, backup_verified: bool) -> bool {
     same_backend && ours && backup_verified
 }
+pub fn reviewed_asset_allowed(confined: bool, ordinary: bool, explicitly_public: bool) -> bool {
+    confined && (ordinary || explicitly_public)
+}
+pub fn bridge_receipt_allowed(policy: bool, boot: bool, after_start: bool, fresh: bool) -> bool {
+    policy && boot && after_start && fresh
+}

@@ -18,6 +18,8 @@ use std::{
 const ROOT: &str = "/opt/pathward-reboot-test";
 const INSTALL: &str = "/opt/pathward-initial-install";
 const UNITS: &str = "/etc/systemd/system";
+#[path = "support/bridge_vm.rs"]
+mod bridge;
 fn path(n: &str) -> PathBuf {
     Path::new(ROOT).join(n)
 }
@@ -435,7 +437,11 @@ fn cases() -> Result<()> {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    let r = if args.iter().any(|a| a == "--initialize") {
+    let r = if args.iter().any(|a| a == "--bridge-initialize") {
+        bridge::initialize()
+    } else if args.iter().any(|a| a == "--bridge-cases") {
+        bridge::cases()
+    } else if args.iter().any(|a| a == "--initialize") {
         initialize()
     } else if args.iter().any(|a| a == "--cut-child") {
         cut_child()
@@ -446,8 +452,10 @@ fn main() {
         let _ = emit(&format!("PW_VM_FAILURE {e}"));
         for unit in [
             "test-bootstrap-case.service",
+            "test-bridge-case.service",
             "pathward.service",
             "pathward-hosting.service",
+            "pathward-native-hosting.service",
             "pathward-role-recovery.service",
         ] {
             if let Ok(log) = run(&[

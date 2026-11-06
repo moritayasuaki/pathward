@@ -44,7 +44,7 @@ fn engine() -> Engine<Real> {
         sys: Real,
     }
 }
-fn settled_lock(e: &Engine<Real>) -> Result<fs::File> {
+fn settled_lock(e: &Engine<Real>) -> Result<pathward_admin::engine::AdministrationLease> {
     // A listening fallback can be visible just before its recovery worker
     // finishes the final health check and releases the shared lock.
     let until = std::time::Instant::now() + Duration::from_secs(30);

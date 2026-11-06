@@ -79,6 +79,34 @@ def bootstrap.restore_allowed
        else ok false
   else ok false
 
+/-- [pathward::bootstrap::reviewed_asset_allowed]:
+    Source: 'src/bootstrap.rs', lines 14:0-16:1
+    Visibility: public -/
+def bootstrap.reviewed_asset_allowed
+  (confined : Bool) (ordinary : Bool) (explicitly_public : Bool) :
+  RustM Bool
+  := do
+  if confined
+  then if ordinary
+       then ok true
+       else ok explicitly_public
+  else ok false
+
+/-- [pathward::bootstrap::bridge_receipt_allowed]:
+    Source: 'src/bootstrap.rs', lines 17:0-19:1
+    Visibility: public -/
+def bootstrap.bridge_receipt_allowed
+  (policy : Bool) (boot : Bool) (after_start : Bool) (fresh : Bool) :
+  RustM Bool
+  := do
+  if policy
+  then if boot
+       then if after_start
+            then ok fresh
+            else ok false
+       else ok false
+  else ok false
+
 /-- [pathward::connection::candidate_slot]:
     Source: 'src/connection.rs', lines 5:0-7:1
     Visibility: public -/

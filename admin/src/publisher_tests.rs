@@ -86,6 +86,62 @@ impl Fixture {
 struct Pass;
 
 #[test]
+fn backend_environment_can_be_bound_without_disclosing_it() -> Result<()> {
+    let mut x = Fixture::new()?;
+    x.config["profiles"]["site"]["properties"]
+        .as_object_mut()
+        .unwrap()
+        .remove("Environment");
+    x.config["profiles"]["site"]["environment_sha256"] = codec::hash(b"PORT=18089").into();
+    let observed = describe(&x.config, "site", &mut x.sys)?;
+    assert!(observed["backend"].get("Environment").is_none());
+    x.sys.properties["Environment"] = "PORT=18090".into();
+    assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    Ok(())
+}
+
+#[test]
+fn exceptional_types_require_exact_reviewed_paths_and_policy_binding() -> Result<()> {
+    let x = Fixture::new()?;
+    for n in [
+        "certificate.pem",
+        "verify.ps1",
+        "proof.sig",
+        "eng.traineddata",
+    ] {
+        put(&x.base.join("source").join(n), b"public fixture")?;
+    }
+    let rules = json!({"reviewed_assets":["certificate.pem", "verify.ps1", "proof.sig", "eng.traineddata"]});
+    assert!(scan(&x.base.join("source")).is_err());
+    let files = scan_reviewed(&x.base.join("source"), &rules)?;
+    assert_eq!(files.as_object().unwrap().len(), 6);
+    put(&x.base.join("source/unreviewed.pem"), b"no")?;
+    assert!(scan_reviewed(&x.base.join("source"), &rules).is_err());
+    assert!(!permitted_asset(
+        &json!({"reviewed_assets":["private/key.pem"]}),
+        "private/key.pem"
+    ));
+    assert!(asset_contract(&json!({"reviewed_assets":["secret.key"]})).is_err());
+    Ok(())
+}
+
+#[test]
+fn root_index_must_match_hosting_policy() -> Result<()> {
+    let mut x = Fixture::new()?;
+    x.config["profiles"]["site"]["index"] = "Standalone.html".into();
+    assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    let mut policy = read_policy(&x.config)?;
+    policy["sites"][0]["index"] = "Standalone.html".into();
+    put(&x.base.join("hosting.json"), &codec::canonical(&policy))?;
+    put(&x.base.join("release/public/Standalone.html"), b"entry")?;
+    let d = describe(&x.config, "site", &mut x.sys)?;
+    assert_eq!(d["index"], "Standalone.html");
+    x.config["profiles"]["site"]["reviewed_assets"] = json!(["certificate.pem"]);
+    assert!(describe(&x.config, "site", &mut x.sys).is_err());
+    Ok(())
+}
+
+#[test]
 fn backend_current_alias_is_bound_to_the_sealed_release() -> Result<()> {
     let mut x = Fixture::new()?;
     let base = x.base.join("backend");
@@ -332,10 +388,12 @@ fn actual_http_checker_hashes_body_and_refuses_redirects() -> Result<()> {
         let l = TcpListener::bind("127.0.0.1:0")?;
         let origin = format!("http://{}", l.local_addr()?);
         let t = std::thread::spawn(move || {
-            let (mut stream, _) = l.accept().unwrap();
-            let mut b = [0u8; 4096];
-            let _ = stream.read(&mut b);
-            stream.write_all(response.as_bytes()).unwrap();
+            for _ in 0..if ok { 2 } else { 1 } {
+                let (mut stream, _) = l.accept().unwrap();
+                let mut b = [0u8; 4096];
+                let _ = stream.read(&mut b);
+                stream.write_all(response.as_bytes()).unwrap();
+            }
         });
         let v = json!({"host":"example.test","origin":origin,"checks":{}});
         let result = Curl.check(&v, &json!({"index.html":codec::hash(b"NEW")}), &x.base);

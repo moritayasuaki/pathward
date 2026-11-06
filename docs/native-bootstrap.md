@@ -136,10 +136,11 @@ not implement automatic deletion of historical backups or public snapshots.
 ## Migration, evidence and trust
 
 Install the native bridge, publisher, root-owned profile data and recovery
-resources together through a reviewed service-contract migration. Old Python
-wrappers remain historical compatibility material; do not run them concurrently
-with the native transaction/lock protocol. Existing production processes are not
-changed by this PR. Site build tools, extraction/audit tooling and legacy fixtures
+resources together through the [coordinated rollout](native-publication-rollout.md).
+Its mode selector and shared/legacy locks preserve the old entry points for
+rollback while rejecting cross-generation publication. Existing processes are
+changed only through an explicit administrator operation.
+Site build tools, extraction/audit tooling and legacy fixtures
 are separate Python users, not called by the new publication runtime.
 
 The VM scenario is `scripts/native-publication-vm.mjs --scenario bootstrap` with

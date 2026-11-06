@@ -77,4 +77,72 @@ theorem repeated_restore_is_idempotent (c w p : Nat) :
     restoreFile (restoreFile c w p) w p = restoreFile c w p := by
   unfold restoreFile
   split_ifs <;> simp_all
+theorem reviewed_asset_iff (c o e : Bool) :
+    bootstrap.reviewed_asset_allowed c o e = ok true ↔ c = true ∧ (o = true ∨ e = true) := by
+  cases c <;> cases o <;> cases e <;> simp [bootstrap.reviewed_asset_allowed]
+theorem reviewed_exception_cannot_escape (o e : Bool) :
+    bootstrap.reviewed_asset_allowed false o e = ok false := rfl
+theorem unreviewed_exception_denied :
+    bootstrap.reviewed_asset_allowed true false false = ok false := rfl
+theorem explicit_public_exception_allowed :
+    bootstrap.reviewed_asset_allowed true false true = ok true := rfl
+theorem bridge_receipt_iff (p b s f : Bool) :
+    bootstrap.bridge_receipt_allowed p b s f = ok true ↔
+    p = true ∧ b = true ∧ s = true ∧ f = true := by
+  cases p <;> cases b <;> cases s <;> cases f <;> simp [bootstrap.bridge_receipt_allowed]
+theorem another_policy_receipt_denied (b s f : Bool) :
+    bootstrap.bridge_receipt_allowed false b s f = ok false := rfl
+theorem previous_boot_receipt_denied (p s f : Bool) :
+    bootstrap.bridge_receipt_allowed p false s f ≠ ok true := by simp [bridge_receipt_iff]
+theorem previous_bridge_process_receipt_denied (p b f : Bool) :
+    bootstrap.bridge_receipt_allowed p b false f ≠ ok true := by simp [bridge_receipt_iff]
+theorem stale_bridge_receipt_denied (p b s : Bool) :
+    bootstrap.bridge_receipt_allowed p b s false ≠ ok true := by simp [bridge_receipt_iff]
+
+/-- A cooperative-writer model. OS lock lifetime, inode identity, process identity,
+and the wrapper's observation of the current bridge are adapter obligations. -/
+structure BridgeState where
+  readers : Nat
+  switching : Bool
+  epoch : Nat
+def BridgeSafe (s : BridgeState) : Prop := s.switching = true → s.readers = 0
+inductive BridgeStep : BridgeState → BridgeState → Prop
+  | acquire (s) (h : s.switching = false) : BridgeStep s {s with readers := s.readers + 1}
+  | release (s) (h : s.readers > 0) : BridgeStep s {s with readers := s.readers - 1}
+  | switch (s) (h : s.readers = 0) (q : s.switching = false) :
+      BridgeStep s {s with switching := true, epoch := s.epoch + 1}
+  | finish (s) : BridgeStep s {s with switching := false}
+theorem bridge_step_preserves_exclusion (a b : BridgeState) (h : BridgeStep a b)
+    (safe : BridgeSafe a) : BridgeSafe b := by
+  cases h <;> simp_all [BridgeSafe]
+theorem bridge_step_epoch_nondecreasing (a b : BridgeState) (h : BridgeStep a b) :
+    a.epoch ≤ b.epoch := by
+  cases h with
+  | acquire => exact Nat.le_refl _
+  | release => exact Nat.le_refl _
+  | switch => exact Nat.le_succ _
+  | finish => exact Nat.le_refl _
+inductive BridgeRun : BridgeState → BridgeState → Prop
+  | done (s) : BridgeRun s s
+  | next {a b c} : BridgeStep a b → BridgeRun b c → BridgeRun a c
+theorem every_bridge_interleaving_excludes_writers (a b : BridgeState)
+    (h : BridgeRun a b) (safe : BridgeSafe a) : BridgeSafe b := by
+  induction h with
+  | done => exact safe
+  | next step _ ih => exact ih (bridge_step_preserves_exclusion _ _ step safe)
+theorem bridge_run_epoch_nondecreasing (a b : BridgeState) (h : BridgeRun a b) :
+    a.epoch ≤ b.epoch := by
+  induction h with
+  | done => exact Nat.le_refl _
+  | next step _ ih => exact Nat.le_trans (bridge_step_epoch_nondecreasing _ _ step) ih
+def EpochMatches (s : BridgeState) (staged : Nat) : Prop :=
+  s.switching = false ∧ staged = s.epoch
+theorem switch_rejects_staged_publication (s : BridgeState) :
+    ¬ EpochMatches {s with switching := true, epoch := s.epoch + 1} s.epoch := by
+  intro h
+  exact Bool.noConfusion h.1
+theorem rollback_to_same_mode_cannot_revive_stale_upload (before after : BridgeState)
+    (h : before.epoch < after.epoch) : ¬ EpochMatches after before.epoch := by
+  intro valid
+  exact (Nat.ne_of_lt h) valid.2
 end BootstrapProofs

@@ -85,7 +85,7 @@ fn run() -> Result<()> {
             "--zip-report",
         ],
         "check-package" => vec!["--source", "--offline-report", "--zip-report"],
-        "describe" | "receive" => vec!["--config", "--profile"],
+        "mode" | "describe" | "receive" => vec!["--config", "--profile"],
         "apply" => vec!["--config", "--profile", "--stage"],
         "recover" => vec!["--config", "--profile", "--operation"],
         _ => return Err("unknown publication operation".into()),
@@ -196,8 +196,14 @@ fn run() -> Result<()> {
     let config = confined::metadata(Path::new(config), 0)?;
     let profile = p::profile(&config, id)?;
     let result: Value = match mode.as_str() {
+        "mode" => {
+            let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
+            pathward_admin::publication_gate::observe(&config, &mut Real)?
+        }
         "describe" => p::describe(&config, id, &mut Real)?,
         "receive" => {
+            let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
+            pathward_admin::publication_gate::native_epoch(&config, &mut Real)?;
             let work = PathBuf::from(codec::string(profile, "work")?);
             f::directory(&work)?;
             let _lock = pathward_admin::publication::lock(&work)?;
