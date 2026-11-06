@@ -72,6 +72,8 @@ class GuardUpgradeTests(unittest.TestCase):
             with patch.object(u.sys,'platform','linux'):
                 with self.assertRaisesRegex(RuntimeError,'Untrusted guard ancestor'):
                     u.checked_module(helper,r.digest_file(helper))
+                with self.assertRaisesRegex(RuntimeError,'Untrusted guard ancestor'):
+                    u.apply(parent/'request','0'*64)
 
     def test_separate_and_bind_mounts_cannot_hold_boot_units(self):
         with patch.object(u.sys,'platform','linux'),patch.object(Path,'resolve',lambda p:p),patch.object(u,'trusted_path'):
@@ -133,6 +135,21 @@ class GuardUpgradeTests(unittest.TestCase):
                     if case=='wrong_hash':digest='0'*64
                     with self.assertRaises((RuntimeError,OSError)):u.apply(f.request,digest)
                     self.assertFalse((f.store/'current').exists())
+        # A replacement after the private read cannot change the bytes which
+        # are hash-checked and decoded, even if the replacement is well formed.
+        with tempfile.TemporaryDirectory() as temp:
+            f=Fixture(Path(temp));boot,command=f.contexts()
+            with boot,command:
+                digest=f.prepare();read=r.private_bytes;request_reads=[]
+                def replace_after_read(path):
+                    raw=read(path)
+                    if Path(path)==f.request:
+                        request_reads.append(path)
+                        r.write_record(f.request,{'schema':2})
+                    return raw
+                with patch.object(r,'private_bytes',side_effect=replace_after_read):
+                    self.assertEqual(u.apply(f.request,digest)['epoch'],1)
+                self.assertEqual(len(request_reads),1)
 
     def test_competing_target_is_rejected_and_missing_receipt_does_not_rewind(self):
         with tempfile.TemporaryDirectory() as temp:

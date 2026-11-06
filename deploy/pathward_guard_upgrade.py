@@ -248,8 +248,11 @@ def action(value, active, ready, is_stable):
 
 def apply(request, expected, checkpoint=lambda _: None):
     """Retry this exact sealed request, including after a cold boot."""
-    r.require(r.digest_file(request) == expected, 'Upgrade request digest mismatch')
-    value = r.read_record(request)
+    trusted_path(request)
+    # Hash and decode the same private inode bytes, not two separate opens.
+    raw = r.private_bytes(request)
+    r.require(hashlib.sha256(raw).hexdigest() == expected, 'Upgrade request digest mismatch')
+    value = r.decode(raw)
     r.require(value is not None and set(value) == {'schema','store','units','base','target','kernel','kernel_sha256'}
               and value['schema'] == 1, 'Invalid upgrade request')
     store, units = Path(value['store']), Path(value['units'])
