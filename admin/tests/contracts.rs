@@ -354,6 +354,16 @@ fn sealed_records_and_startup_hooks_are_strict() -> Result<()> {
         );
     }
     let f = Fixture::new()?;
+    let mut contract = contract::materialize(&f.input["target"])?;
+    let name = contract["new"]["units"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .next()
+        .unwrap()
+        .clone();
+    contract["new"]["units"][&name] = "[Service]\nExecStart = /unsealed/program\n".into();
+    assert!(contract::validate(&contract).is_err());
     let id = f.prepare()?;
     let path = f
         .base

@@ -170,15 +170,11 @@ pub fn validate(c: &Value) -> Result<()> {
         for text in r["units"].as_object().ok_or("units required")?.values() {
             let text = text.as_str().ok_or("unit text required")?;
             template(text)?;
-            for line in text
-                .lines()
-                .map(str::trim)
-                .filter(|l| l.starts_with("ExecStart="))
-            {
-                let exe = line[10..]
-                    .split_whitespace()
-                    .next()
-                    .ok_or("missing program")?;
+            for value in text.lines().filter_map(|line| {
+                let (key, value) = line.trim().split_once('=')?;
+                (key.trim() == "ExecStart").then_some(value.trim())
+            }) {
+                let exe = value.split_whitespace().next().ok_or("missing program")?;
                 require(
                     files.contains_key(exe),
                     "application executable must be sealed",
