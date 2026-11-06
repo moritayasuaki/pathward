@@ -11,10 +11,28 @@ import importlib.util
 import os
 from pathlib import Path
 import re
+import stat
 
 spec=importlib.util.spec_from_file_location('upgrade',Path(__file__).with_name('pathward_guard_upgrade.py'))
 u=importlib.util.module_from_spec(spec);spec.loader.exec_module(u)
 r=u.r
+
+
+def sync_input(path,expected):
+    """Verify and fsync the same inode, then persist every ancestor name."""
+    path=Path(path);u.trusted_path(path);path=path.resolve();u.boot_storage(path)
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        meta=os.fstat(fd)
+        r.require(stat.S_ISREG(meta.st_mode) and meta.st_uid==os.geteuid() and
+                  not meta.st_mode & 0o022 and meta.st_size<=256<<20,'Untrusted durable input')
+        digest=hashlib.sha256()
+        with os.fdopen(os.dup(fd),'rb') as stream:
+            for block in iter(lambda:stream.read(1<<20),b''):digest.update(block)
+        r.require(digest.hexdigest()==expected,'Durable input changed')
+        os.fsync(fd)
+    finally:os.close(fd)
+    for parent in path.parents:r.sync_directory(parent)
 
 
 def read_request(path,expected,kind):
@@ -91,6 +109,11 @@ def prepare_migration(store,units,plan,plan_sha,candidate,candidate_sha,kernel,k
     r.require(target['units']==u.unit_files(blob,plan,plan_sha,base['old_unit'],base['new_unit'],module),'Unsupported unit contract')
     old,new=plan_pair(base,target,store,units)
     r.require(r.verified(new['old']) and r.verified(new[side.lower()]),'Target configuration is not verified')
+    # A verified pathname is not yet a crash-durable input. Flush target plan,
+    # both policy executables and every declared sealed resource before staging.
+    inputs={str(plan):plan_sha,str(kernel):kernel_sha,new['kernel']:new['kernel_sha256']}
+    for side_name in ['old','new']:inputs.update(new[side_name]['files'])
+    for name,digest in inputs.items():sync_input(name,digest)
     record=dict(new['state_seed'],phase=r.journal(old)['phase'],transaction=new['transaction'],
                 recovery_plan_sha256=target['plan_sha256'])
     existing=r.read_record(new['journal'])

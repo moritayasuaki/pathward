@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import signal
 import shutil
+import stat
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -90,7 +91,7 @@ class PlanMigrationTests(unittest.TestCase):
                     self.assertFalse(any(c[:2] in [['systemctl','start'],['systemctl','stop'],['systemctl','enable'],['systemctl','disable']] for c in f.calls))
 
     def test_incompatible_plans_and_changed_application_are_rejected(self):
-        for kind in ['journal','permit','units','changed','stale']:
+        for kind in ['journal','permit','units','changed','stale','input_sync']:
             with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
                 f=Fixture(Path(tmp));boot,command=f.contexts()
                 with boot,command:
@@ -101,6 +102,16 @@ class PlanMigrationTests(unittest.TestCase):
                         if kind=='units':p['old']['units']=['another.service']
                     if kind in ['journal','permit','units']:
                         with self.assertRaises(RuntimeError):f.migration(2,edit)
+                    elif kind=='input_sync':
+                        real=os.fsync
+                        def fail_plan_sync(fd):
+                            path=f.root/'plan2';meta=os.fstat(fd)
+                            if path.exists() and stat.S_ISREG(meta.st_mode) and meta.st_ino==path.stat().st_ino:
+                                raise OSError('injected plan sync failure')
+                            return real(fd)
+                        with patch.object(os,'fsync',side_effect=fail_plan_sync):
+                            with self.assertRaisesRegex(OSError,'plan sync'):f.migration(2)
+                        self.assertFalse((f.root/'migrate2').exists())
                     else:
                         req,digest=f.migration(2)
                         if kind=='changed':r.write_record(f.root/'journal',dict(f.plan_data['state_seed'],phase='cutover_pending'))

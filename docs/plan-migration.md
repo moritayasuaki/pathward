@@ -16,6 +16,11 @@ The target's `state_seed` supplies deployment metadata. Preparation pins the
 source journal and sets the target phase/transaction/plan-hash binding from
 verified data. The hosting adapter must follow the active plan's journal after
 handoff, rather than continuing to write the old journal.
+Before staging, preparation hashes and fsyncs the same inode for the target
+plan, policy executables and declared sealed files, then syncs their ancestor
+directories. These inputs must be on the root mount with trusted ancestors;
+volatile or separately mounted inputs are refused. This checks ordering, not
+physical-device honesty or immunity to later administrator deletion.
 
 `prepare-migration` takes `--store`, `--units`, `--plan`, `--plan-sha`,
 `--candidate`, `--candidate-sha`, `--kernel`, `--kernel-sha`, and `--request`.
