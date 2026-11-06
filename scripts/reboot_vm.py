@@ -22,7 +22,10 @@ def main():
     parser.add_argument('--base-image',type=Path,required=True)
     parser.add_argument('--kernel-binary',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--guard-upgrade',action='store_true')
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--guard-upgrade',action='store_true')
+    mode.add_argument('--plan-migration',action='store_true')
+    parser.add_argument('--initial-kernel-binary',type=Path)
     args=parser.parse_args()
     assert hashlib.sha256(args.base_image.read_bytes()).hexdigest()==BASE_SHA
     assert args.kernel_binary.read_bytes()[:4]==b'\x7fELF','Use the CI Linux decision binary'
@@ -30,16 +33,22 @@ def main():
     seed=args.output/'seed';seed.mkdir()
     files={'pathward_recovery.py':ROOT/'deploy/pathward_recovery.py',
            'reboot_guest.py':ROOT/'scripts/reboot_guest.py','pathward-recovery':args.kernel_binary}
-    if args.guard_upgrade:
+    if args.guard_upgrade or args.plan_migration:
         files.update({'pathward_guard_upgrade.py':ROOT/'deploy/pathward_guard_upgrade.py',
                       'guard_upgrade_guest.py':ROOT/'scripts/guard_upgrade_guest.py'})
+    if args.plan_migration:
+        files.update({'pathward_plan_migration.py':ROOT/'deploy/pathward_plan_migration.py',
+                      'plan_migration_guest.py':ROOT/'scripts/plan_migration_guest.py'})
+    if args.initial_kernel_binary:
+        assert args.plan_migration and args.initial_kernel_binary.read_bytes()[:4]==b'\x7fELF'
+        files['initial-recovery']=args.initial_kernel_binary
     entries=[]
     for name,path in files.items():
-        entries.append({'path':'/opt/pathward-reboot-test/'+name,'permissions':'0755' if name=='pathward-recovery' else '0600',
+        entries.append({'path':'/opt/pathward-reboot-test/'+name,'permissions':'0755' if name in ['pathward-recovery','initial-recovery'] else '0600',
                         'encoding':'b64','content':base64.b64encode(path.read_bytes()).decode()})
     user={'package_update':False,'package_upgrade':False,'ssh_deletekeys':False,
           'write_files':entries,'runcmd':[['/usr/bin/python3','/opt/pathward-reboot-test/'+
-                       ('guard_upgrade_guest.py' if args.guard_upgrade else 'reboot_guest.py'),'--initialize']]}
+                       ('plan_migration_guest.py' if args.plan_migration else 'guard_upgrade_guest.py' if args.guard_upgrade else 'reboot_guest.py'),'--initialize']]}
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(user))
     (seed/'meta-data').write_text('instance-id: pathward-recovery-isolated\nlocal-hostname: recovery-test\n')
     (seed/'network-config').write_text('version: 2\nethernets: {}\n')
@@ -52,7 +61,7 @@ def main():
     disk=args.output/'disk.qcow2'
     subprocess.run(['qemu-img','create','-f','qcow2','-F','qcow2','-b',str(args.base_image.resolve()),str(disk),'4G'],check=True)
     results=[]
-    for attempt in range(8):
+    for attempt in range(12 if args.plan_migration else 8):
         log=args.output/f'boot-{attempt}.log'
         command=['qemu-system-x86_64','-accel','tcg,thread=multi','-m','1024','-smp','2',
                  '-display','none','-monitor','none','-serial','file:'+str(log),'-nic','none','-no-reboot',

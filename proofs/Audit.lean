@@ -6,6 +6,7 @@ import CutoverProofs
 import DeliveryProofs
 import GuardUpgradeProofs
 import PathwardProofs
+import PlanMigrationProofs
 import ProxyProofs
 import RecoveryProofs
 import ReleaseProofs
@@ -195,6 +196,31 @@ import UpstreamProofs
 #print axioms PathwardProofs.next_not_start
 #print axioms PathwardProofs.run_not_start
 #print axioms PathwardProofs.directory_suffix_allowed
+#print axioms PlanMigrationProofs.migration_iff
+#print axioms PlanMigrationProofs.shared_records_denied
+#print axioms PlanMigrationProofs.changed_roles_denied
+#print axioms PlanMigrationProofs.unstable_source_denied
+#print axioms PlanMigrationProofs.unready_target_denied
+#print axioms PlanMigrationProofs.disagreeing_selection_denied
+#print axioms PlanMigrationProofs.missing_fallback_denied
+#print axioms PlanMigrationProofs.collection_iff
+#print axioms PlanMigrationProofs.incomplete_collection_denied
+#print axioms PlanMigrationProofs.same_boot_collection_denied
+#print axioms PlanMigrationProofs.busy_collection_denied
+#print axioms PlanMigrationProofs.pinned_collection_denied
+#print axioms PlanMigrationProofs.future_collection_denied
+#print axioms PlanMigrationProofs.external_collection_denied
+#print axioms PlanMigrationProofs.initial_safe
+#print axioms PlanMigrationProofs.step_preserves_safe
+#print axioms PlanMigrationProofs.interrupted_prefix_safe
+#print axioms PlanMigrationProofs.source_retained
+#print axioms PlanMigrationProofs.target_selection_agrees
+#print axioms PlanMigrationProofs.either_durable_pointer_safe
+#print axioms PlanMigrationProofs.remove_preserves_roots
+#print axioms PlanMigrationProofs.remove_retry_idempotent
+#print axioms PlanMigrationProofs.interrupted_collection_preserves_roots
+#print axioms PlanMigrationProofs.current_and_parent_survive
+#print axioms PlanMigrationProofs.reachable_is_marked
 #print axioms ProxyProofs.mode_eq
 #print axioms ProxyProofs.publications_require_root
 #print axioms ProxyProofs.endpoint_eq

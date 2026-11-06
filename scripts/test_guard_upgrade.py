@@ -75,7 +75,7 @@ class GuardUpgradeTests(unittest.TestCase):
                     u.checked_module(helper,r.digest_file(helper))
                 with self.assertRaisesRegex(RuntimeError,'Untrusted guard ancestor'):
                     u.apply(parent/'request','0'*64)
-        with tempfile.TemporaryDirectory() as temp:
+        with tempfile.TemporaryDirectory() as temp, patch.object(u.sys,'pycache_prefix',None):
             helper=Path(temp).resolve()/'candidate.py'
             helper.write_text("value = 'unreviewed'\n")
             stamp=helper.stat();py_compile.compile(str(helper),doraise=True)

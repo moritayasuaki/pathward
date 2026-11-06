@@ -30,6 +30,22 @@ fn epoch(s: &str) -> Result<u64, ()> {
 fn evaluate(words: &[String]) -> Result<String, ()> {
     let text: Vec<_> = words.iter().map(String::as_str).collect();
     let allowed = match text.as_slice() {
+        ["migrate", separate, units, stable, ready, same, fallback] => recovery::migration_allowed(
+            boolean(separate)?,
+            boolean(units)?,
+            boolean(stable)?,
+            boolean(ready)?,
+            boolean(same)?,
+            boolean(fallback)?,
+        ),
+        ["collect", complete, boot, quiet, pinned, older, managed] => recovery::collection_allowed(
+            boolean(complete)?,
+            boolean(boot)?,
+            boolean(quiet)?,
+            boolean(pinned)?,
+            boolean(older)?,
+            boolean(managed)?,
+        ),
         [
             "upgrade",
             base,

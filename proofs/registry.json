@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 483,
-  "axiom_free_count": 32,
+  "theorem_count": 508,
+  "axiom_free_count": 46,
   "axiom_counts": {
     "Classical.choice": 411,
     "Quot.sound": 411,
-    "propext": 451
+    "propext": 462
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
@@ -14,9 +14,10 @@
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "7ed617be24d77565ae85ba8444eb3b71e9accac0ab62b1aed45e93cacb39e53a",
+    "proofs/Generated/Pathward.lean": "fcc6219847379ab5e880e033dc5189fe5ed5f646fa984b75b719ed0f9b3948fb",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
+    "proofs/PlanMigrationProofs.lean": "6cc34f8e4deb6bceea29b56d385e3c688678c210d6cdc9bd889bc3166e2c2f3c",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
     "proofs/RecoveryProofs.lean": "cfd7a898f0bfc7315ca17620f002b0b2ef98d04eab4e61df32bdcf89d0e4f8d6",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
@@ -29,14 +30,14 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "cce56df57e72e615c42312c5a627183090a345e7fa152c4e99c300d3122ce713",
+    "scripts/extract.py": "b68e8c5c067ef883249ac5d8a8bc69f01f296fd983fa4b494390afd6d8419c5b",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
     "src/lib.rs": "52c0de5926e2f2a8ea226025d4e33938a94913dda9bd3ae968ca9450b13d8a8c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
-    "src/recovery.rs": "937e14c8151afd801fd0660be9c3fd1d1075fad9029c0f5d316d9d1eec2258eb",
+    "src/recovery.rs": "dbe3c4ca7f883a1653ab357b2d1ca3d43fe0e8e58289bdfef24dd1689fadea0e",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
     "src/routing.rs": "3b8389ea373035950377b1f52624c1a7db144725b0033860bf67e0f4a7aac460",
@@ -2099,6 +2100,228 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.migration_iff",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 5,
+      "statement": "theorem migration_iff (a b c d e f : Bool) :\n    recovery.migration_allowed a b c d e f = ok true ↔\n    a = true ∧ b = true ∧ c = true ∧ d = true ∧ e = true ∧ f = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.shared_records_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 11,
+      "statement": "theorem shared_records_denied (b c d e f : Bool) :\n    recovery.migration_allowed false b c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.changed_roles_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 13,
+      "statement": "theorem changed_roles_denied (a c d e f : Bool) :\n    recovery.migration_allowed a false c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.unstable_source_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 15,
+      "statement": "theorem unstable_source_denied (a b d e f : Bool) :\n    recovery.migration_allowed a b false d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.unready_target_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 17,
+      "statement": "theorem unready_target_denied (a b c e f : Bool) :\n    recovery.migration_allowed a b c false e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.disagreeing_selection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 19,
+      "statement": "theorem disagreeing_selection_denied (a b c d f : Bool) :\n    recovery.migration_allowed a b c d false f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.missing_fallback_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 22,
+      "statement": "theorem missing_fallback_denied (a b c d e : Bool) :\n    recovery.migration_allowed a b c d e false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.collection_iff",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 26,
+      "statement": "theorem collection_iff (a b c d e f : Bool) :\n    recovery.collection_allowed a b c d e f = ok true ↔\n    a = true ∧ b = true ∧ c = true ∧ d = false ∧ e = true ∧ f = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.incomplete_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 31,
+      "statement": "theorem incomplete_collection_denied (b c d e f : Bool) :\n    recovery.collection_allowed false b c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.same_boot_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 33,
+      "statement": "theorem same_boot_collection_denied (a c d e f : Bool) :\n    recovery.collection_allowed a false c d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.busy_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 35,
+      "statement": "theorem busy_collection_denied (a b d e f : Bool) :\n    recovery.collection_allowed a b false d e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.pinned_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 37,
+      "statement": "theorem pinned_collection_denied (a b c e f : Bool) :\n    recovery.collection_allowed a b c true e f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.future_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 39,
+      "statement": "theorem future_collection_denied (a b c d f : Bool) :\n    recovery.collection_allowed a b c d false f = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.external_collection_denied",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 42,
+      "statement": "theorem external_collection_denied (a b c d e : Bool) :\n    recovery.collection_allowed a b c d e false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "PlanMigrationProofs.initial_safe",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 69,
+      "statement": "theorem initial_safe (service : Nat) : safe service ⟨false,some service,none,false,true⟩",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.step_preserves_safe",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 70,
+      "statement": "theorem step_preserves_safe (service : Nat) (a b : Handoff) (h : safe service a) (step : Step service a b) :\n    safe service b",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.interrupted_prefix_safe",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 72,
+      "statement": "theorem interrupted_prefix_safe (service : Nat) (a b : Handoff) (h : safe service a) (run : Run service a b) :\n    safe service b",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.source_retained",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 77,
+      "statement": "theorem source_retained (service : Nat) (a b : Handoff) (h : safe service a) (run : Run service a b) :\n    b.sourceKept = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.target_selection_agrees",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 79,
+      "statement": "theorem target_selection_agrees (service : Nat) (s : Handoff) (h : safe service s) (active : s.target = true) :\n    s.targetPermit = s.sourcePermit",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.either_durable_pointer_safe",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 82,
+      "statement": "theorem either_durable_pointer_safe (service : Nat) (survived : Bool) :\n    safe service ⟨survived,some service,some service,true,true⟩",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.remove_preserves_roots",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 90,
+      "statement": "theorem remove_preserves_roots (roots live : Nat → Bool) (id : Nat)\n    (h : preserves roots live) (unpinned : roots id = false) : preserves roots (remove live id)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.remove_retry_idempotent",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 95,
+      "statement": "theorem remove_retry_idempotent (live : Nat → Bool) (id x : Nat) :\n    remove (remove live id) id x = remove live id x",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.interrupted_collection_preserves_roots",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 103,
+      "statement": "theorem interrupted_collection_preserves_roots (roots a b : Nat → Bool)\n    (h : preserves roots a) (run : Collection roots a b) : preserves roots b",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.current_and_parent_survive",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 108,
+      "statement": "theorem current_and_parent_survive (roots a b : Nat → Bool) (current parent : Nat)\n    (hc : roots current = true) (hp : roots parent = true) (h : preserves roots a)\n    (run : Collection roots a b) : b current = true ∧ b parent = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "PlanMigrationProofs.reachable_is_marked",
+      "source": "proofs/PlanMigrationProofs.lean",
+      "line": 118,
+      "statement": "theorem reachable_is_marked (root : Nat → Prop) (edge : Nat → Nat → Prop) (marked : Nat → Bool)\n    (start : ∀ x, root x → marked x = true)\n    (closed : ∀ a b, marked a = true → edge a b → marked b = true)\n    (x : Nat) (h : Reachable root edge x) : marked x = true",
+      "axioms": [],
+      "scope": "transition_model"
     },
     {
       "name": "ProxyProofs.mode_eq",
