@@ -1,0 +1,401 @@
+{
+  "manifest_sha256": "614767d7a64f6a119987863b1862311fec674e3c479c4d6cb0c5919be5f40758",
+  "lockfile_sha256": "f516345a20719bfcea53b16e8826200003ee15e69f5ccb44a46532a11518532a",
+  "packages": [
+    {
+      "name": "bitflags",
+      "version": "2.13.2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "std"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "cc",
+      "version": "1.10.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "errno",
+      "version": "0.3.14",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "std"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "find-msvc-tools",
+      "version": "0.1.15",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "getrandom",
+      "version": "0.2.17",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "libc",
+      "version": "0.2.191",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "linux-raw-sys",
+      "version": "0.12.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "features": [
+        "auxvec",
+        "elf",
+        "errno",
+        "general",
+        "ioctl",
+        "no_std",
+        "prctl"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Unlicense OR MIT",
+      "features": [
+        "alloc",
+        "std"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "pathward",
+      "version": "0.1.0",
+      "source": "path:.",
+      "license": "MIT",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "proc-macro"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "proc-macro"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "ring",
+      "version": "0.17.14",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 AND ISC",
+      "features": [
+        "alloc",
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "features": [
+        "alloc",
+        "fs",
+        "process",
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "result",
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "default"
+      ],
+      "build_script": false,
+      "proc_macro": true
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.154",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "std"
+      ],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "shlex",
+      "version": "2.0.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "default",
+        "std"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "syn",
+      "version": "3.0.9",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "clone-impls",
+        "derive",
+        "parsing",
+        "printing",
+        "proc-macro"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "untrusted",
+      "version": "0.9.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "ISC",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "wasi",
+      "version": "0.11.1+wasi-snapshot-preview1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.52.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "Win32",
+        "Win32_Foundation",
+        "Win32_System",
+        "Win32_System_Threading",
+        "default"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [
+        "Win32",
+        "Win32_Foundation",
+        "Win32_Networking",
+        "Win32_Networking_WinSock",
+        "Win32_System",
+        "Win32_System_Diagnostics",
+        "Win32_System_Diagnostics_Debug",
+        "default"
+      ],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": false,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_i686_gnullvm",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.52.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.23",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT",
+      "features": [],
+      "build_script": true,
+      "proc_macro": false
+    }
+  ]
+}

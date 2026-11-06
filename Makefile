@@ -5,6 +5,7 @@ setup:
 	python3 scripts/setup.py
 	$(MAKE) config-setup
 	$(MAKE) server-setup
+	$(MAKE) admin-setup
 
 extract:
 	python3 scripts/extract.py
@@ -20,7 +21,19 @@ proof-check:
 	cd proofs && lake build
 	python3 scripts/audit.py
 
-check: rust-check config-check server-check proof-check soak-check recovery-check
+check: rust-check config-check server-check admin-check proof-check soak-check recovery-check
+
+.PHONY: admin-setup admin-check admin-build
+admin-setup:
+	cargo fetch --locked --manifest-path admin/Cargo.toml
+
+admin-check:
+	cargo fmt --manifest-path admin/Cargo.toml --check
+	cargo test --offline --locked --manifest-path admin/Cargo.toml
+	cargo clippy --offline --locked --manifest-path admin/Cargo.toml --all-targets -- -D warnings
+
+admin-build:
+	cargo build --offline --locked --release --manifest-path admin/Cargo.toml --bins --examples
 
 .PHONY: recovery-check
 recovery-check:

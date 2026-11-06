@@ -10,7 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "audit/server-stack"
-PROFILES = {"server_candidate": FIXTURE, "configuration": ROOT / "config", "http_server": ROOT / "server"}
+PROFILES = {"server_candidate": FIXTURE, "configuration": ROOT / "config", "http_server": ROOT / "server", "native_administrator": ROOT / "admin"}
 AUDITOR = ROOT / ".tools/audit/bin/cargo-audit"
 AUDITOR_VERSION = "cargo-audit 0.22.2"
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"

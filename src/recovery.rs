@@ -116,3 +116,83 @@ pub fn collection_allowed(
 ) -> bool {
     completed && later_boot && quiet && !pinned && older && managed
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContractChoice {
+    Hold,
+    Source,
+    Fallback,
+    Primary,
+}
+
+/// Cross-role changes require an independent durable rescue and an empty
+/// service set; a same-service handoff is insufficient for this operation.
+pub fn contract_install_allowed(
+    rescue_durable: bool,
+    all_stopped: bool,
+    no_jobs: bool,
+    permit_revoked: bool,
+    request_current: bool,
+    contract_verified: bool,
+) -> bool {
+    rescue_durable
+        && all_stopped
+        && no_jobs
+        && permit_revoked
+        && request_current
+        && contract_verified
+}
+
+pub fn contract_commit_allowed(
+    trial: bool,
+    request_current: bool,
+    only_target_running: bool,
+    healthy: bool,
+    fallback_verified: bool,
+    loaded_contract: bool,
+) -> bool {
+    trial
+        && request_current
+        && only_target_running
+        && healthy
+        && fallback_verified
+        && loaded_contract
+}
+
+pub fn contract_gate_allowed(
+    choice: ContractChoice,
+    member: bool,
+    same_boot: bool,
+    same_request: bool,
+    phase_allows: bool,
+    installed_contract: bool,
+) -> bool {
+    match choice {
+        ContractChoice::Hold => false,
+        _ => member && same_boot && same_request && phase_allows && installed_contract,
+    }
+}
+
+/// A cold boot never resumes an uncommitted trial. Committed primary failure
+/// prefers the new fallback, retaining the independently sealed source last.
+pub fn contract_recovery_choice(
+    committed: bool,
+    fallback_requested: bool,
+    primary_valid: bool,
+    fallback_valid: bool,
+    source_valid: bool,
+) -> ContractChoice {
+    if committed && !fallback_requested && primary_valid {
+        ContractChoice::Primary
+    } else if committed && fallback_valid {
+        ContractChoice::Fallback
+    } else if source_valid {
+        ContractChoice::Source
+    } else {
+        ContractChoice::Hold
+    }
+}
+
+pub fn contract_watchdog_allowed(committed: bool, incomplete: bool, request_current: bool) -> bool {
+    !committed && incomplete && request_current
+}
