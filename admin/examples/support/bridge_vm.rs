@@ -60,7 +60,7 @@ fn legacy_begin() -> Result<String> {
 
 /// Replay reviewed route and filename metadata with synthetic public bytes.
 /// This checks policy compatibility without copying private application state.
-fn replay() -> Result<Value> {
+fn replay(uid: u32) -> Result<Value> {
     if !path("replay-policy.json").exists() {
         return Ok(Value::Null);
     }
@@ -164,7 +164,7 @@ fn replay() -> Result<Value> {
         );
         let mut manifests = json!({});
         for entry in fs::read_dir(state.join("snapshots"))? {
-            let mut m = codec::parse(&f::bytes(&entry?.path().join("manifest.json"), false)?)?;
+            let mut m = confined::metadata(&entry?.path().join("manifest.json"), uid)?;
             let host = string(&m, "host")?.to_owned();
             m.as_object_mut().unwrap().remove("key");
             manifests[host] = m;
@@ -202,7 +202,7 @@ pub fn initialize() -> Result<()> {
     let gid = run(&["/usr/bin/id", "-g", "pathward"])?
         .trim()
         .parse::<u32>()?;
-    let replay = replay()?;
+    let replay = replay(uid)?;
     dir(Path::new("/etc/pathward"), true)?;
     for d in ["legacy-state", "service", "publisher"] {
         dir(&path(d), d == "publisher")?;
