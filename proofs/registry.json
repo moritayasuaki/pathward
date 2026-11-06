@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 435,
-  "axiom_free_count": 21,
+  "theorem_count": 463,
+  "axiom_free_count": 30,
   "axiom_counts": {
-    "Classical.choice": 387,
-    "Quot.sound": 387,
-    "propext": 414
+    "Classical.choice": 393,
+    "Quot.sound": 393,
+    "propext": 433
   },
   "source_sha256": {
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
@@ -14,9 +14,10 @@
     "proofs/ContentProofs.lean": "f42c02ede522d988bc6e9413eae444759c26ee51cab6ec11645b2a6aa5afbda5",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "74990baaf2d8b57bfbb7847b6f30c0c603ed86e180f8eea2980433a7a1dc0344",
+    "proofs/Generated/Pathward.lean": "85b5b2b299b0ab79e40fd15976bf43e1c4de8024469ec40ede937b8cc4e10cf5",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/ProxyProofs.lean": "e649ba86e4402e503f56bd77c663714836f73dddf8c0973d838aaf0bbe779bfc",
+    "proofs/RecoveryProofs.lean": "cfd7a898f0bfc7315ca17620f002b0b2ef98d04eab4e61df32bdcf89d0e4f8d6",
     "proofs/ReleaseProofs.lean": "2bd88430955ec82ec760fde212b70aa5423c5a628f59a0df856650acaab9c977",
     "proofs/ResponseProofs.lean": "061343c2b849bea0fd68ed6b5992de66cd3c23b7ee1368693db5197c28b1dc53",
     "proofs/RoutingProofs.lean": "72240b68db96e7840996eac9f3fb2c20e68b91a6e13bef7a87ca16df2fc3e7b7",
@@ -27,13 +28,14 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "3ae5b2225be285e9fbc848dbf63dea7a7b901bb29cb47cbea7aa288c0e808268",
+    "scripts/extract.py": "da30a0f6b344d30621b5723022ce99ac8a63f215df01d8a381b6f8f562327963",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
     "src/delivery.rs": "79f1b2089aac55d448c73106b272aa18b2b3c832f730164125d7ea89a919f64a",
-    "src/lib.rs": "be8a885bbf3192ae5ab25b0c98585f3d1a45f446ca538ec4b0c01ea29756ba57",
+    "src/lib.rs": "52c0de5926e2f2a8ea226025d4e33938a94913dda9bd3ae968ca9450b13d8a8c",
     "src/proxy.rs": "a34cabef0563d6fadd5c6b72773f559ee2f2b53bbacd42cee2b4e527fbcf6eab",
+    "src/recovery.rs": "6713d8a6785253d896d1cd77a52ef126d482e28f85aa0e8b804957ecd41832dc",
     "src/release.rs": "e068f4a741db6426be1d8ef72dffe0b242a93469fcda5317f3fa5a756b6121d8",
     "src/response.rs": "be89e77047ea6c6272f4e90ee4f31895a401ebd0595ac57a1fbcdb5c10ab6df6",
     "src/routing.rs": "3b8389ea373035950377b1f52624c1a7db144725b0033860bf67e0f4a7aac460",
@@ -2256,6 +2258,280 @@
         "propext"
       ],
       "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.new_iff",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 6,
+      "statement": "theorem new_iff (p r c t n o : Bool) :\n    select p r c t n o = ok Selection.New ↔\n      p = true ∧ r = true ∧ c = true ∧ t = true ∧ n = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.old_iff",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 11,
+      "statement": "theorem old_iff (p r c t n o : Bool) :\n    select p r c t n o = ok Selection.Old ↔\n      p = true ∧ o = true ∧ ¬(r = true ∧ c = true ∧ t = true ∧ n = true)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.invalid_plan_holds",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 16,
+      "statement": "theorem invalid_plan_holds (r c t n o : Bool) :\n    select false r c t n o = ok Selection.Hold",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.torn_record_uses_old",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 19,
+      "statement": "theorem torn_record_uses_old (c t n : Bool) :\n    select true false c t n true = ok Selection.Old",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.pending_record_uses_old",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 22,
+      "statement": "theorem pending_record_uses_old (r t n : Bool) :\n    select true r false t n true = ok Selection.Old",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.stale_commit_uses_old",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 25,
+      "statement": "theorem stale_commit_uses_old (r c n : Bool) :\n    select true r c false n true = ok Selection.Old",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.invalid_candidate_uses_old",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 28,
+      "statement": "theorem invalid_candidate_uses_old (r c t : Bool) :\n    select true r c t false true = ok Selection.Old",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.neither_verified_holds",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 31,
+      "statement": "theorem neither_verified_holds (p r c t : Bool) :\n    select p r c t false false = ok Selection.Hold",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.new_requires_bound_commit",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 34,
+      "statement": "theorem new_requires_bound_commit (p r c t n o : Bool)\n    (h : select p r c t n o = ok Selection.New) :\n    p = true ∧ r = true ∧ c = true ∧ t = true ∧ n = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.old_requires_verified_plan",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 38,
+      "statement": "theorem old_requires_verified_plan (p r c t n o : Bool)\n    (h : select p r c t n o = ok Selection.Old) : p = true ∧ o = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.verified_old_has_selection",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 43,
+      "statement": "theorem verified_old_has_selection (r c t n : Bool) :\n    select true r c t n true = ok Selection.Old ∨ select true r c t n true = ok Selection.New",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.start_iff",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 47,
+      "statement": "theorem start_iff (chosen requested : Selection) (boot plan : Bool) :\n    start_allowed chosen requested boot plan = ok true ↔\n      boot = true ∧ plan = true ∧ chosen ≠ Selection.Hold ∧ chosen = requested",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.mutually_exclusive_start",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 54,
+      "statement": "theorem mutually_exclusive_start (chosen : Selection) (boot plan : Bool)\n    (old : start_allowed chosen Selection.Old boot plan = ok true) :\n    start_allowed chosen Selection.New boot plan ≠ ok true",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.previous_boot_permit_denied",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 62,
+      "statement": "theorem previous_boot_permit_denied (chosen requested : Selection) (plan : Bool) :\n    start_allowed chosen requested false plan = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.previous_plan_permit_denied",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 65,
+      "statement": "theorem previous_plan_permit_denied (chosen requested : Selection) (boot : Bool) :\n    start_allowed chosen requested boot false = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.stop_requires_durable_guard",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 68,
+      "statement": "theorem stop_requires_durable_guard (plan guard old : Bool)\n    (h : stop_old_allowed plan guard old = ok true) : plan = true ∧ guard = true ∧ old = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.trial_cannot_survive_reboot",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 72,
+      "statement": "theorem trial_cannot_survive_reboot (plan timer : Bool) (elapsed : U64) :\n    trial_allowed false plan timer elapsed = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.trial_cannot_extend_deadline",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 75,
+      "statement": "theorem trial_cannot_extend_deadline (boot plan timer : Bool) (elapsed : U64)\n    (h : 900000000000 ≤ elapsed.val) : trial_allowed boot plan timer elapsed = ok false",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.fallback_requires_verified_failure",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 79,
+      "statement": "theorem fallback_requires_verified_failure (selected boot plan failed old : Bool)\n    (h : fallback_allowed selected boot plan failed old = ok true) :\n    selected = true ∧ boot = true ∧ plan = true ∧ failed = true ∧ old = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "RecoveryProofs.boot_choice_new_iff",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 112,
+      "statement": "theorem boot_choice_new_iff (record : Record) (newValid : Bool) :\n    bootChoice record newValid = ok Selection.New ↔ record = .committed ∧ newValid = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.boot_choice_old_unless_checked_commit",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 116,
+      "statement": "theorem boot_choice_old_unless_checked_commit (record : Record) (newValid : Bool)\n    (notCommitted : record ≠ .committed) : bootChoice record newValid = ok Selection.Old",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.temporary_never_becomes_recovery_record",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 120,
+      "statement": "theorem temporary_never_becomes_recovery_record (disk : Disk) (value recovered : Record) :\n    CrashOutcome (stage disk value) recovered ↔ CrashOutcome disk recovered",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.file_sync_alone_never_promotes",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 123,
+      "statement": "theorem file_sync_alone_never_promotes (disk : Disk) (recovered : Record) :\n    CrashOutcome (syncFile disk) recovered ↔ CrashOutcome disk recovered",
+      "axioms": [],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.unsynced_temporary_cannot_rename",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 126,
+      "statement": "theorem unsynced_temporary_cannot_rename (disk : Disk) (value : Record) :\n    rename (stage disk value) = stage disk value",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.no_committed_name_no_promotion",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 129,
+      "statement": "theorem no_committed_name_no_promotion (disk : Disk) (recovered : Record) (newValid : Bool)\n    (crash : CrashOutcome disk recovered) (old : disk.durable ≠ .committed)\n    (visible : disk.visible ≠ .committed) : bootChoice recovered newValid = ok Selection.Old",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.renamed_commit_recovers_only_verified_target",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 135,
+      "statement": "theorem renamed_commit_recovers_only_verified_target (disk : Disk) (recovered : Record)\n    (newValid : Bool) (crash : CrashOutcome disk recovered)\n    (selected : bootChoice recovered newValid = ok Selection.New) :\n    recovered = .committed ∧ newValid = true ∧\n      (disk.durable = .committed ∨ disk.visible = .committed)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.directory_sync_agrees_on_committed_record",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 146,
+      "statement": "theorem directory_sync_agrees_on_committed_record (disk : Disk)\n    (committed : disk.visible = .committed) :\n    (syncDirectory disk).durable = .committed ∧ (syncDirectory disk).visible = .committed",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "RecoveryProofs.torn_record_falls_back_after_any_write",
+      "source": "proofs/RecoveryProofs.lean",
+      "line": 151,
+      "statement": "theorem torn_record_falls_back_after_any_write (newValid : Bool) :\n    bootChoice .invalid newValid = ok Selection.Old",
+      "axioms": [],
+      "scope": "transition_model"
     },
     {
       "name": "ReleaseProofs.generated_eq",

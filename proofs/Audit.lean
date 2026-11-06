@@ -6,6 +6,7 @@ import CutoverProofs
 import DeliveryProofs
 import PathwardProofs
 import ProxyProofs
+import RecoveryProofs
 import ReleaseProofs
 import ResponseProofs
 import RoutingProofs
@@ -206,6 +207,34 @@ import UpstreamProofs
 #print axioms ProxyProofs.target_bounded
 #print axioms ProxyProofs.target_no_controls
 #print axioms ProxyProofs.proxy_total
+#print axioms RecoveryProofs.new_iff
+#print axioms RecoveryProofs.old_iff
+#print axioms RecoveryProofs.invalid_plan_holds
+#print axioms RecoveryProofs.torn_record_uses_old
+#print axioms RecoveryProofs.pending_record_uses_old
+#print axioms RecoveryProofs.stale_commit_uses_old
+#print axioms RecoveryProofs.invalid_candidate_uses_old
+#print axioms RecoveryProofs.neither_verified_holds
+#print axioms RecoveryProofs.new_requires_bound_commit
+#print axioms RecoveryProofs.old_requires_verified_plan
+#print axioms RecoveryProofs.verified_old_has_selection
+#print axioms RecoveryProofs.start_iff
+#print axioms RecoveryProofs.mutually_exclusive_start
+#print axioms RecoveryProofs.previous_boot_permit_denied
+#print axioms RecoveryProofs.previous_plan_permit_denied
+#print axioms RecoveryProofs.stop_requires_durable_guard
+#print axioms RecoveryProofs.trial_cannot_survive_reboot
+#print axioms RecoveryProofs.trial_cannot_extend_deadline
+#print axioms RecoveryProofs.fallback_requires_verified_failure
+#print axioms RecoveryProofs.boot_choice_new_iff
+#print axioms RecoveryProofs.boot_choice_old_unless_checked_commit
+#print axioms RecoveryProofs.temporary_never_becomes_recovery_record
+#print axioms RecoveryProofs.file_sync_alone_never_promotes
+#print axioms RecoveryProofs.unsynced_temporary_cannot_rename
+#print axioms RecoveryProofs.no_committed_name_no_promotion
+#print axioms RecoveryProofs.renamed_commit_recovers_only_verified_target
+#print axioms RecoveryProofs.directory_sync_agrees_on_committed_record
+#print axioms RecoveryProofs.torn_record_falls_back_after_any_write
 #print axioms ReleaseProofs.generated_eq
 #print axioms ReleaseProofs.generated_contract
 #print axioms ReleaseProofs.generated_exact_entry
