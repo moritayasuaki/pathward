@@ -1,0 +1,39 @@
+{
+  "administrator_owned_site_not_delegated": true,
+  "application_pids_unchanged": true,
+  "boots": [
+    "226b5f6b-4338-4978-9249-d4779340eef8",
+    "5893a715-0a5a-41c9-b412-7352aba86157",
+    "d43315ac-6a64-4c1e-b32b-1dd4163fc51c"
+  ],
+  "coordinated_native_and_legacy_locks": true,
+  "failed_candidate_health_restores_legacy": true,
+  "final_native_health": true,
+  "legacy_bridge_sha256": "52f3f52dca45b4261243fb884cb32189fbb5a7fa0ee09b6b01ff1d7b4c0ab91a",
+  "legacy_reader_sha256": "8072ba972ce8ee1eb4df6a7ea75e84225e1088a422c5ee11166ae4700b869e16",
+  "nine_hosts_native_publication_and_legacy_rollback": true,
+  "old_reader_rejects_native_policy": true,
+  "partial_switch_power_cut_recovered_and_retried": true,
+  "policy_replay": {
+    "hosts": 9,
+    "same_publication_maps": true,
+    "same_routes": true,
+    "source_files": 683,
+    "synthetic_content": true
+  },
+  "retained_server_sha256": "97eee11c34568025027377ef2e885ad35a73054bceeb81646244ed8b9f11e224",
+  "rollback_survives_reboot": true,
+  "scenario": "bridge",
+  "stale_upload_never_revived": true,
+  "base_image_sha256": "406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0",
+  "source_commit": "5c44c935f1e980f9c4d146d991510cb196ff2257",
+  "external_network": false,
+  "host_services_changed": false,
+  "reviewed_fixture_sha256": {
+    "legacy-bridge.py": "52f3f52dca45b4261243fb884cb32189fbb5a7fa0ee09b6b01ff1d7b4c0ab91a",
+    "legacy-reader.py": "8072ba972ce8ee1eb4df6a7ea75e84225e1088a422c5ee11166ae4700b869e16",
+    "reference-server": "97eee11c34568025027377ef2e885ad35a73054bceeb81646244ed8b9f11e224",
+    "replay-policy.json": "6cae8814ba6d1cfb670e107e299613cf89dae75f8fac3f42d2d8cafdaec31d2d",
+    "replay-inventory.json": "91c353f98523465b2e9fd3a02e559e5d9bb93f350906cc31ed42d4a181a985c9"
+  }
+}

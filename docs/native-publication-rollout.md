@@ -139,3 +139,19 @@ Optional `--replay-policy` and `--replay-inventory` inputs replay reviewed route
 and public filenames against the retained server, using synthetic file contents.
 The legacy and native builders must produce equal URL maps and configuration
 directives. This checks route compatibility, not the original content bytes.
+
+The [2026-11-07 Linux VM report](native-publication-rollout-vm.json) passed with
+runtime source `5c44c935f1e980f9c4d146d991510cb196ff2257`: nine fixture hosts,
+eight ordinary publications and one administrator-only publication, rejected
+candidate health, both lock classes, one hard power cut, interrupted retry and
+a further reboot after durable rollback. Application PIDs stayed unchanged
+within each boot. The reviewed deployment replay covered nine hosts and 683
+source filenames, with equal routes and URL-to-file maps. The VM had no network
+interface. The later proof-only change adds administrator publication to the
+interleaving model without changing the tested runtime.
+
+Production acceptance is tracked separately from this generic VM result. Keep
+the sealed legacy runtime for rollback. Updates to sealed OS executables or
+service definitions need a reviewed recovery-contract migration; ordinary
+package upgrades must not silently invalidate boot recovery. Automatic snapshot
+retention and complete I/O-to-model refinement remain open work.
