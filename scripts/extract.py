@@ -132,6 +132,8 @@ def main():
                         "--start-from", "pathward::bootstrap::restore_allowed",
                         "--start-from", "pathward::bootstrap::reviewed_asset_allowed",
                         "--start-from", "pathward::bootstrap::bridge_receipt_allowed",
+                        "--start-from", "pathward::bootstrap::sealed_resource_allowed",
+                        "--start-from", "pathward::bootstrap::license_text_allowed",
                         "--start-from", "pathward::publication::mapping_allowed",
                         "--start-from", "pathward::publication::receipt_allowed",
                         "--start-from", "pathward::publication::collection_allowed",

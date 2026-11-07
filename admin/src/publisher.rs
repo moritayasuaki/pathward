@@ -54,13 +54,18 @@ pub fn safe_asset(name: &str) -> bool {
             || license_document(name))
 }
 fn license_document(name: &str) -> bool {
-    name.starts_with("licenses/")
-        && name.rsplit('/').next().is_some_and(|n| {
-            let n = n.to_ascii_lowercase();
-            ["license", "notice", "copying", "attribution"].contains(&n.as_str())
-                || n.starts_with("license-")
-                || n.ends_with("-license")
-        })
+    name.rsplit('/').next().is_some_and(|n| {
+        let n = n.to_ascii_lowercase();
+        let tags = ["license", "notice", "copying", "attribution"];
+        let document = n.strip_suffix(".txt").or_else(|| n.strip_suffix(".md"));
+        (name.starts_with("licenses/")
+            && (tags.contains(&n.as_str()) || n.starts_with("license-") || n.ends_with("-license")))
+            || pathward::bootstrap::license_text_allowed(
+                name.starts_with("licenses/"),
+                document.is_some_and(|n| tags.contains(&n)),
+                document.is_some(),
+            )
+    })
 }
 fn public_path(name: &str) -> bool {
     io::relative(name)
@@ -126,7 +131,7 @@ fn scan_reviewed(path: &Path, authority: &Value) -> Result<Value> {
         }
         require(
             permitted_asset(authority, &name),
-            "nonpublic asset path or type",
+            &format!("nonpublic asset path or type: {name:?}"),
         )?;
         let item = io::stream(io::leaf(&root, &name)?, None, io::MAX_FILE)?;
         total += item["bytes"].as_u64().ok_or("asset size")?;
@@ -349,19 +354,9 @@ fn backend<S: System>(sys: &mut S, v: &Value) -> Result<Value> {
         "backend binary and unit must be pinned",
     )?;
     for (path, hash) in files {
-        let path = Path::new(path);
-        let root = io::absolute(path.parent().ok_or("resource parent")?)?;
-        let h = io::stream(
-            io::leaf(
-                &root,
-                path.file_name().unwrap().to_str().ok_or("resource name")?,
-            )?,
-            None,
-            256 << 20,
-        )?;
-        require(
-            hash.as_str().is_some_and(codec::digest) && h["sha256"] == *hash,
-            "backend sealed file changed",
+        io::verify_sealed_file(
+            Path::new(path),
+            hash.as_str().ok_or("sealed resource digest")?,
         )?;
     }
     let observation = v["executable_observation"].as_str().unwrap_or("proc");

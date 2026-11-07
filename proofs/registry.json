@@ -1,14 +1,15 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 605,
-  "axiom_free_count": 92,
+  "theorem_count": 613,
+  "axiom_free_count": 98,
   "axiom_counts": {
     "Classical.choice": 411,
     "Quot.sound": 411,
-    "propext": 513
+    "propext": 515
   },
   "source_sha256": {
+    "proofs/AuthorityProofs.lean": "78cab77f87ab19123a05725a6e1ec43dfcb3c7ea427031d60aa28d7e3804264f",
     "proofs/BootstrapProofs.lean": "734b5f49564ceb6a6c73427dcb5b91424005bd976351269fd8ea0e853928c807",
     "proofs/CancellationProofs.lean": "bc731a80b63c4cfa6465c97fadee7f65d6e170019a8ffa3a0a42b1f957cdacc9",
     "proofs/ConnectionProofs.lean": "733b4ef54040445d2748b6e1cecc08c2c8066bc2eee6ac7358f27315d7dc9973",
@@ -16,7 +17,7 @@
     "proofs/ContractMigrationProofs.lean": "90b90df4b459e7f9d7ac7fb25098b17024c0457a98ffef8204501f347df67c69",
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "0be19ac2970360560ae9e7ada0bc76dcd44185ca8ba782b8bd454f7eb5bbc00b",
-    "proofs/Generated/Pathward.lean": "430e1415344c2c00e5dd8b7d4217f5d04b382a721ede60b4a0e177b4a0b096f5",
+    "proofs/Generated/Pathward.lean": "e7083c8aa308b664ed972d20619462a355e96fef85fa70209db5a01b32b9e7b8",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
@@ -33,8 +34,8 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "41b845bac390a2efe51f2e593c3cc4d0471b0ed6da0ebf327b588c7f10422364",
     "proofs/UpstreamProofs.lean": "37f7fb53aa9d79803454cc522d37590a90ca539e81e6292f9987a44d3e3db917",
-    "scripts/extract.py": "c7d860b7b19183f229245aebc587fd9b844308086b17b4108716049b09876381",
-    "src/bootstrap.rs": "7d4c223b7d299f59612cbb73bd3e880f90ac833eacbd0e6b6c62bb743753336a",
+    "scripts/extract.py": "ce0a09cffca49b3fb6fdc81ff43c3f052a0133a9a370204e3d396c01cb0a803a",
+    "src/bootstrap.rs": "0e2efcce51aed2270e5e52b448afd7a452d212e6362a18d21097bc93d1a6e15a",
     "src/connection.rs": "fb64164b7aa53b7e586dea21fa3cddade8d8b3e74be21fce9dfa827e22d460b8",
     "src/content.rs": "e83e68db1f72e5c58725d4a863600b3121e0ffd7bc3dd0d274ba767266070bf2",
     "src/cutover.rs": "a5dca4f91e17367e7d723e96ea7f7572e61e3558b30d4985d04b7dc140b35484",
@@ -54,6 +55,74 @@
     "src/upstream.rs": "06cea2a344756e15d6d80a164f46ffa3d7a7b80ff7f2e2d22cce958a292df003"
   },
   "theorems": [
+    {
+      "name": "AuthorityProofs.sealed_resource_iff",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 5,
+      "statement": "theorem sealed_resource_iff (c p e : Bool) :\n    bootstrap.sealed_resource_allowed c p e = ok true ↔\n    c = true ∧ p = true ∧ e = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.noncanonical_resource_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 9,
+      "statement": "theorem noncanonical_resource_denied (p e : Bool) :\n    bootstrap.sealed_resource_allowed false p e = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.unpinned_authority_resource_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 11,
+      "statement": "theorem unpinned_authority_resource_denied (c e : Bool) :\n    bootstrap.sealed_resource_allowed c false e = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.changed_authority_resource_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 13,
+      "statement": "theorem changed_authority_resource_denied (c p : Bool) :\n    bootstrap.sealed_resource_allowed c p false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.license_text_iff",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 16,
+      "statement": "theorem license_text_iff (t n e : Bool) :\n    bootstrap.license_text_allowed t n e = ok true ↔ t = true ∧ n = true ∧ e = true",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.outside_license_tree_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 19,
+      "statement": "theorem outside_license_tree_denied (n e : Bool) :\n    bootstrap.license_text_allowed false n e = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.unknown_license_text_name_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 21,
+      "statement": "theorem unknown_license_text_name_denied (t e : Bool) :\n    bootstrap.license_text_allowed t false e = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "AuthorityProofs.non_text_license_exception_denied",
+      "source": "proofs/AuthorityProofs.lean",
+      "line": 23,
+      "statement": "theorem non_text_license_exception_denied (t n : Bool) :\n    bootstrap.license_text_allowed t n false = ok false",
+      "axioms": [],
+      "scope": "rust_contract_or_lemma"
+    },
     {
       "name": "BootstrapProofs.preparation_iff",
       "source": "proofs/BootstrapProofs.lean",

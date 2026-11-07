@@ -39,6 +39,35 @@ pub fn absolute(path: &Path) -> Result<File> {
     }
     Ok(fd)
 }
+/// Verify one explicitly pinned authority file, including a user service below
+/// `.config`. Unlike source traversal, this returns no descriptor or bytes to
+/// a publisher and cannot add files to the public tree. Every component is
+/// opened without following links; stream enforces inode identity and bounds.
+pub fn verify_sealed_file(path: &Path, expected: &str) -> Result<()> {
+    let canonical = crate::storage::absolute(path);
+    let pinned = codec::digest(expected);
+    require(
+        pathward::bootstrap::sealed_resource_allowed(canonical, pinned, true),
+        "invalid sealed resource path or digest",
+    )?;
+    let text = path.to_str().ok_or("nontext sealed resource")?;
+    let (parents, name) = text[1..].rsplit_once('/').unwrap_or(("", &text[1..]));
+    require(!name.is_empty(), "sealed resource file required")?;
+    let mut dir = File::from(rustix::fs::open("/", DIR, Mode::empty())?);
+    for part in parents.split('/').filter(|p| !p.is_empty()) {
+        dir = File::from(rustix::fs::openat(&dir, part, DIR, Mode::empty())?);
+    }
+    let file = below(
+        &dir,
+        name,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+    )?;
+    let hash = stream(file, None, 256 << 20)?;
+    require(
+        pathward::bootstrap::sealed_resource_allowed(canonical, pinned, hash["sha256"] == expected),
+        "backend sealed file changed",
+    )
+}
 pub fn child(parent: &File, name: &str) -> Result<File> {
     require(
         relative(name) && !name.contains('/'),

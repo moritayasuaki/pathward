@@ -68,12 +68,17 @@ fn template(name: &str, text: &str) -> Result<Value> {
     Ok(json!({"path":p,"sha256":hash(&p)?}))
 }
 fn native(mode: &str, id: &str, extra: &[&str]) -> Result<String> {
+    let publisher = path(if path("use-candidate-publisher").exists() {
+        "candidate-publisher"
+    } else {
+        "pathward-publish"
+    });
     let mut a = words(&[
         "/usr/sbin/runuser",
         "-u",
         "nobody",
         "--",
-        path("pathward-publish").to_str().unwrap(),
+        publisher.to_str().unwrap(),
         mode,
         "--config",
         path("publisher.json").to_str().unwrap(),

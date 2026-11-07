@@ -107,6 +107,30 @@ def bootstrap.bridge_receipt_allowed
        else ok false
   else ok false
 
+/-- [pathward::bootstrap::sealed_resource_allowed]:
+    Source: 'src/bootstrap.rs', lines 22:0-24:1
+    Visibility: public -/
+def bootstrap.sealed_resource_allowed
+  (canonical : Bool) (pinned : Bool) (equal : Bool) : RustM Bool := do
+  if canonical
+  then if pinned
+       then ok equal
+       else ok false
+  else ok false
+
+/-- [pathward::bootstrap::license_text_allowed]:
+    Source: 'src/bootstrap.rs', lines 25:0-31:1
+    Visibility: public -/
+def bootstrap.license_text_allowed
+  (license_tree : Bool) (recognized_name : Bool) (text_extension : Bool) :
+  RustM Bool
+  := do
+  if license_tree
+  then if recognized_name
+       then ok text_extension
+       else ok false
+  else ok false
+
 /-- [pathward::connection::candidate_slot]:
     Source: 'src/connection.rs', lines 5:0-7:1
     Visibility: public -/

@@ -23,7 +23,8 @@
     "PlanMigrationProofs": "別の復旧計画への同一サービス移行、再起動後の世代回収と保護参照",
     "ContractMigrationProofs": "Rust管理処理の異なるサービス役割・起動契約への移行判断、停止・起動許可と途中書換えの状態モデル",
     "PublicationProofs": "Rust公開更新の選択・起動識別子付き受領票・世代整理の判断と中断可能な削除の状態モデル",
-    "BootstrapProofs": "初回準備・公開アップロード・不変アセット・条件付き復元のRust判断と、準備中断・再試行の状態モデル"
+    "BootstrapProofs": "初回準備・公開アップロード・不変アセット・条件付き復元のRust判断と、準備中断・再試行の状態モデル",
+    "AuthorityProofs": "公開権限の固定ハッシュ検証とライセンス文書の限定例外"
   },
   "model_only_theorems": [
     "SafetyProofs.wire_run_accounting",
@@ -598,6 +599,23 @@
         "BootstrapProofs.bridge_run_epoch_nondecreasing",
         "BootstrapProofs.switch_rejects_staged_publication",
         "BootstrapProofs.rollback_to_same_mode_cannot_revive_stale_upload"
+      ]
+    },
+    {
+      "id": "PRIVATE-AUTHORITY-VERIFICATION",
+      "priority": "P0",
+      "status": "in_progress",
+      "title": "非公開のサービス定義を公開許可と分離して固定ハッシュで検証する",
+      "acceptance": "隠しディレクトリにある明示的な権限資材は、リンクをたどらず同じ記述子で容量・ハードリンク・読取中の同一性・固定ハッシュを検査する。公開元の隠しファイル拒否は維持し、資材検証からバイト列や公開用記述子を返さない。抽出した判断で非正規パス・固定ハッシュなし・不一致の拒否を証明し、隔離環境と本番の公開入口で検証する。OS読取とモデル全体の対応は未証明。 ライセンス文書の新しい例外はlicenses配下の既知名と.txt/.mdに限定し、この判断も抽出して証明する。",
+      "theorems": [
+        "AuthorityProofs.sealed_resource_iff",
+        "AuthorityProofs.noncanonical_resource_denied",
+        "AuthorityProofs.unpinned_authority_resource_denied",
+        "AuthorityProofs.changed_authority_resource_denied",
+        "AuthorityProofs.license_text_iff",
+        "AuthorityProofs.outside_license_tree_denied",
+        "AuthorityProofs.unknown_license_text_name_denied",
+        "AuthorityProofs.non_text_license_exception_denied"
       ]
     }
   ]

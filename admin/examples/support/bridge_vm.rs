@@ -251,6 +251,16 @@ pub fn initialize() -> Result<()> {
         if let Some(name) = special {
             put(&public.join(name), b"public fixture", 0o644)?;
         }
+        if n == 8 && path("candidate-publisher").exists() {
+            for name in ["licenses", "licenses/server", "licenses/server/dependency"] {
+                dir(&public.join(name), true)?;
+            }
+            put(
+                &public.join("licenses/server/dependency/LICENSE.txt"),
+                b"Reviewed license notice",
+                0o644,
+            )?;
+        }
         symlink("releases/one", base.join("current"))?;
         let lock = base.join("static-work/deploy.lock");
         put(&lock, b"", 0o600)?;
@@ -364,6 +374,21 @@ pub fn initialize() -> Result<()> {
         &path("role_fixture"),
         &Path::new(UNITS).join("backend.service"),
     ])?;
+    if path("candidate-publisher").exists() {
+        // A reviewed user service normally lives below a private component.
+        // Keep real backend observations and add the same resource location
+        // to its pinned metadata so the retained CLI reproduces the refusal.
+        for name in [".config", ".config/systemd", ".config/systemd/user"] {
+            dir(&path(name), true)?;
+        }
+        let resource = path(".config/systemd/user/backend.service");
+        put(
+            &resource,
+            &fs::read(Path::new(UNITS).join("backend.service"))?,
+            0o644,
+        )?;
+        backend["sealed_files"][resource.to_str().unwrap()] = hash(&resource)?.into();
+    }
     let fence = json!({"schema":1,"lock":"/etc/pathward/publication.lock","writers":locks});
     let mut manual = profiles.as_object_mut().unwrap().remove("site7").unwrap();
     manual["work"] = json!(engine().root);
@@ -461,7 +486,7 @@ fn stage(id: &str, label: &str) -> Result<PathBuf> {
 }
 pub fn cases() -> Result<()> {
     let n = fs::read_to_string(path("bridge-case"))?.parse::<u32>()?;
-    let input = f::record(&path("bridge-input.json"))?;
+    let mut input = f::record(&path("bridge-input.json"))?;
     let config = confined::metadata(&path("publisher.json"), 0)?;
     let mut report = f::record(&path("bridge-report.json"))?;
     report["boots"]
@@ -575,6 +600,51 @@ pub fn cases() -> Result<()> {
             legacy_begin().is_err(),
             "legacy reader accepted native policy",
         )?;
+        if path("candidate-publisher").exists() {
+            let error = native("describe", "site8", &[])
+                .expect_err("retained publisher should reproduce private authority refusal");
+            require(
+                error.to_string().contains("noncanonical source"),
+                "unexpected authority refusal",
+            )?;
+            let old_hash = hash(&path("pathward-publish"))?;
+            let staged = stage("site0", "BEFORE PUBLISHER UPGRADE")?;
+            for side in ["old", "new"] {
+                input["contract"][side]["files"][path("candidate-publisher").to_str().unwrap()] =
+                    hash(&path("candidate-publisher"))?.into();
+            }
+            let upgrade = path("publisher-upgrade-input.json");
+            put(&upgrade, &codec::canonical(&input), 0o600)?;
+            // Exercise the retained, already-installed administrator itself.
+            run(&[
+                path("pathward-admin").to_str().unwrap(),
+                "--root",
+                engine().root.to_str().unwrap(),
+                "bridge-native",
+                upgrade.to_str().unwrap(),
+                &hash(&upgrade)?,
+            ])?;
+            put(&path("use-candidate-publisher"), b"1", 0o600)?;
+            record("bridge-input.json", &input)?;
+            require(
+                hash(&path("pathward-publish"))? == old_hash,
+                "publisher upgrade overwrote sealed legacy binary",
+            )?;
+            let description = codec::parse(native("describe", "site8", &[])?.as_bytes())?;
+            require(
+                description["files"]["licenses/server/dependency/LICENSE.txt"].is_string(),
+                "text license was not accepted",
+            )?;
+            require(
+                native("apply", "site0", &["--stage", staged.to_str().unwrap()]).is_err(),
+                "publisher migration revived a stale upload",
+            )?;
+            unchanged(&before)?;
+            report["private_authority_verified_without_publication_permission"] = true.into();
+            report["versioned_publisher_bound_by_retained_administrator"] = true.into();
+            report["server_license_text_accepted"] = true.into();
+            emit("PW_BRIDGE_STAGE private authority publisher upgrade passed")?;
+        }
         for i in 0..9 {
             let id = format!("site{i}");
             if i == 7 {

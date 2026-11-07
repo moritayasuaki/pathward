@@ -110,7 +110,8 @@ site's `public_paths`. It never relaxes traversal or private-directory checks;
 an unlisted file or unsupported extension remains refused. This is path/type
 authorization, not a content classifier for private information.
 Dependency license documents below `licenses/` may use conventional extensionless
-LICENSE/NOTICE/COPYING/ATTRIBUTION names, including `LICENSE-*` and `*-LICENSE`.
+LICENSE/NOTICE/COPYING/ATTRIBUTION names, including their `.txt`/`.md` forms,
+`LICENSE-*` and `*-LICENSE`.
 Interior `+` characters in versioned directory names are allowed. This does not
 allow server source, private directories, dot segments or symlinks. Reviewed
 immutable prefixes apply to static releases as well as backend assets.
@@ -182,3 +183,30 @@ the sealed legacy runtime for rollback. Updates to sealed OS executables or
 service definitions need a reviewed recovery-contract migration; ordinary
 package upgrades must not silently invalidate boot recovery. Automatic snapshot
 retention and complete I/O-to-model refinement remain open work.
+
+## Versioned publisher corrections
+
+Backend authority files may reside under private components such as a user
+service in `.config/systemd/user`. They are verified separately from public
+source trees. The pinned-resource verifier follows no path-component links,
+rejects special files and multiple hard links, bounds reads, checks descriptor
+identity before/after hashing and requires the configured SHA-256. It returns
+neither bytes nor a descriptor to the publication pipeline. Public traversal
+continues to reject hidden path components.
+
+A new text-license exception is limited to known LICENSE/NOTICE/COPYING/
+ATTRIBUTION names with `.txt` or `.md` under `licenses/`; ordinary server source
+files remain refused. `AuthorityProofs.lean` proves the extracted resource and
+new license-exception decisions. String classification, kernel behavior and the
+full I/O refinement remain outside that proof.
+
+For an installed contract, do not overwrite its sealed publisher executable.
+Install the corrected publisher at a new immutable path, add its digest to both
+roles, and use the retained administrator to commit that resource addition.
+The profiles, policy, bridge binaries and legacy resource hashes stay unchanged.
+Only after acceptance should the client entry point select the new executable.
+The optional VM `--retained-bundle` uses the reviewed old administrator, bridge
+and publisher, reproduces the private-resource refusal, then invokes that old
+administrator to bind a candidate publisher. It tests the text license, rejects
+a staged upload from before the migration, and continues through publication,
+rollback and reboot. The updated scenario is pending execution for this revision.

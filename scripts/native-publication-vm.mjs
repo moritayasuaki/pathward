@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 const args=Object.fromEntries(process.argv.slice(2).reduce((a,v,i,all)=>i%2?a:[...a,[v,all[i+1]]],[]));
 const base=args['--base-image'],bundle=args['--bundle'],out=args['--output'],scenario=args['--scenario']??'publication';
-if(!base||!bundle||!out||!['publication','bootstrap','bridge'].includes(scenario)||Object.keys(args).some(k=>!['--base-image','--bundle','--output','--scenario','--legacy-bridge','--legacy-reader','--reference-server','--replay-policy','--replay-inventory'].includes(k)))throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
+if(!base||!bundle||!out||!['publication','bootstrap','bridge'].includes(scenario)||Object.keys(args).some(k=>!['--base-image','--bundle','--output','--scenario','--legacy-bridge','--legacy-reader','--reference-server','--replay-policy','--replay-inventory','--retained-bundle'].includes(k)))throw Error('Use --base-image PINNED_IMAGE --bundle VERIFIED_BUNDLE --output NEW_DIRECTORY');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const baseSha='406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0';
 if(sha(fs.readFileSync(base))!==baseSha)throw Error('Base image checksum');
@@ -20,6 +20,21 @@ const files=names.map(name=>{const content=fs.readFileSync(path.join(bundle,name
 // exercising publication, collection or any subsequent reboot.
 if(scenario==='publication')files.push({name:'pathward_recovery.py',mode:'0600',content:fs.readFileSync(path.join(root,'deploy/pathward_recovery.py'))});
 const inputs={};
+let retainedSource;
+if(args['--retained-bundle']){
+ if(scenario!=='bridge')throw Error('Retained runtime requires bridge scenario');
+ const retained=args['--retained-bundle'];
+ retainedSource=fs.readFileSync(path.join(retained,'SOURCE_COMMIT'),'utf8').trim();
+ if(!/^[0-9a-f]{40}$/.test(retainedSource))throw Error('Retained source commit');
+ const oldSums=new Map(fs.readFileSync(path.join(retained,'SHA256SUMS'),'utf8').trim().split('\n').map(l=>{const m=/^([a-f0-9]{64})  ([A-Za-z0-9_-]+)$/.exec(l);if(!m)throw Error('Retained checksum line');return[m[2],m[1]];}));
+ const candidate=files.find(f=>f.name==='pathward-publish');
+ files.push({...candidate,name:'candidate-publisher'});inputs['candidate-publisher']=sha(candidate.content);
+ for(const name of ['pathward-admin','pathward-hosting','pathward-publish']){
+  const bytes=fs.readFileSync(path.join(retained,name));
+  if(sha(bytes)!==oldSums.get(name)||bytes.subarray(0,4).toString('hex')!=='7f454c46')throw Error('Retained runtime checksum');
+  files.find(f=>f.name===name).content=bytes;inputs['retained-'+name]=sha(bytes);
+ }
+}
 if(scenario==='bridge')for(const [flag,name] of [['--legacy-bridge','legacy-bridge.py'],['--legacy-reader','legacy-reader.py'],['--reference-server','reference-server']]){
  if(!args[flag])throw Error(`Bridge rehearsal requires reviewed ${flag}`);
  const content=fs.readFileSync(args[flag]);if(content.length>256*1024*1024)throw Error('Fixture input bound');
@@ -61,7 +76,8 @@ try{
     if(text.includes('PW_VM_RECOVERY_PASS ')){
      const report=JSON.parse(text.split('PW_VM_RECOVERY_PASS ')[1].split(/\r?\n/)[0]);
      report.base_image_sha256=baseSha;report.source_commit=source;report.external_network=false;report.host_services_changed=false;report.reviewed_fixture_sha256=inputs;
-     report.runtime_sha256=Object.fromEntries(['pathward-admin','pathward-hosting','pathward-publish'].filter(n=>names.includes(n)).map(n=>[n,sums.get(n)]));
+     report.runtime_sha256=Object.fromEntries(['pathward-admin','pathward-hosting','pathward-publish'].filter(n=>names.includes(n)).map(n=>[n,sha(files.find(f=>f.name===n).content)]));
+     if(retainedSource)report.retained_runtime_source=retainedSource;
      await Promise.race([stopped,delay(90000).then(()=>{throw Error('Guest did not stop');})]);
      fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2)+'\n');console.log(`PASS ${path.join(out,'result.json')}`);process.exit(0);
     }
