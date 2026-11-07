@@ -372,6 +372,21 @@ pub fn initialize() -> Result<()> {
     ready(&config, "legacy")?;
     emit("PW_BRIDGE_STAGE legacy ready on nine hosts")?;
     let python = Path::new("/usr/bin/python3").canonicalize()?;
+    // Live service definitions are checked by a sealed validator input, never
+    // used as immutable role resources that the migration engine may replace.
+    let retained = Path::new(UNITS).join("pathward.service");
+    let retained_manifest = path("retained-units.sha256");
+    put(
+        &retained_manifest,
+        format!("{}  {}\n", hash(&retained)?, retained.display()).as_bytes(),
+        0o600,
+    )?;
+    let check = json!([
+        "/usr/bin/sha256sum",
+        "--strict",
+        "--check",
+        retained_manifest
+    ]);
     let mut files = filemap(&[
         &server,
         &python,
@@ -384,14 +399,16 @@ pub fn initialize() -> Result<()> {
         Path::new(POLICY),
         &path("native-policy.json"),
         Path::new("/usr/bin/curl"),
+        Path::new("/usr/bin/sha256sum"),
+        &retained_manifest,
     ])?;
     files[engine()
         .root
         .join("publication-fence.json")
         .to_str()
         .unwrap()] = codec::hash(&codec::encode(&fence)).into();
-    let old = json!({"units":{OLD:template("legacy-template.service",&old_text)?},"files":files,"executable_aliases":{"/usr/bin/python3":python},"check":[path("role_fixture"),"check"],"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"legacy"]});
-    let new = json!({"units":{NEW:template("native-template.service",&new_text)?},"files":files,"check":[path("role_fixture"),"check"],"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"native"]});
+    let old = json!({"units":{OLD:template("legacy-template.service",&old_text)?},"files":files,"executable_aliases":{"/usr/bin/python3":python},"check":check,"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"legacy"]});
+    let new = json!({"units":{NEW:template("native-template.service",&new_text)?},"files":files,"check":check,"health":[path("pathward-admin"),"--root",engine().root,"bridge-health",path("publisher.json"),"native"]});
     let input = json!({"schema":1,"minimum_free_bytes":134217728,"publisher":path("publisher.json"),"legacy_policy":POLICY,"account":"pathward","uid":uid,"gid":gid,"deployment_uid":65534,"deployment_gid":65534,"state":path("native-state"),"hosting_binary":path("pathward-hosting"),"server_binary":server,"fence":fence,"contract":{"selected":"new","old":old,"new":new}});
     record("bridge-input.json", &input)?;
     record(
@@ -452,13 +469,57 @@ pub fn cases() -> Result<()> {
         .unwrap()
         .push(publication::clock()?["boot"].clone());
     if n == 0 {
+        use std::os::unix::fs::MetadataExt;
         let before = application_ids()?;
+        let bridge_before = Real.property(OLD, "MainPID")?;
         let mut e = engine();
+        let retained = Path::new(UNITS).join("pathward.service");
+        let mut invalid = input.clone();
+        for side in ["old", "new"] {
+            invalid["contract"][side]["files"][retained.to_str().unwrap()] =
+                hash(&retained)?.into();
+        }
+        {
+            let _l = e.lock()?;
+            let err =
+                bridge_rollout::prepare(&mut e, &invalid, &path("pathward-admin"), &mut |_| Ok(()))
+                    .expect_err("live unit resource accepted");
+            require(
+                err.to_string() == "live unit files cannot be sealed resources",
+                &format!("unexpected preparation failure: {err}"),
+            )?;
+        }
+        require(
+            e.current()?.is_none(),
+            "failed preparation selected a request",
+        )?;
+        require(
+            path("native-state").is_dir(),
+            "partial preparation not exercised",
+        )?;
+        let fence = Path::new("/etc/pathward/publication.lock");
+        let fence_inode = fs::metadata(fence)?.ino();
+        require(
+            Real.property(OLD, "MainPID")? == bridge_before,
+            "failed preparation restarted legacy bridge",
+        )?;
+        unchanged(&before)?;
+        ready(&config, "legacy")?;
+        emit("PW_BRIDGE_STAGE live unit resource rejected after partial preparation")?;
         {
             let _l = e.lock()?;
             bridge_rollout::prepare(&mut e, &input, &path("pathward-admin"), &mut |_| Ok(()))?;
         }
         unchanged(&before)?;
+        require(
+            fs::metadata(fence)?.ino() == fence_inode,
+            "retry replaced publication lock",
+        )?;
+        require(
+            Real.property(OLD, "MainPID")? == bridge_before,
+            "retry restarted legacy bridge",
+        )?;
+        report["rejected_live_resource_retry_same_store_and_fence"] = true.into();
         emit("PW_BRIDGE_STAGE preparation retained application processes")?;
         require(mode()?["mode"] == "legacy", "preparation switched bridge")?;
         legacy_begin()?;
@@ -478,6 +539,29 @@ pub fn cases() -> Result<()> {
             file.try_lock()?;
             require(e.lock().is_err(), "administrator ignored legacy writer")?;
         }
+        let retained_bytes = fs::read(&retained)?;
+        let current = e.current()?;
+        let mut drift = retained_bytes.clone();
+        drift.extend_from_slice(b"\n# Unexpected retained service drift\n");
+        put(&retained, &drift, 0o644)?;
+        let refused = switch(&input, "native");
+        put(&retained, &retained_bytes, 0o644)?;
+        require(
+            refused.is_err_and(|e| e.to_string() == "configuration validation failed"),
+            "retained service drift did not fail closed",
+        )?;
+        require(
+            e.current()? == current,
+            "retained drift selected another request",
+        )?;
+        require(
+            Real.property(OLD, "MainPID")? == bridge_before,
+            "retained drift restarted bridge",
+        )?;
+        unchanged(&before)?;
+        ready(&config, "legacy")?;
+        report["retained_service_drift_rejected_before_switch"] = true.into();
+        emit("PW_BRIDGE_STAGE retained service drift rejected before switch")?;
         let mut bad = input.clone();
         bad["contract"]["new"]["health"] = json!([path("role_fixture"), "probe", "FAIL", "18081"]);
         require(switch(&bad, "native").is_err(), "failed health accepted")?;

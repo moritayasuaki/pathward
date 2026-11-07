@@ -61,6 +61,7 @@ try{
     if(text.includes('PW_VM_RECOVERY_PASS ')){
      const report=JSON.parse(text.split('PW_VM_RECOVERY_PASS ')[1].split(/\r?\n/)[0]);
      report.base_image_sha256=baseSha;report.source_commit=source;report.external_network=false;report.host_services_changed=false;report.reviewed_fixture_sha256=inputs;
+     report.runtime_sha256=Object.fromEntries(['pathward-admin','pathward-hosting','pathward-publish'].filter(n=>names.includes(n)).map(n=>[n,sums.get(n)]));
      await Promise.race([stopped,delay(90000).then(()=>{throw Error('Guest did not stop');})]);
      fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2)+'\n');console.log(`PASS ${path.join(out,'result.json')}`);process.exit(0);
     }
