@@ -187,6 +187,17 @@ service definitions need a reviewed recovery-contract migration; ordinary
 package upgrades must not silently invalidate boot recovery. Automatic snapshot
 retention and complete I/O-to-model refinement remain open work.
 
+Production acceptance completed on 2026-11-07: the native bridge and separately
+versioned corrected publisher were committed using the retained administrator.
+All eight ordinary profiles passed descriptor/authority checks, the manual
+profile stayed unavailable to unprivileged publication, and nine public hosts
+passed 33 response/header/redirect/private-path checks. The common client entry
+points now select the installed local and remote versions. A private stage-only
+transfer through those defaults matched its source hashes and was removed;
+production content was not changed by the acceptance checks. HTTP and backend
+process identities stayed unchanged. This production evidence does not replace
+the isolated full publication, rollback and reboot tests or prove the I/O model.
+
 ## Versioned publisher corrections
 
 Backend authority files may reside under private components such as a user
