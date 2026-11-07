@@ -32,6 +32,26 @@ command. Health waits for a fresh receipt, checks all configured public roots an
 rechecks bridge identity. Health checks must avoid pinning mutable page hashes
 that would prevent later legitimate publication or reboot recovery.
 
+Do not put live service files below `/etc/systemd/system` in a role's `files`
+map, including a retained HTTP server outside the migration's unit universe.
+The recovery engine intentionally rejects them. A retained service's content
+can instead be checked by the role's validator: seal an immutable SHA-256
+manifest and `/usr/bin/sha256sum`, and use its strict check command. This does
+not add the retained service to the units being stopped or replaced. The
+administrator-owned system directories and absence of stop propagation must
+also be reviewed before migration; hashing is not a service dependency audit.
+
+A deployment handoff incorrectly classified a retained live service as a
+sealed resource. Preparation refused it after creating private snapshot/work
+directories, while the original bridge and application processes stayed up.
+The earlier route replay did not cover this deployment-specific resource map.
+The regression fixture now reproduces that refusal, retries the corrected
+contract in the same recovery store without replacing the publication lock,
+and rejects changed retained-service bytes before switching. Corrected inputs
+and manifests use new filenames; already installed runtime/profile files must
+remain byte-identical. This retry is valid only before an initial request has
+been bound. `initial.json` continues to reject a different initial request.
+
 The existing role engine seals regular executable files. A narrowly reviewed
 `executable_aliases` map supports an existing interpreter entry such as
 `/usr/bin/python3` pointing directly to a sealed `/usr/bin/python3.12`. The alias
@@ -128,6 +148,10 @@ interleaving model proves exclusion and monotone epochs; its epoch is an abstrac
 generation, represented operationally by boot/process/start-time identity.
 OS lock semantics, stable inodes, PID 1, clock observations, cryptography,
 HTTP, SSH and the complete I/O-to-model correspondence remain assumptions.
+Deployment-specific handoff generation and checksum validators are also outside
+the extracted proof boundary. The preparation correction changes neither the
+Rust runtime nor a proved predicate; its evidence is the generator regression
+and Linux preparation/recovery tests, not an additional formal guarantee.
 
 The NIC-free VM scenario accepts separately reviewed legacy bridge/reader and
 retained server binaries. It records their hashes, exercises nine fixture hosts,
@@ -141,14 +165,17 @@ The legacy and native builders must produce equal URL maps and configuration
 directives. This checks route compatibility, not the original content bytes.
 
 The [2026-11-07 Linux VM report](native-publication-rollout-vm.json) passed with
-runtime source `5c44c935f1e980f9c4d146d991510cb196ff2257`: nine fixture hosts,
+fixture source `2cab96728ba7b887ccbdc6ac3c3c04718d8c85b0`: nine fixture hosts,
 eight ordinary publications and one administrator-only publication, rejected
 candidate health, both lock classes, one hard power cut, interrupted retry and
 a further reboot after durable rollback. Application PIDs stayed unchanged
 within each boot. The reviewed deployment replay covered nine hosts and 683
 source filenames, with equal routes and URL-to-file maps. The VM had no network
-interface. The later proof-only change adds administrator publication to the
-interleaving model without changing the tested runtime.
+interface. It also passed the rejected initial resource map, same-store retry
+with an unchanged lock inode, and retained-service drift refusal. The three
+administrator/hosting/publisher executables are byte-identical to runtime source
+`5c44c935f1e980f9c4d146d991510cb196ff2257`; their hashes are in the report.
+The later proof change includes administrator publication in the model.
 
 Production acceptance is tracked separately from this generic VM result. Keep
 the sealed legacy runtime for rollback. Updates to sealed OS executables or
