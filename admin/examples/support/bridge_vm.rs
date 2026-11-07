@@ -601,11 +601,30 @@ pub fn cases() -> Result<()> {
             "legacy reader accepted native policy",
         )?;
         if path("candidate-publisher").exists() {
-            let error = native("describe", "site8", &[])
-                .expect_err("retained publisher should reproduce private authority refusal");
+            // The production command helper deliberately hides stderr. Capture
+            // this fixture's known diagnostic without changing that behavior.
+            let (accepted, error) = Real.run(
+                &words(&[
+                    "/bin/sh",
+                    "-c",
+                    "exec \"$@\" 2>&1",
+                    "publisher-refusal",
+                    "/usr/sbin/runuser",
+                    "-u",
+                    "nobody",
+                    "--",
+                    path("pathward-publish").to_str().unwrap(),
+                    "describe",
+                    "--config",
+                    path("publisher.json").to_str().unwrap(),
+                    "--profile",
+                    "site8",
+                ]),
+                180,
+            )?;
             require(
-                error.to_string().contains("noncanonical source"),
-                "unexpected authority refusal",
+                !accepted && error.contains("noncanonical source"),
+                &format!("unexpected authority refusal: {error}"),
             )?;
             let old_hash = hash(&path("pathward-publish"))?;
             let staged = stage("site0", "BEFORE PUBLISHER UPGRADE")?;
