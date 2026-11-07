@@ -2,9 +2,9 @@
   "administrator_owned_site_not_delegated": true,
   "application_pids_unchanged": true,
   "boots": [
-    "1e7fff4b-153f-4f5f-9e8b-eb44489edc25",
-    "aad955df-e9c1-4b81-b9b7-b40d01b74cde",
-    "9981df35-c0a2-4a0d-a114-4bcca4ba6d68"
+    "4c99d37e-20fc-4919-bd65-adb81ba421c6",
+    "34b8cbc1-27b3-4dda-82c7-09acf83ffc1e",
+    "09615170-9a52-4123-b7a1-f143a53f93e1"
   ],
   "coordinated_native_and_legacy_locks": true,
   "failed_candidate_health_restores_legacy": true,
@@ -21,17 +21,24 @@
     "source_files": 683,
     "synthetic_content": true
   },
+  "private_authority_verified_without_publication_permission": true,
   "rejected_live_resource_retry_same_store_and_fence": true,
   "retained_server_sha256": "97eee11c34568025027377ef2e885ad35a73054bceeb81646244ed8b9f11e224",
   "retained_service_drift_rejected_before_switch": true,
   "rollback_survives_reboot": true,
   "scenario": "bridge",
+  "server_license_text_accepted": true,
   "stale_upload_never_revived": true,
+  "versioned_publisher_bound_by_retained_administrator": true,
   "base_image_sha256": "406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0",
-  "source_commit": "2cab96728ba7b887ccbdc6ac3c3c04718d8c85b0",
+  "source_commit": "874af0895321a823a20754b314d85a9090591585",
   "external_network": false,
   "host_services_changed": false,
   "reviewed_fixture_sha256": {
+    "candidate-publisher": "05138d68ba48ac993678a1c3b9b76c4f930b4810fc4476ac31bda51f348a206f",
+    "retained-pathward-admin": "634424b630a811aa8e0c93a612df8795311f7375e7ade043f75d6eb2d0af72d1",
+    "retained-pathward-hosting": "2d83550f68f0bb5a4b1992c4d95cc3c394dd5e23a2670e58d0a6aae5a3470915",
+    "retained-pathward-publish": "0b9b8dc6460edf46d1ce6f2efb976482d0835a9095c750ad9d4b3ddf2571e1c1",
     "legacy-bridge.py": "52f3f52dca45b4261243fb884cb32189fbb5a7fa0ee09b6b01ff1d7b4c0ab91a",
     "legacy-reader.py": "8072ba972ce8ee1eb4df6a7ea75e84225e1088a422c5ee11166ae4700b869e16",
     "reference-server": "97eee11c34568025027377ef2e885ad35a73054bceeb81646244ed8b9f11e224",
@@ -42,5 +49,6 @@
     "pathward-admin": "634424b630a811aa8e0c93a612df8795311f7375e7ade043f75d6eb2d0af72d1",
     "pathward-hosting": "2d83550f68f0bb5a4b1992c4d95cc3c394dd5e23a2670e58d0a6aae5a3470915",
     "pathward-publish": "0b9b8dc6460edf46d1ce6f2efb976482d0835a9095c750ad9d4b3ddf2571e1c1"
-  }
+  },
+  "retained_runtime_source": "5c44c935f1e980f9c4d146d991510cb196ff2257"
 }

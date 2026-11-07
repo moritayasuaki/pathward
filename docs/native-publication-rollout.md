@@ -166,7 +166,7 @@ The legacy and native builders must produce equal URL maps and configuration
 directives. This checks route compatibility, not the original content bytes.
 
 The [2026-11-07 Linux VM report](native-publication-rollout-vm.json) passed with
-fixture source `2cab96728ba7b887ccbdc6ac3c3c04718d8c85b0`: nine fixture hosts,
+fixture source `874af0895321a823a20754b314d85a9090591585`: nine fixture hosts,
 eight ordinary publications and one administrator-only publication, rejected
 candidate health, both lock classes, one hard power cut, interrupted retry and
 a further reboot after durable rollback. Application PIDs stayed unchanged
@@ -177,6 +177,9 @@ with an unchanged lock inode, and retained-service drift refusal. The three
 administrator/hosting/publisher executables are byte-identical to runtime source
 `5c44c935f1e980f9c4d146d991510cb196ff2257`; their hashes are in the report.
 The later proof change includes administrator publication in the model.
+This run also retains the old installed administrator when adding the corrected
+publisher as a separately sealed resource. The candidate publisher is byte-identical
+to runtime source `b38b98c44abd91fa27067d4d0549fba61b2039a0`.
 
 Production acceptance is tracked separately from this generic VM result. Keep
 the sealed legacy runtime for rollback. Updates to sealed OS executables or
@@ -205,8 +208,18 @@ Install the corrected publisher at a new immutable path, add its digest to both
 roles, and use the retained administrator to commit that resource addition.
 The profiles, policy, bridge binaries and legacy resource hashes stay unchanged.
 Only after acceptance should the client entry point select the new executable.
+Update the local transfer executable as well as the remote publisher: local
+package preparation runs the same public-asset checks. A corrected remote
+`describe` alone does not fix an older client's text-license refusal. Verify
+the local-to-remote path with a private `--stage-only yes` upload, check its
+hashes and remove that test upload without applying it to the public tree.
 The optional VM `--retained-bundle` uses the reviewed old administrator, bridge
 and publisher, reproduces the private-resource refusal, then invokes that old
 administrator to bind a candidate publisher. It tests the text license, rejects
 a staged upload from before the migration, and continues through publication,
-rollback and reboot. The updated scenario is pending execution for this revision.
+rollback and reboot. The updated scenario passed all three boots with fixture
+source `874af0895321a823a20754b314d85a9090591585`. Its first attempt exposed a
+fixture assertion that expected stderr from a helper that deliberately suppresses
+it; the corrected fixture captures only the bounded expected diagnostic. No
+production command-capture behavior was changed. Both clean verification/audit
+workflows for the candidate runtime passed, including full extraction and Lean.
