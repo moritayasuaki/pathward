@@ -26,7 +26,7 @@ fn public_dir(path: &Path) -> Result<()> {
     fd.sync_all()?;
     f::sync_dir(path.parent().ok_or("directory parent")?)
 }
-fn owned_dir(path: &Path, uid: u32, gid: u32, mode: u32) -> Result<()> {
+pub(crate) fn owned_dir(path: &Path, uid: u32, gid: u32, mode: u32) -> Result<()> {
     use rustix::process::{Gid, Uid};
     let parent = crate::confined::absolute(path.parent().ok_or("state parent")?)?;
     let name = path

@@ -76,6 +76,84 @@ impl Drop for Fixture {
         let _ = fs::remove_dir_all(&self.root);
     }
 }
+
+#[test]
+fn pinned_private_authority_is_verified_without_allowing_private_publication() -> Result<()> {
+    let x = Fixture::new()?;
+    let directory = x.root.join(".config/systemd/user");
+    fs::create_dir_all(&directory)?;
+    let file = directory.join("reviewed.service");
+    let bytes = b"[Service]\nExecStart=/reviewed/program\n";
+    fs::write(&file, bytes)?;
+    let digest = codec::hash(bytes);
+    confined::verify_sealed_file(&file, &digest)?;
+    assert!(confined::absolute(&directory).is_err());
+    assert!(
+        confined::leaf(
+            &confined::absolute(&x.root)?,
+            ".config/systemd/user/reviewed.service"
+        )
+        .is_err()
+    );
+    assert!(confined::verify_sealed_file(&file, &"a".repeat(64)).is_err());
+    assert!(confined::verify_sealed_file(&file, "unreviewed").is_err());
+    for suffix in [
+        "../user/reviewed.service",
+        "./reviewed.service",
+        "//reviewed.service",
+    ] {
+        assert!(
+            confined::verify_sealed_file(
+                &PathBuf::from(format!("{}/{suffix}", directory.display())),
+                &digest
+            )
+            .is_err()
+        );
+    }
+    let alias = x.root.join("authority-alias");
+    symlink(&directory, &alias)?;
+    assert!(confined::verify_sealed_file(&alias.join("reviewed.service"), &digest).is_err());
+    let link = directory.join("linked.service");
+    symlink(&file, &link)?;
+    assert!(confined::verify_sealed_file(&link, &digest).is_err());
+    fs::remove_file(&link)?;
+    fs::hard_link(&file, &link)?;
+    assert!(confined::verify_sealed_file(&file, &digest).is_err());
+    fs::remove_file(&link)?;
+    fs::write(&file, b"changed authority")?;
+    assert!(confined::verify_sealed_file(&file, &digest).is_err());
+    Ok(())
+}
+
+#[test]
+fn server_license_documents_allow_text_but_not_server_code_or_private_paths() -> Result<()> {
+    use pathward_admin::publisher;
+    let x = Fixture::new()?;
+    let directory = x.source().join("licenses/server/dependency-1.0.0");
+    fs::create_dir_all(&directory)?;
+    for name in ["LICENSE.txt", "NOTICE.md", "COPYING.txt", "ATTRIBUTION.md"] {
+        fs::write(directory.join(name), b"Reviewed license notice")?;
+    }
+    let inventory = publisher::scan(&x.source())?;
+    assert!(inventory["licenses/server/dependency-1.0.0/LICENSE.txt"].is_string());
+    for name in [
+        "server/app.js",
+        "licenses/server/dependency/main.rs",
+        "licenses/server/dependency/LICENSE.pem",
+        "licenses/server/dependency/LICENSE.js",
+        "licenses/server/.env",
+        "licenses/private/LICENSE.txt",
+        "licenses/server/../LICENSE.txt",
+    ] {
+        assert!(
+            !publisher::safe_asset(name),
+            "unexpected public path: {name}"
+        );
+    }
+    fs::write(directory.join("private.key"), b"not a license")?;
+    assert!(publisher::scan(&x.source()).is_err());
+    Ok(())
+}
 struct Mock {
     revision: String,
     interfere: bool,

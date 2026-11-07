@@ -16,7 +16,7 @@ hosting and server binaries. The bridge state and server control directories
 must be separate, service-owned 0700 directories; the receipt directory is
 service-owned 0755. The JSON receipt is 0644 and contains no private file content.
 
-The hosting policy remains schema 1 JSON, an administrative inventory used to
+The hosting policy accepts schema 1 or 2 JSON, an administrative inventory used to
 generate the existing KDL server configuration. It contains `capacity:
 "shared-nat"` and 1–16 sites with `id`, `host`, `source_base`, `index`,
 `public_paths`, `synthetic_files` and reviewed `directives`. `source_base: null`
@@ -74,13 +74,16 @@ routing for an outer integration, but Caddy-only publication still needs its
 existing public HTTP verification; this command never reports it as a PathWard
 acknowledgement. `.nojekyll` manifest metadata is ignored and never published.
 
-Do not run the Python and Rust bridges together. Receipt schema 2 intentionally
-rejects the old Python reader/receipt combination. A service-contract migration
-must update the bridge, publisher entry points, policy and recovery resources
+Do not run the Python and Rust bridges together. Receipt schema 2 alone does not
+reject legacy readers that ignore it. A distinct schema 2 hosting policy digest,
+coordinated writer locks and a service-contract migration must
+update the bridge, publisher entry points, policy and recovery resources
 together. [Native initial preparation and publication wrappers](native-bootstrap.md)
 also cover the former initial preparation and upload/HTTP-verification runtime.
 Legacy migration fixtures and build/proof tooling remain separate Python users.
-These changes do not deploy a new bridge to existing hosts or replace their running engine.
+See [coordinated rollout and rollback](native-publication-rollout.md) for an
+existing deployment. Deployments still require their own reviewed administrator
+handoff; committing the code alone does not change a running bridge.
 
 ## Collecting retired generations
 

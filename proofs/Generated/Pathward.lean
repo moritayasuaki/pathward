@@ -79,6 +79,58 @@ def bootstrap.restore_allowed
        else ok false
   else ok false
 
+/-- [pathward::bootstrap::reviewed_asset_allowed]:
+    Source: 'src/bootstrap.rs', lines 14:0-16:1
+    Visibility: public -/
+def bootstrap.reviewed_asset_allowed
+  (confined : Bool) (ordinary : Bool) (explicitly_public : Bool) :
+  RustM Bool
+  := do
+  if confined
+  then if ordinary
+       then ok true
+       else ok explicitly_public
+  else ok false
+
+/-- [pathward::bootstrap::bridge_receipt_allowed]:
+    Source: 'src/bootstrap.rs', lines 17:0-19:1
+    Visibility: public -/
+def bootstrap.bridge_receipt_allowed
+  (policy : Bool) (boot : Bool) (after_start : Bool) (fresh : Bool) :
+  RustM Bool
+  := do
+  if policy
+  then if boot
+       then if after_start
+            then ok fresh
+            else ok false
+       else ok false
+  else ok false
+
+/-- [pathward::bootstrap::sealed_resource_allowed]:
+    Source: 'src/bootstrap.rs', lines 22:0-24:1
+    Visibility: public -/
+def bootstrap.sealed_resource_allowed
+  (canonical : Bool) (pinned : Bool) (equal : Bool) : RustM Bool := do
+  if canonical
+  then if pinned
+       then ok equal
+       else ok false
+  else ok false
+
+/-- [pathward::bootstrap::license_text_allowed]:
+    Source: 'src/bootstrap.rs', lines 25:0-31:1
+    Visibility: public -/
+def bootstrap.license_text_allowed
+  (license_tree : Bool) (recognized_name : Bool) (text_extension : Bool) :
+  RustM Bool
+  := do
+  if license_tree
+  then if recognized_name
+       then ok text_extension
+       else ok false
+  else ok false
+
 /-- [pathward::connection::candidate_slot]:
     Source: 'src/connection.rs', lines 5:0-7:1
     Visibility: public -/

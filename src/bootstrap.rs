@@ -11,3 +11,21 @@ pub fn asset_allowed(known: bool, additive: bool, immutable: bool, equal: bool) 
 pub fn restore_allowed(same_backend: bool, ours: bool, backup_verified: bool) -> bool {
     same_backend && ours && backup_verified
 }
+pub fn reviewed_asset_allowed(confined: bool, ordinary: bool, explicitly_public: bool) -> bool {
+    confined && (ordinary || explicitly_public)
+}
+pub fn bridge_receipt_allowed(policy: bool, boot: bool, after_start: bool, fresh: bool) -> bool {
+    policy && boot && after_start && fresh
+}
+/// Authority metadata may have private path components. This verification does
+/// not grant publication permission or return content to a publication caller.
+pub fn sealed_resource_allowed(canonical: bool, pinned: bool, equal: bool) -> bool {
+    canonical && pinned && equal
+}
+pub fn license_text_allowed(
+    license_tree: bool,
+    recognized_name: bool,
+    text_extension: bool,
+) -> bool {
+    license_tree && recognized_name && text_extension
+}

@@ -29,6 +29,11 @@ fn run() -> Result<()> {
         env: Environment::production(),
         sys: Real,
     };
+    if a[2] == "bridge-health" {
+        require(a.len() == 5, "bridge-health CONFIG native|legacy")?;
+        let config = pathward_admin::confined::metadata(Path::new(&a[3]), 0)?;
+        return pathward_admin::bridge_rollout::health(&config, &a[4], &mut e.sys, &e.root);
+    }
     if a[2] == "gate" {
         require(a.len() == 4, "gate arguments")?;
         require(e.gate(&a[3])?, "start denied")?;
@@ -59,6 +64,50 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
     match a[2].as_str() {
+        "manual-publish" => {
+            require(
+                a.len() == 9,
+                "manual-publish CONFIG PROFILE EXPECT NEXT MANIFEST SHA256",
+            )?;
+            let config = pathward_admin::confined::metadata(Path::new(&a[3]), 0)?;
+            let active = pathward_admin::bridge_rollout::manual_publish(
+                &mut e,
+                &config,
+                &a[4],
+                &a[5],
+                &a[6],
+                Path::new(&a[7]),
+                &a[8],
+                &mut |_| Ok(()),
+            )?;
+            println!("ADMINISTRATOR_PUBLICATION_VERIFIED {active}");
+        }
+        "bridge-prepare" | "bridge-native" | "bridge-legacy" => {
+            require(a.len() == 5, "bridge operation INPUT SHA256")?;
+            let raw = storage::bytes(Path::new(&a[3]), true)?;
+            require(
+                codec::hash(&raw) == a[4],
+                "reviewed bridge input hash mismatch",
+            )?;
+            let input = codec::parse(&raw)?;
+            let exe = std::env::current_exe()?;
+            let id = if a[2] == "bridge-prepare" {
+                pathward_admin::bridge_rollout::prepare(&mut e, &input, &exe, &mut |_| Ok(()))?
+            } else {
+                pathward_admin::bridge_rollout::switch(
+                    &mut e,
+                    &input,
+                    if a[2] == "bridge-native" {
+                        "native"
+                    } else {
+                        "legacy"
+                    },
+                    &exe,
+                    &mut |_| Ok(()),
+                )?
+            };
+            println!("BRIDGE_OPERATION_COMPLETE {} {id}", a[2]);
+        }
         "provision" => {
             require(a.len() == 5, "provision INPUT SHA256")?;
             let raw = storage::bytes(Path::new(&a[3]), true)?;

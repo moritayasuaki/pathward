@@ -85,7 +85,8 @@ fn run() -> Result<()> {
             "--zip-report",
         ],
         "check-package" => vec!["--source", "--offline-report", "--zip-report"],
-        "describe" | "receive" => vec!["--config", "--profile"],
+        "route" => vec!["--remote", "--binary", "--config", "--profile"],
+        "mode" | "describe" | "receive" => vec!["--config", "--profile"],
         "apply" => vec!["--config", "--profile", "--stage"],
         "recover" => vec!["--config", "--profile", "--operation"],
         _ => return Err("unknown publication operation".into()),
@@ -105,6 +106,22 @@ fn run() -> Result<()> {
     }
     let id = get("--profile")?;
     let config = get("--config")?;
+    if mode == "route" {
+        require(
+            f::absolute(Path::new(get("--binary")?)) && f::absolute(Path::new(config)),
+            "installed remote paths required",
+        )?;
+        let value = codec::parse(
+            remote(get("--remote")?, get("--binary")?, config, id, "mode", &[])?.as_bytes(),
+        )?;
+        let selected = codec::string(&value, "mode")?;
+        require(
+            ["legacy", "native"].contains(&selected),
+            "unknown publication mode",
+        )?;
+        println!("{selected}");
+        return Ok(());
+    }
     if mode == "upload" {
         require(
             !opts.contains_key("--stage-only") || opts.get("--stage-only") == Some(&"yes"),
@@ -194,10 +211,24 @@ fn run() -> Result<()> {
         "remote publication requires the unprivileged deployment account",
     )?;
     let config = confined::metadata(Path::new(config), 0)?;
+    if mode == "mode" {
+        require(
+            config["profiles"].get(id).is_some() || config["manual_profiles"].get(id).is_some(),
+            "unknown publication profile",
+        )?;
+        let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
+        println!(
+            "{}",
+            pathward_admin::publication_gate::observe(&config, &mut Real)?
+        );
+        return Ok(());
+    }
     let profile = p::profile(&config, id)?;
     let result: Value = match mode.as_str() {
         "describe" => p::describe(&config, id, &mut Real)?,
         "receive" => {
+            let _lease = pathward_admin::publication_gate::publisher(&config, None)?;
+            pathward_admin::publication_gate::native_epoch(&config, &mut Real)?;
             let work = PathBuf::from(codec::string(profile, "work")?);
             f::directory(&work)?;
             let _lock = pathward_admin::publication::lock(&work)?;

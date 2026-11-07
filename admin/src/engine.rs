@@ -50,8 +50,13 @@ pub struct Engine<S: System> {
     pub env: Environment,
     pub sys: S,
 }
+#[derive(Debug)]
+pub struct AdministrationLease {
+    _coordinator: File,
+    _publication: crate::publication_gate::Lease,
+}
 impl<S: System> Engine<S> {
-    pub fn lock(&self) -> Result<File> {
+    pub fn lock(&self) -> Result<AdministrationLease> {
         f::trusted(&self.env.lock)?;
         let fd = rustix::fs::open(
             &self.env.lock,
@@ -72,7 +77,10 @@ impl<S: System> Engine<S> {
             "untrusted lock",
         )?;
         lock.try_lock()?;
-        Ok(lock)
+        Ok(AdministrationLease {
+            _coordinator: lock,
+            _publication: crate::publication_gate::administrator(&self.root)?,
+        })
     }
     fn dir(&self, id: &str) -> Result<PathBuf> {
         require(codec::digest(id), "invalid request identity")?;
