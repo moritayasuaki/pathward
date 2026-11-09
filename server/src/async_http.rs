@@ -77,6 +77,9 @@ pub async fn connect(address: SocketAddr, timeout: Duration) -> io::Result<TcpSt
         })
         .await?
         .into_inner()?;
+    // Requests, WebSocket frames and SSE records should not acquire a delayed
+    // ACK dependency merely because the caller writes them in small chunks.
+    socket.set_nodelay(true)?;
     socket.set_nonblocking(true)?;
     Ok(socket)
 }
