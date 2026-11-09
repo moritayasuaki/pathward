@@ -319,6 +319,9 @@ impl TlsServer {
         stream: TcpStream,
         accepted: Instant,
     ) -> io::Result<Option<TlsTransport>> {
+        // TLS records and multiplexed control frames must not wait for the
+        // acknowledgement of an earlier small write (Nagle + delayed ACK).
+        stream.set_nodelay(true)?;
         stream.set_nonblocking(true)?;
         let mut socket = DeadlineTcp {
             stream,

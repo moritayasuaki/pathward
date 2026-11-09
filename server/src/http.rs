@@ -21,6 +21,7 @@ pub trait Transport: Read + Write {
 }
 impl Transport for TcpStream {
     fn nonblocking(&mut self) -> io::Result<()> {
+        self.set_nodelay(true)?;
         self.set_nonblocking(true)
     }
     fn deadline(&mut self, deadline: Instant) -> io::Result<()> {
