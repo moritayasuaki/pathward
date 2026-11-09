@@ -269,8 +269,63 @@ def cutover.watchdog_required
        then ok false
        else ok (¬ restored)
 
+/-- [pathward::same_path]: loop 0:
+    Source: 'src/lib.rs', lines 92:4-99:1
+    Visibility: public -/
+@[rust_loop]
+def same_path_loop
+  (left : Slice Std.U8) (right : Slice Std.U8) (i : Std.Usize) :
+  RustM Bool
+  := do
+  let i1 := Slice.len left
+  if i < i1
+  then
+    let i2 ← Slice.index_usize left i
+    let i3 ← Slice.index_usize right i
+    if i2 != i3
+    then ok false
+    else let i4 ← i + 1#usize
+         same_path_loop left right i4
+  else ok true
+partial_fixpoint
+
+/-- [pathward::same_path]:
+    Source: 'src/lib.rs', lines 87:0-99:1
+    Visibility: public -/
+def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
+  let i := Slice.len left
+  let i1 := Slice.len right
+  if i != i1
+  then ok false
+  else same_path_loop left right 0#usize
+
+/-- [pathward::delivery::multiplex_te_allowed]:
+    Source: 'src/delivery.rs', lines 6:0-8:1
+    Visibility: public -/
+def delivery.multiplex_te_allowed (value : Slice Std.U8) : RustM Bool := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 8#usize [
+        116#u8, 114#u8, 97#u8, 105#u8, 108#u8, 101#u8, 114#u8, 115#u8
+        ]))
+  same_path value s
+
+/-- [pathward::delivery::multiplex_body_allowed]:
+    Source: 'src/delivery.rs', lines 11:0-17:1
+    Visibility: public -/
+def delivery.multiplex_body_allowed
+  (bytes : Std.U64) (declared : Option Std.U64) (trailers : Bool) :
+  RustM Bool
+  := do
+  if trailers
+  then ok false
+  else
+    match declared with
+    | none => ok true
+    | some length => ok (bytes = length)
+
 /-- [pathward::delivery::reserve_allowed]:
-    Source: 'src/delivery.rs', lines 2:0-9:1
+    Source: 'src/delivery.rs', lines 19:0-26:1
     Visibility: public -/
 def delivery.reserve_allowed
   (global : Std.U64) (peer : Std.U64) (amount : Std.U64) (draining : Bool) :
@@ -295,14 +350,14 @@ def delivery.reserve_allowed
     else ok false
 
 /-- [pathward::delivery::shrink_allowed]:
-    Source: 'src/delivery.rs', lines 11:0-13:1
+    Source: 'src/delivery.rs', lines 28:0-30:1
     Visibility: public -/
 def delivery.shrink_allowed
   (before : Std.U64) (after : Std.U64) : RustM Bool := do
   ok (after <= before)
 
 /-- [pathward::delivery::response_storage]:
-    Source: 'src/delivery.rs', lines 18:0-20:1
+    Source: 'src/delivery.rs', lines 35:0-37:1
     Visibility: public -/
 def delivery.response_storage
   (body : Std.U64) (credit : Std.U64) : RustM Bool := do
@@ -316,7 +371,7 @@ def delivery.response_storage
   else ok false
 
 /-- [pathward::delivery::phase_live]:
-    Source: 'src/delivery.rs', lines 23:0-25:1
+    Source: 'src/delivery.rs', lines 40:0-42:1
     Visibility: public -/
 def delivery.phase_live
   (elapsed_ms : Std.U64) (budget_ms : Std.U64) (draining : Bool) :
@@ -333,7 +388,7 @@ def delivery.phase_live
     else ok false
 
 /-- [pathward::delivery::input_timeout_status]:
-    Source: 'src/delivery.rs', lines 28:0-30:1
+    Source: 'src/delivery.rs', lines 45:0-47:1
     Visibility: public -/
 def delivery.input_timeout_status (bytes : Std.U64) : RustM Std.U16 := do
   if bytes = 0#u64
@@ -341,7 +396,7 @@ def delivery.input_timeout_status (bytes : Std.U64) : RustM Std.U16 := do
   else ok 408#u16
 
 /-- [pathward::delivery::reuse_allowed]:
-    Source: 'src/delivery.rs', lines 33:0-35:1
+    Source: 'src/delivery.rs', lines 50:0-52:1
     Visibility: public -/
 def delivery.reuse_allowed
   (completed : Std.U64) (age_ms : Std.U64) (requested : Bool) (draining : Bool)
@@ -361,7 +416,7 @@ def delivery.reuse_allowed
   else ok false
 
 /-- [pathward::delivery::request_credit]:
-    Source: 'src/delivery.rs', lines 38:0-40:1
+    Source: 'src/delivery.rs', lines 55:0-57:1
     Visibility: public -/
 def delivery.request_credit
   (global : Std.U64) (peer : Std.U64) (draining : Bool) : RustM Bool := do
@@ -372,13 +427,13 @@ def delivery.request_credit
        else ok false
 
 /-- [pathward::delivery::task_slot]:
-    Source: 'src/delivery.rs', lines 43:0-45:1
+    Source: 'src/delivery.rs', lines 60:0-62:1
     Visibility: public -/
 def delivery.task_slot (running : Std.U64) : RustM Bool := do
   ok (running < 64#u64)
 
 /-- [pathward::delivery::encode_allowed]:
-    Source: 'src/delivery.rs', lines 49:0-70:1
+    Source: 'src/delivery.rs', lines 66:0-87:1
     Visibility: public -/
 def delivery.encode_allowed
   (enabled : Bool) (size : Std.U64) (status : Std.U16) (safe_method : Bool)
@@ -414,7 +469,7 @@ def delivery.encode_allowed
   else ok false
 
 /-- [pathward::delivery::multiplex_slot]:
-    Source: 'src/delivery.rs', lines 73:0-75:1
+    Source: 'src/delivery.rs', lines 90:0-92:1
     Visibility: public -/
 def delivery.multiplex_slot
   (active : Std.U64) (seen : Std.U64) (age_ms : Std.U64) (draining : Bool) :
@@ -430,7 +485,7 @@ def delivery.multiplex_slot
     else ok false
 
 /-- [pathward::delivery::cancel_slot]:
-    Source: 'src/delivery.rs', lines 79:0-81:1
+    Source: 'src/delivery.rs', lines 96:0-98:1
     Visibility: public -/
 def delivery.cancel_slot
   (discarded : Std.U64) (age_ms : Std.U64) : RustM Bool := do
@@ -439,7 +494,7 @@ def delivery.cancel_slot
   else ok false
 
 /-- [pathward::delivery::head_slot]:
-    Source: 'src/delivery.rs', lines 84:0-86:1
+    Source: 'src/delivery.rs', lines 101:0-103:1
     Visibility: public -/
 def delivery.head_slot (active : Std.U64) (held : Bool) : RustM Bool := do
   if held
@@ -447,7 +502,7 @@ def delivery.head_slot (active : Std.U64) (held : Bool) : RustM Bool := do
   else ok (active < 32#u64)
 
 /-- [pathward::delivery::HeldAction]
-    Source: 'src/delivery.rs', lines 89:0-93:1
+    Source: 'src/delivery.rs', lines 106:0-110:1
     Visibility: public -/
 @[discriminant isize]
 inductive delivery.HeldAction where
@@ -456,7 +511,7 @@ inductive delivery.HeldAction where
 | TryAdmission : delivery.HeldAction
 
 /-- [pathward::delivery::held_action]:
-    Source: 'src/delivery.rs', lines 97:0-105:1
+    Source: 'src/delivery.rs', lines 114:0-122:1
     Visibility: public -/
 def delivery.held_action
   (cancelled : Bool) (elapsed_ms : Std.U64) : RustM delivery.HeldAction := do
@@ -468,7 +523,7 @@ def delivery.held_action
     else ok delivery.HeldAction.TryAdmission
 
 /-- [pathward::delivery::retirement_close]:
-    Source: 'src/delivery.rs', lines 110:0-121:1
+    Source: 'src/delivery.rs', lines 127:0-138:1
     Visibility: public -/
 def delivery.retirement_close
   (retiring : Bool) (quiet_ms : Std.U64) (retired_ms : Std.U64)
@@ -505,7 +560,7 @@ def delivery.retirement_close
     else ok false
 
 /-- [pathward::delivery::h2_close_ready]:
-    Source: 'src/delivery.rs', lines 125:0-127:1
+    Source: 'src/delivery.rs', lines 142:0-144:1
     Visibility: public -/
 def delivery.h2_close_ready
   (close : Bool) (stopping : Bool) (wire_pending : Bool) : RustM Bool := do
@@ -516,7 +571,7 @@ def delivery.h2_close_ready
   else ok false
 
 /-- [pathward::delivery::h2_drain_expired]:
-    Source: 'src/delivery.rs', lines 131:0-139:1
+    Source: 'src/delivery.rs', lines 148:0-156:1
     Visibility: public -/
 def delivery.h2_drain_expired
   (wire_pending : Bool) (retiring : Bool) (quiet_ms : Std.U64)
@@ -536,7 +591,7 @@ def delivery.h2_drain_expired
   else ok false
 
 /-- [pathward::delivery::h2_peer_drain_allowed]:
-    Source: 'src/delivery.rs', lines 144:0-146:1
+    Source: 'src/delivery.rs', lines 161:0-163:1
     Visibility: public -/
 def delivery.h2_peer_drain_allowed
   (elapsed_ms : Std.U64) (received : Std.U64) : RustM Bool := do
@@ -545,7 +600,7 @@ def delivery.h2_peer_drain_allowed
   else ok false
 
 /-- [pathward::delivery::early_allowed]:
-    Source: 'src/delivery.rs', lines 149:0-157:1
+    Source: 'src/delivery.rs', lines 166:0-174:1
     Visibility: public -/
 def delivery.early_allowed
   (confirmed : Bool) (read : Bool) (published : Bool) (body : Std.U64)
@@ -565,7 +620,7 @@ def delivery.early_allowed
     else ok false
 
 /-- [pathward::delivery::wire_fits]:
-    Source: 'src/delivery.rs', lines 160:0-162:1
+    Source: 'src/delivery.rs', lines 177:0-179:1
     Visibility: public -/
 def delivery.wire_fits
   (used : Std.U64) (next : Std.U64) (limit : Std.U64) : RustM Bool := do
@@ -774,36 +829,6 @@ def valid_path (path : Slice Std.U8) : RustM Bool := do
   then ok false
   else let state ← valid_path_loop path State.Start 0#usize
        accepting state
-
-/-- [pathward::same_path]: loop 0:
-    Source: 'src/lib.rs', lines 92:4-99:1
-    Visibility: public -/
-@[rust_loop]
-def same_path_loop
-  (left : Slice Std.U8) (right : Slice Std.U8) (i : Std.Usize) :
-  RustM Bool
-  := do
-  let i1 := Slice.len left
-  if i < i1
-  then
-    let i2 ← Slice.index_usize left i
-    let i3 ← Slice.index_usize right i
-    if i2 != i3
-    then ok false
-    else let i4 ← i + 1#usize
-         same_path_loop left right i4
-  else ok true
-partial_fixpoint
-
-/-- [pathward::same_path]:
-    Source: 'src/lib.rs', lines 87:0-99:1
-    Visibility: public -/
-def same_path (left : Slice Std.U8) (right : Slice Std.U8) : RustM Bool := do
-  let i := Slice.len left
-  let i1 := Slice.len right
-  if i != i1
-  then ok false
-  else same_path_loop left right 0#usize
 
 /-- [pathward::listed]:
     Source: 'src/lib.rs', lines 111:0-121:1 -/

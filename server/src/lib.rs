@@ -1,6 +1,9 @@
 //! Minimal HTTP/1.1 serving on loopback, using the verified publication gate.
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
+mod browser_fixture;
+
 pub mod acme;
 mod admission;
 mod async_http;

@@ -3,6 +3,49 @@ open Aeneas Aeneas.Std RustM
 open pathward PathwardProofs
 namespace DeliveryProofs
 
+def trailersToken : List U8 :=
+  [116#u8, 114#u8, 97#u8, 105#u8, 108#u8, 101#u8, 114#u8, 115#u8]
+
+/-- The byte-level core accepts exactly the normalized advisory token. -/
+theorem multiplex_te_exact (v : Slice U8) :
+    delivery.multiplex_te_allowed v = ok (decide (v.val = trailersToken)) := by
+  simp [delivery.multiplex_te_allowed, same_path_eq, lift,
+    Array.to_slice, Array.make, trailersToken]
+  apply Bool.eq_iff_iff.mpr
+  simp
+
+theorem multiplex_te_no_other_value (v : Slice U8) (h : v.val ≠ trailersToken) :
+    delivery.multiplex_te_allowed v = ok false := by
+  simp [multiplex_te_exact, h]
+
+theorem multiplex_te_accepted_length (v : Slice U8)
+    (h : delivery.multiplex_te_allowed v = ok true) : v.val.length = 8 := by
+  have hv : v.val = trailersToken := by simpa [multiplex_te_exact] using h
+  simp [hv, trailersToken]
+
+/-- The upstream policy refuses TE even if an adapter accidentally retains it. -/
+theorem multiplex_te_never_forwarded (n v : Slice U8) (hn : n.val = [116#u8, 101#u8]) :
+    proxy.request_header n v = ok false := by
+  apply ProxyProofs.no_hop_request
+  simp [hn, ProxyProofs.hopNames]
+
+theorem multiplex_body_exact (b : U64) (n : Option U64) (t : Bool) :
+    delivery.multiplex_body_allowed b n t =
+      ok (decide (t = false ∧ (n = none ∨ n = some b))) := by
+  cases t <;> cases n <;> simp [delivery.multiplex_body_allowed, eq_comm]
+
+/-- Advertising response-trailer support cannot authorize request trailers. -/
+theorem multiplex_request_trailers_rejected (b : U64) (n : Option U64) :
+    delivery.multiplex_body_allowed b n true = ok false := rfl
+
+theorem multiplex_body_no_mismatched_length (b n : U64) (t : Bool) (h : b ≠ n) :
+    delivery.multiplex_body_allowed b (some n) t = ok false := by
+  simp [multiplex_body_exact, Ne.symm h]
+
+theorem multiplex_body_total (b : U64) (n : Option U64) (t : Bool) :
+    ∃ allowed, delivery.multiplex_body_allowed b n t = ok allowed :=
+  ⟨_, multiplex_body_exact b n t⟩
+
 theorem reserve_eq (g p n : U64) (d : Bool) :
     delivery.reserve_allowed g p n d = ok (decide
       (d = false ∧ 0 < n.val ∧ g.val + n.val ≤ 268435456 ∧ p.val + n.val ≤ 201326592)) := by

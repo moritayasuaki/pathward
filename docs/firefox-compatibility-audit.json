@@ -1,0 +1,60 @@
+{
+  "checked_at": "2026-11-09T12:31:41.566798+00:00",
+  "auditor": "cargo-audit 0.22.2",
+  "database_commit": "899077d9d471b9fd3dbf4b2faea8ef26e83692e8",
+  "profiles": {
+    "server_candidate": {
+      "manifest_sha256": "80645dae25eb0fb36fe5238b6c0cd3fc7c94bf4cbae32f6a72890cff2985f6a5",
+      "lockfile_sha256": "cbcf13fcd74d18613bf0f756099ff8fd712647e6788c3795a758baaeb2a81c4f"
+    },
+    "configuration": {
+      "manifest_sha256": "dbfe5c00032a706f6e3cd84c587b191324d27b46179cb9822705f605d064af41",
+      "lockfile_sha256": "39aa9909061dd6333615ce36e10add4b0be1b31cde1fb4b0790386c343057ee7"
+    },
+    "http_server": {
+      "manifest_sha256": "0d752cf2677c66783d4898ec23aa8eba7bee06bf012c8e0274ec75d41ac7213c",
+      "lockfile_sha256": "00b3997489169e7a52e49c822c03b83d6d8c946b6c598aa0459cd02681af5c79",
+      "vendor_files_sha256": {
+        "Cargo.toml": "c8569051a2ae737fc1f3d8f11d646b03c59d3fa64841e7dce2cf8b122d5279b2",
+        "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "LICENSE-MIT": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "PROVENANCE.md": "1c9ed212ccb017f6eefc4318294b9fd8dd37f2373dc8a045ce4256a9292521f1",
+        "src/acme.rs": "fd5d9c179cdd783c9dc64439a7d0587323cc983c28f2b56443228a2f4c5d26ef",
+        "src/https_helper.rs": "05bb81b7eb36cd6d4be3ab488e5ac8ea9d815dae23ee4a195e66cd78f7ddcf41",
+        "src/jose.rs": "c8fe2b0ee1f8a687b0d0762138fdbf0b610dd8c39f301c3c2a5dbf7883046080",
+        "src/lib.rs": "d898b71308f8341ccfc61fe42ececb48f773680254589bebd52ca927293106a1"
+      }
+    },
+    "native_administrator": {
+      "manifest_sha256": "04d6da64edb6fd5ea483d1784e018272397b1761ac5494b445d092593321acd6",
+      "lockfile_sha256": "f516345a20719bfcea53b16e8826200003ee15e69f5ccb44a46532a11518532a"
+    }
+  },
+  "reports": {
+    "core": {
+      "vulnerabilities": 0,
+      "warnings": {},
+      "dependencies": 1
+    },
+    "server_candidate": {
+      "vulnerabilities": 0,
+      "warnings": {},
+      "dependencies": 164
+    },
+    "configuration": {
+      "vulnerabilities": 0,
+      "warnings": {},
+      "dependencies": 10
+    },
+    "http_server": {
+      "vulnerabilities": 0,
+      "warnings": {},
+      "dependencies": 160
+    },
+    "native_administrator": {
+      "vulnerabilities": 0,
+      "warnings": {},
+      "dependencies": 38
+    }
+  }
+}
