@@ -1,4 +1,21 @@
 //! Pure bounds for staged input and finite downstream delivery.
+
+/// HTTP/2 and HTTP/3 permit TE only as an advisory response-trailer hint.
+/// The adapter supplies the ASCII-lowercased value, then discards this field;
+/// it must never become HTTP/1 transfer framing or an upstream header.
+pub fn multiplex_te_allowed(value: &[u8]) -> bool {
+    crate::same_path(value, b"trailers")
+}
+
+/// A TE response hint never permits request trailers or a mismatched body.
+pub fn multiplex_body_allowed(bytes: u64, declared: Option<u64>, trailers: bool) -> bool {
+    !trailers
+        && match declared {
+            Some(length) => bytes == length,
+            None => true,
+        }
+}
+
 pub fn reserve_allowed(global: u64, peer: u64, amount: u64, draining: bool) -> bool {
     !draining
         && amount > 0

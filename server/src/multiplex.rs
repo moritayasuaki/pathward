@@ -416,6 +416,17 @@ pub fn request_head(
             }
             continue;
         }
+        if name == "te" {
+            // RFC 9113 8.2.2 / RFC 9114 4.2: only "trailers" is legal.
+            // Firefox sends this response capability on ordinary requests.
+            // Do not forward it into the HTTP/1 parser or to the upstream.
+            if value.len() != 8
+                || !pathward::delivery::multiplex_te_allowed(value.to_ascii_lowercase().as_bytes())
+            {
+                return Err(400);
+            }
+            continue;
+        }
         if matches!(
             name,
             "connection"
@@ -423,7 +434,6 @@ pub fn request_head(
                 | "keep-alive"
                 | "upgrade"
                 | "transfer-encoding"
-                | "te"
                 | "trailer"
         ) {
             return Err(400);
@@ -723,11 +733,11 @@ async fn exchange(
                 .release_capacity(chunk.len())
                 .map_err(h2_error)?;
         }
-        if bounded(deadline, data.trailers())
+        let trailers = bounded(deadline, data.trailers())
             .await?
             .map_err(h2_error)?
-            .is_some()
-            || request.length.is_some_and(|n| n != body.len() as u64)
+            .is_some();
+        if !pathward::delivery::multiplex_body_allowed(body.len() as u64, request.length, trailers)
         {
             return send_h2(rejection(400), &mut sender).await;
         }
@@ -1079,6 +1089,86 @@ async fn serve_h2_io<T: Read + Write + Unpin>(
 mod tests {
     use super::*;
     use std::net::{TcpListener, TcpStream};
+
+    #[test]
+    fn firefox_te_hint_is_discarded_without_weakening_framing() {
+        let config = pathward_config::ParsedConfig::parse(
+            "site \"app.example\" {\ntls \"auto\"\nreverse-proxy \"127.0.0.1:18089\"\n}",
+        )
+        .unwrap();
+        let server = Server::new(&config.compile().unwrap()).unwrap();
+        let request = |value: &str| {
+            http_types::Request::builder()
+                .uri("https://app.example/")
+                .header("te", value)
+                .header("content-length", "0")
+                .body(())
+                .unwrap()
+                .into_parts()
+                .0
+        };
+        // Every ASCII casing of the eight-byte token has identical semantics.
+        for mask in 0u16..256 {
+            let mut value = *b"trailers";
+            for (i, b) in value.iter_mut().enumerate() {
+                if mask & (1 << i) != 0 {
+                    *b = b.to_ascii_uppercase();
+                }
+            }
+            let head = request_head(
+                &server,
+                request(std::str::from_utf8(&value).unwrap()),
+                "app.example",
+                443,
+            )
+            .unwrap();
+            assert_eq!(head.length, Some(0));
+            assert_eq!(head.wire, b"GET / HTTP/1.1\r\nHost: app.example\r\n\r\n");
+        }
+        for value in [
+            "",
+            "gzip",
+            "chunked",
+            "trailers,gzip",
+            "trailers; q=1",
+            "trailers,trailers",
+            " trailers",
+            "trailers ",
+            "trailers\t",
+        ] {
+            assert_eq!(
+                request_head(&server, request(value), "app.example", 443).err(),
+                Some(400),
+                "{value:?}"
+            );
+        }
+        let mut duplicate = request("trailers");
+        duplicate
+            .headers
+            .append("te", http_types::HeaderValue::from_static("trailers"));
+        assert_eq!(
+            request_head(&server, duplicate, "app.example", 443).err(),
+            Some(400)
+        );
+        for name in [
+            "connection",
+            "proxy-connection",
+            "keep-alive",
+            "upgrade",
+            "transfer-encoding",
+            "trailer",
+        ] {
+            let mut parts = request("trailers");
+            parts
+                .headers
+                .insert(name, http_types::HeaderValue::from_static("invalid"));
+            assert_eq!(
+                request_head(&server, parts, "app.example", 443).err(),
+                Some(400),
+                "{name}"
+            );
+        }
+    }
     #[cfg(target_os = "linux")]
     #[test]
     fn h2_slow_reader_keeps_tail_after_late_ping() {
@@ -2181,7 +2271,7 @@ mod tests {
                 backend.set_nonblocking(true).unwrap();
                 let accept=|| {let until=Instant::now()+Duration::from_secs(8);loop {match backend.accept(){Ok((s,_))=>{s.set_nonblocking(false).unwrap();return s;},Err(e) if e.kind()==io::ErrorKind::WouldBlock=>{assert!(Instant::now()<until,"missing origin request");std::thread::sleep(Duration::from_millis(2));},Err(e)=>panic!("{e}")}}};
                 let mut pending=Vec::new();
-                for _ in 0..24 {let mut s=accept();http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();pending.push(s);}
+                for _ in 0..24 {let mut s=accept();let head=http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();assert!(!String::from_utf8_lossy(&head).to_ascii_lowercase().contains("\r\nte:"));pending.push(s);}
                 for mut s in pending {s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8192\r\n\r\n").unwrap();s.write_all(&[b'x';8192]).unwrap();}
                 let mut s=accept();let req=http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();assert!(req.starts_with(b"GET /events "));
                 s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n9\r\ndata: a\n\n\r\n").unwrap();
@@ -2223,6 +2313,7 @@ mod tests {
                                     let req = http_types::Request::builder()
                                         .uri("https://app.example/")
                                         .header("accept-encoding", "gzip")
+                                        .header("te", "trailers")
                                         .body(())
                                         .unwrap();
                                     let (r, _) = client.send_request(req, true).unwrap();
@@ -2245,6 +2336,21 @@ mod tests {
                                         .unwrap();
                                     assert_eq!(decoded, vec![b'x'; 8192]);
                                 }
+                                client = client.ready().await.unwrap();
+                                let (rejected, mut upload) = client.send_request(
+                                    http_types::Request::builder()
+                                        .method("POST")
+                                        .uri("https://app.example/must-not-dispatch")
+                                        .header("te", "trailers")
+                                        .header("content-length", "0")
+                                        .body(())
+                                        .unwrap(),
+                                    false,
+                                ).unwrap();
+                                let mut trailers = http_types::HeaderMap::new();
+                                trailers.insert("x-untrusted", http_types::HeaderValue::from_static("refuse"));
+                                upload.send_trailers(trailers).unwrap();
+                                assert_eq!(rejected.await.unwrap().status(), 400);
                                 client = client.ready().await.unwrap();
                                 let (r, _) = client
                                     .send_request(

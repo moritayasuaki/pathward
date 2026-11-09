@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-11-09T12:51:24.175Z",
+  "platform": "macOS arm64",
+  "browser": "Mozilla Firefox 159.0.1",
+  "scope": "isolated fresh profiles; loopback fixture; self-signed test certificate; no Android device",
+  "results": [
+    {
+      "mode": "h2",
+      "round": 1,
+      "version": "159.0.1",
+      "title": "PathWard compatibility fixture",
+      "text": "Firefox transport OK",
+      "image": 1,
+      "protocol": "h2",
+      "status": 200
+    },
+    {
+      "mode": "h2",
+      "round": 2,
+      "version": "159.0.1",
+      "title": "PathWard compatibility fixture",
+      "text": "Firefox transport OK",
+      "image": 1,
+      "protocol": "h2",
+      "status": 200
+    },
+    {
+      "mode": "h3",
+      "round": 1,
+      "version": "159.0.1",
+      "title": "PathWard compatibility fixture",
+      "text": "Firefox transport OK",
+      "image": 1,
+      "protocol": "h3",
+      "status": 200
+    },
+    {
+      "mode": "h3",
+      "round": 2,
+      "version": "159.0.1",
+      "title": "PathWard compatibility fixture",
+      "text": "Firefox transport OK",
+      "image": 1,
+      "protocol": "h3",
+      "status": 200
+    }
+  ]
+}

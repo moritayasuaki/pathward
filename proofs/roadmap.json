@@ -123,6 +123,21 @@
   ],
   "goals": [
     {
+      "id": "MULTIPLEX-TE-HINT",
+      "priority": "P0",
+      "status": "proved",
+      "title": "HTTP/2・HTTP/3の正当なTE通知と要求本文の検査を分離する",
+      "acceptance": "実Rustから抽出した判断が正規化後のtrailersだけを受理し、他の値を拒否する。TEは上流のヘッダー許可集合に入らず、実際の要求トレーラとContent-Length不一致は常に拒否する。ASCII小文字化・重複検出・プロトコルI/OとQUICのpoll/Drop対応は回帰試験で確認し、Leanによる全体検証とは主張しない。",
+      "theorems": [
+        "DeliveryProofs.multiplex_te_exact",
+        "DeliveryProofs.multiplex_te_no_other_value",
+        "DeliveryProofs.multiplex_te_accepted_length",
+        "DeliveryProofs.multiplex_te_never_forwarded",
+        "DeliveryProofs.multiplex_request_trailers_rejected",
+        "DeliveryProofs.multiplex_body_no_mismatched_length"
+      ]
+    },
+    {
       "id": "ROUTE-BYTES",
       "priority": "P0",
       "status": "proved",

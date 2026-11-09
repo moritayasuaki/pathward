@@ -155,6 +155,14 @@ import UpstreamProofs
 #print axioms CutoverProofs.disarm_step_has_commit
 #print axioms CutoverProofs.process_failures_keep_guard
 #print axioms CutoverProofs.watchdog_cannot_undo_durable_commit
+#print axioms DeliveryProofs.multiplex_te_exact
+#print axioms DeliveryProofs.multiplex_te_no_other_value
+#print axioms DeliveryProofs.multiplex_te_accepted_length
+#print axioms DeliveryProofs.multiplex_te_never_forwarded
+#print axioms DeliveryProofs.multiplex_body_exact
+#print axioms DeliveryProofs.multiplex_request_trailers_rejected
+#print axioms DeliveryProofs.multiplex_body_no_mismatched_length
+#print axioms DeliveryProofs.multiplex_body_total
 #print axioms DeliveryProofs.reserve_eq
 #print axioms DeliveryProofs.reserve_bounded
 #print axioms DeliveryProofs.reserve_no_overflow

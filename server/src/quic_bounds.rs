@@ -45,8 +45,21 @@ fn fail() -> quic::StreamErrorIncoming {
     }
 }
 pub struct Bound<S> {
-    inner: S,
+    inner: Option<S>,
+    id: quic::StreamId,
+    read_pending: bool,
     count: Arc<Mutex<Count>>,
+}
+impl<S: quic::RecvStream> Bound<S> {
+    fn new(inner: S, count: Arc<Mutex<Count>>) -> Self {
+        let id = inner.recv_id();
+        Self {
+            inner: Some(inner),
+            id,
+            read_pending: false,
+            count,
+        }
+    }
 }
 impl<S: quic::RecvStream> quic::RecvStream for Bound<S> {
     type Buf = S::Buf;
@@ -54,14 +67,18 @@ impl<S: quic::RecvStream> quic::RecvStream for Bound<S> {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Option<Self::Buf>, quic::StreamErrorIncoming>> {
-        let data = ready!(self.inner.poll_data(cx))?;
+        let Some(inner) = self.inner.as_mut() else {
+            return Poll::Ready(Err(fail()));
+        };
+        let polled = inner.poll_data(cx);
+        self.read_pending = polled.is_pending();
+        let data = ready!(polled)?;
         if let Some(data) = &data {
             let Ok(mut c) = self.count.lock() else {
                 return Poll::Ready(Err(fail()));
             };
             if !pathward::delivery::wire_fits(c.used, data.remaining() as u64, c.limit) {
-                self.inner
-                    .stop_sending(h3::error::Code::H3_EXCESSIVE_LOAD.value());
+                inner.stop_sending(h3::error::Code::H3_EXCESSIVE_LOAD.value());
                 return Poll::Ready(Err(fail()));
             }
             c.used += data.remaining() as u64;
@@ -69,30 +86,47 @@ impl<S: quic::RecvStream> quic::RecvStream for Bound<S> {
         Poll::Ready(Ok(data))
     }
     fn stop_sending(&mut self, code: u64) {
-        self.inner.stop_sending(code)
+        // h3-quinn 0.0.10 moves its RecvStream into a pending read future.
+        // Its stop_sending/recv_id methods unwrap the then-empty slot. Drop
+        // the owned future to cancel safely; Quinn's Drop stops unread input.
+        // For Bidi this also drops the send half. Request cancellation resets
+        // that half with stop_stream before calling stop_sending.
+        if self.read_pending {
+            self.inner = None;
+        } else if let Some(inner) = self.inner.as_mut() {
+            inner.stop_sending(code);
+        }
     }
     fn recv_id(&self) -> quic::StreamId {
-        self.inner.recv_id()
+        self.id
     }
 }
 impl<S: quic::SendStream<Bytes>> quic::SendStream<Bytes> for Bound<S> {
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), quic::StreamErrorIncoming>> {
-        self.inner.poll_ready(cx)
+        match self.inner.as_mut() {
+            Some(inner) => inner.poll_ready(cx),
+            None => Poll::Ready(Err(fail())),
+        }
     }
     fn poll_finish(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), quic::StreamErrorIncoming>> {
-        self.inner.poll_finish(cx)
+        match self.inner.as_mut() {
+            Some(inner) => inner.poll_finish(cx),
+            None => Poll::Ready(Err(fail())),
+        }
     }
     fn reset(&mut self, code: u64) {
-        self.inner.reset(code)
+        if let Some(inner) = self.inner.as_mut() {
+            inner.reset(code);
+        }
     }
     fn send_data<D: Into<quic::WriteBuf<Bytes>>>(
         &mut self,
         data: D,
     ) -> Result<(), quic::StreamErrorIncoming> {
-        self.inner.send_data(data)
+        self.inner.as_mut().ok_or_else(fail)?.send_data(data)
     }
     fn send_id(&self) -> quic::StreamId {
-        self.inner.send_id()
+        self.id
     }
 }
 pub type Bidi = Bound<h3_quinn::BidiStream<Bytes>>;
@@ -168,13 +202,13 @@ impl quic::Connection<Bytes> for Connection {
             }));
         }
         self.uni += 1;
-        Poll::Ready(Ok(Bound {
-            inner: recv,
-            count: Arc::new(Mutex::new(Count {
+        Poll::Ready(Ok(Bound::new(
+            recv,
+            Arc::new(Mutex::new(Count {
                 used: 0,
                 limit: 65536,
             })),
-        }))
+        )))
     }
     fn poll_accept_bidi(
         &mut self,
@@ -195,7 +229,7 @@ impl quic::Connection<Bytes> for Connection {
             return Poll::Ready(Err(error()));
         }
         map.insert(recv.recv_id(), count.clone());
-        Poll::Ready(Ok(Bound { inner: recv, count }))
+        Poll::Ready(Ok(Bound::new(recv, count)))
     }
     fn opener(&self) -> Opener {
         Opener(<h3_quinn::Connection as quic::Connection<Bytes>>::opener(
@@ -208,6 +242,66 @@ impl quic::Connection<Bytes> for Connection {
 mod tests {
     use super::*;
     use std::collections::VecDeque;
+    #[test]
+    fn pending_read_cancellation_drops_owned_stream_without_querying_it() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        struct Pending {
+            polled: bool,
+            dropped: Arc<AtomicBool>,
+        }
+        impl Drop for Pending {
+            fn drop(&mut self) {
+                self.dropped.store(true, Ordering::Release);
+            }
+        }
+        impl quic::RecvStream for Pending {
+            type Buf = Bytes;
+            fn poll_data(
+                &mut self,
+                _: &mut Context<'_>,
+            ) -> Poll<Result<Option<Bytes>, quic::StreamErrorIncoming>> {
+                self.polled = true;
+                Poll::Pending
+            }
+            fn stop_sending(&mut self, _: u64) {
+                assert!(!self.polled, "pending read owns the stream");
+            }
+            fn recv_id(&self) -> quic::StreamId {
+                assert!(!self.polled, "pending read owns the stream");
+                4u64.try_into().unwrap()
+            }
+        }
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut input = Bound::new(
+            Pending {
+                polled: false,
+                dropped: dropped.clone(),
+            },
+            Arc::new(Mutex::new(Count {
+                used: 0,
+                limit: HEAD,
+            })),
+        );
+        futures_lite::future::block_on(async {
+            assert!(
+                futures_lite::future::poll_once(futures_lite::future::poll_fn(
+                    |cx| input.poll_data(cx)
+                ))
+                .await
+                .is_none()
+            );
+            assert_eq!(input.recv_id(), 4u64.try_into().unwrap());
+            input.stop_sending(h3::error::Code::H3_REQUEST_CANCELLED.value());
+            assert!(dropped.load(Ordering::Acquire));
+            input.stop_sending(h3::error::Code::H3_REQUEST_CANCELLED.value());
+            assert!(
+                futures_lite::future::poll_fn(|cx| input.poll_data(cx))
+                    .await
+                    .is_err()
+            );
+            assert_eq!(input.recv_id(), 4u64.try_into().unwrap());
+        });
+    }
     struct Input {
         chunks: VecDeque<Bytes>,
         stopped: bool,
@@ -236,8 +330,8 @@ mod tests {
         }));
         let id = 0u64.try_into().unwrap();
         budgets.0.lock().unwrap().insert(id, count.clone());
-        let mut input = Bound {
-            inner: Input {
+        let mut input = Bound::new(
+            Input {
                 chunks: VecDeque::from([
                     Bytes::from(vec![0; 32768]),
                     Bytes::from(vec![0; 1024]),
@@ -245,8 +339,8 @@ mod tests {
                 ]),
                 stopped: false,
             },
-            count: count.clone(),
-        };
+            count.clone(),
+        );
         futures_lite::future::block_on(async {
             let first = futures_lite::future::poll_fn(|cx| input.poll_data(cx))
                 .await
@@ -270,7 +364,7 @@ mod tests {
                     .is_err()
             );
         });
-        assert!(input.inner.stopped);
+        assert!(input.inner.as_ref().unwrap().stopped);
         assert_eq!(count.lock().unwrap().used, 33792);
         budgets.release(id);
         assert!(!budgets.body(id, 1024));

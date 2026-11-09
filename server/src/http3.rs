@@ -95,12 +95,15 @@ async fn exchange(
                 }
                 body.extend_from_slice(&chunk.copy_to_bytes(chunk.remaining()));
             }
-            if multiplex::bounded(deadline, stream.recv_trailers())
+            let trailers = multiplex::bounded(deadline, stream.recv_trailers())
                 .await?
                 .map_err(error)?
-                .is_some()
-                || request.length.is_some_and(|n| n != body.len() as u64)
-            {
+                .is_some();
+            if !pathward::delivery::multiplex_body_allowed(
+                body.len() as u64,
+                request.length,
+                trailers,
+            ) {
                 return send(multiplex::rejection(400), &mut stream).await;
             }
             let response = multiplex::respond(
@@ -436,7 +439,7 @@ mod tests {
     #[test]
     fn real_quic_migration_zstd_and_early_proxy_rejection() {
         let backend = TcpListener::bind("127.0.0.1:0").unwrap();
-        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
+        let config=pathward_config::ParsedConfig::parse(&format!("capacity \"shared-nat\"\nsite \"app.example\" {{\ntls \"auto\"\nreverse-proxy \"{}\"\nproxy-timeout \"request-body\" \"500ms\"\nencode \"gzip,zstd\"\n}}",backend.local_addr().unwrap())).unwrap();
         let server = Server::new(&config.compile().unwrap()).unwrap();
         let (identity, client) = configs();
         let tls = tls::TlsServer::new(identity).unwrap();
@@ -446,7 +449,7 @@ mod tests {
         let stop = AtomicBool::new(false);
         std::thread::scope(|scope| {
             let serving = scope.spawn(|| server.serve_tls_http3(tcp, None, udp, &stop, &tls));
-            let origin=scope.spawn(||{for _ in 0..2 {let mut s=accept(&backend);let head=http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();assert!(String::from_utf8_lossy(&head).contains("X-Forwarded-For: 127.0.0.1\r\n"));assert!(head.starts_with(b"GET / "));s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8192\r\n\r\n").unwrap();s.write_all(&[b'z';8192]).unwrap();}});
+            let origin=scope.spawn(||{for _ in 0..2 {let mut s=accept(&backend);let head=http::read_head(&mut s,Instant::now()+Duration::from_secs(3)).unwrap();assert!(String::from_utf8_lossy(&head).contains("X-Forwarded-For: 127.0.0.1\r\n"));assert!(!String::from_utf8_lossy(&head).to_ascii_lowercase().contains("\r\nte:"));assert!(head.starts_with(b"GET / "));s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8192\r\n\r\n").unwrap();s.write_all(&[b'z';8192]).unwrap();}});
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 tokio::runtime::Builder::new_current_thread()
                     .enable_all()
@@ -484,6 +487,7 @@ mod tests {
                                                 http_types::Request::builder()
                                                     .uri("https://app.example/")
                                                     .header("accept-encoding", "zstd")
+                                                    .header("te", "trailers")
                                                     .body(())
                                                     .unwrap(),
                                             )
@@ -510,6 +514,48 @@ mod tests {
                                             vec![b'z'; 8192]
                                         );
                                     }
+                                    let mut stream = client
+                                        .send_request(
+                                            http_types::Request::builder()
+                                                .method("POST")
+                                                .uri("https://app.example/must-not-dispatch")
+                                                .header("te", "trailers")
+                                                .header("content-length", "0")
+                                                .body(())
+                                                .unwrap(),
+                                        )
+                                        .await
+                                        .unwrap();
+                                    let mut trailers = http_types::HeaderMap::new();
+                                    trailers.insert(
+                                        "x-untrusted",
+                                        http_types::HeaderValue::from_static("refuse"),
+                                    );
+                                    stream.send_trailers(trailers).await.unwrap();
+                                    stream.finish().await.unwrap();
+                                    assert_eq!(stream.recv_response().await.unwrap().status(), 400);
+                                    // An interrupted request may send trailers but never FIN.
+                                    // Its body deadline must cancel only this stream, not panic
+                                    // the QUIC worker or prevent another request on the connection.
+                                    let mut interrupted = client
+                                        .send_request(
+                                            http_types::Request::builder()
+                                                .method("POST")
+                                                .uri("https://app.example/incomplete")
+                                                .header("te", "trailers")
+                                                .body(())
+                                                .unwrap(),
+                                        )
+                                        .await
+                                        .unwrap();
+                                    let mut trailers = http_types::HeaderMap::new();
+                                    trailers.insert(
+                                        "x-untrusted",
+                                        http_types::HeaderValue::from_static("incomplete"),
+                                    );
+                                    interrupted.send_trailers(trailers).await.unwrap();
+                                    assert!(interrupted.recv_response().await.is_err());
+                                    drop(interrupted);
                                     let mut stream = client
                                         .send_request(
                                             http_types::Request::builder()
