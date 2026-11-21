@@ -1,0 +1,3 @@
+# The inode belongs to the boot, independently of the HTTP service lifetime.
+# 'f' writes the argument on creation only. Never replace a live fence.
+f /run/pathward-sleep.gate 0640 root pathward - A

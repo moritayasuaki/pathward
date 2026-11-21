@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "lean_toolchain": "leanprover/lean4:v4.31.0",
-  "theorem_count": 697,
+  "theorem_count": 706,
   "axiom_free_count": 104,
   "axiom_counts": {
-    "Classical.choice": 464,
-    "Quot.sound": 477,
-    "propext": 593
+    "Classical.choice": 469,
+    "Quot.sound": 484,
+    "propext": 602
   },
   "source_sha256": {
     "audit/pool-linux-target.json": "88647d84f929b1751cd980970b7d7949f5765ff8f1fc4827cb4d0525951681ea",
@@ -19,9 +19,9 @@
     "proofs/CutoverProofs.lean": "352f578413c2c57f315b058c93b22d1ed5f23811f2adb6440c44dd2e6fc98ad0",
     "proofs/DeliveryProofs.lean": "d975f9d35187198123bbee361b997954df959cbdf96c1faddc48fb4ab37f7184",
     "proofs/Generated/GuardPaths.lean": "3d9fdb1e9bd9256dacbf55cfc14c0e327ab105d65d00dee1e32c3ec4f6c72bce",
-    "proofs/Generated/Pathward.lean": "c6a729c224e8ab008e6046444d08ea88b1f1cefc1d1cf56626406e0551946e8c",
+    "proofs/Generated/Pathward.lean": "8a49f2576770b86756e1a23dbede708324b11ce8b15578a6d801674208a936d5",
     "proofs/GuardUpgradeProofs.lean": "cd580b9c1bbd44aff63391244270d14cd01f30006590da4cc3b6b59dd50da5fb",
-    "proofs/LinuxProofs.lean": "5108bb1b78e7d2feebbe956e39dc28859fb69a57e4aa4380a8fd7dd9f61e5df9",
+    "proofs/LinuxProofs.lean": "031c61ffe5551450f4c3eee4e96444c3ed17dcdae3e8180f7af876b110d38ea4",
     "proofs/PathwardProofs.lean": "94ad7cb4763dc8d57da14253e30e16c1ad517d99d1bf1b2d387ad17575b90a67",
     "proofs/PlanMigrationProofs.lean": "13e8dffab53a690381384dc14ab825c5c82d4e3d4454d80f62245d36eb83e031",
     "proofs/PlatformProofs.lean": "4163ca58e7eeee39063a2c1d666741ba7243066211a416fa43365d27956529e9",
@@ -38,7 +38,7 @@
     "proofs/StreamingProofs.lean": "07ac50b458bd8a6e83a34aeace3ba8b53a40911add293c24577fe491822b8ebd",
     "proofs/TlsProofs.lean": "55adcddb5cd9ca110e57c851652dbc6e7f0f396184cb99199fc64b82db948023",
     "proofs/UpstreamProofs.lean": "a95e83a3caa039d96763fc4e4e3346dfc51ca1b241f5f9ccdbf2329bb7b968de",
-    "scripts/extract.py": "f05af86eaee841b1607f38ef61eb66286695504c95f1b5a01f9c9e6b0cb35687",
+    "scripts/extract.py": "31f7f68de1e027e34deb69ccc40a969ab59c70339993d8888e9918a2b1dfa367",
     "scripts/pool_guard_paths.mjs": "34ea5aa000291cdc3d03a05114c463d82e902ec80436b9eb173a3afa61e32a2f",
     "server/src/pool_locks.rs": "dee90bb64996e68a7c663bcb5f7492afc9841cf482a8fd290424204d9a2ebf26",
     "src/bootstrap.rs": "0e2efcce51aed2270e5e52b448afd7a452d212e6362a18d21097bc93d1a6e15a",
@@ -58,7 +58,7 @@
     "src/serving.rs": "019358430607bb367639c6e2c1ccd56795ed85a2cd43152df26ff1986e37ca67",
     "src/streaming.rs": "7ce627b8afbf1fcb4956b1d0b8a40e11c23248839dcf6a774dbfc3459f4e7741",
     "src/tls.rs": "f443f6750448b1734272eea13ba085b6eb6ce420f3a4fd74145470683f35d7ba",
-    "src/upstream.rs": "5dd99f513aa0b62411295eda4f1d07a34192a125c23723111d1f4eb3c5408487"
+    "src/upstream.rs": "1e18842611810bd4326338b498d853552fd08ea6435b0cb02ca00b54bfe0c465"
   },
   "theorems": [
     {
@@ -2732,6 +2732,108 @@
       "line": 260,
       "statement": "theorem fatal_after_partial_preserves_exact_unaccepted_suffix {E} (id : U64) (buf rest : Slice U8)\n    (n : Usize) (positive : 0 < n.val)\n    (accepted : upstream.remaining_after_write buf (some n) = ok (some rest))\n    (e : E) (tail : List (Report E)) :\n    socketRun id (.live buf) ((id, .Ok (some n)) :: (id, .Err e) :: tail) = ok (.stopped (some e) rest) ∧\n    buf.val.take n.val ++ rest.val = buf.val",
       "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.awake_marker_exact",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 302,
+      "statement": "theorem awake_marker_exact (n : U64) (b : U8) :\n    upstream.sleep_fence_awake n b = ok (decide (n = 1#u64 ∧ b = 65#u8))",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "rust_contract_or_lemma"
+    },
+    {
+      "name": "LinuxProofs.closing_requires_all_readers_released",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 306,
+      "statement": "theorem closing_requires_all_readers_released (f : Fence) (t : Nat) (s : Fence × Nat) :\n    powerStep (f, t) .close = some s ↔ f = .awake false 0 ∧ s = (.exclusive, t)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.orphaned_fence_cannot_write_or_restart",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 312,
+      "statement": "theorem orphaned_fence_cannot_write_or_restart (t : Nat) (e : PowerEvent) (tail : List PowerEvent) :\n    powerRun (.orphaned, t) (e :: tail) = none",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.held_step_preserves_suspended_time",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 316,
+      "statement": "theorem held_step_preserves_suspended_time {n t : Nat} {e : PowerEvent} {out : Fence × Nat}\n    (keep : e ≠ .dropMine) (step : powerStep (.awake true n, t) e = some out) :\n    ∃ k, out = (.awake true k, t)",
+      "axioms": [
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.held_lease_excludes_sleep",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 323,
+      "statement": "theorem held_lease_excludes_sleep (t : Nat) (events : List PowerEvent) (n : Nat) (out : Fence × Nat)\n    (keep : .dropMine ∉ events) (ran : powerRun (.awake true n, t) events = some out) :\n    ∃ k, out = (.awake true k, t)",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.held_lease_forbids_sleep_event",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 340,
+      "statement": "theorem held_lease_forbids_sleep_event (t ns : Nat) (events : List PowerEvent)\n    (n : Nat) (out : Fence × Nat) (keep : .dropMine ∉ events)\n    (ran : powerRun (.awake true n, t) events = some out) : .sleep ns ∉ events",
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.sleep_wins_expired_first_write_is_inert",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 357,
+      "statement": "theorem sleep_wins_expired_first_write_is_inert {W} (writer : upstream.FirstWriter W)\n    (state : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate) (sent : Bool)\n    (t ns active : Nat) (later : U64) (clock : later.val = active + (t + ns))\n    (expired : g.health.at.val + 5000000000 ≤ active + (t + ns)) :\n    powerRun (.awake false 0, t) [.close, .sleep ns, .reopen, .takeMine] =\n      some (.awake true 0, t + ns) ∧\n    upstream.guarded_first_write writer m i {g with now := later} sent state =\n      ok (none, sent, state)",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.coordinated_resume_effect_requires_recheck",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 369,
+      "statement": "theorem coordinated_resume_effect_requires_recheck {W} (writer : upstream.FirstWriter W)\n    (state next : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate)\n    (old : upstream.PoolHealth) (events : List HealthEvent) (sent spent : Bool) (io : upstream.FirstIo)\n    (t ns active : Nat)\n    (sample : g.now.val = active + (t + ns)) (expired : old.at.val + 5000000000 ≤ active + (t + ns))\n    (history : HealthHistory old events g.health)\n    (effect : upstream.guarded_first_write writer m i g sent state = ok (some io, spent, next)) :\n    powerRun (.awake false 0, t) [.close, .sleep ns, .reopen, .takeMine, .write] =\n      some (.awake true 0, t + ns) ∧\n    ∃ expected start finish status, HealthEvent.probe expected start finish status ∈ events ∧\n      UpstreamProofs.WithinTTL start finish ∧ UpstreamProofs.WithinTTL start g.now ∧\n      200 ≤ status.val ∧ status.val < 300",
+      "axioms": [
+        "Classical.choice",
+        "Quot.sound",
+        "propext"
+      ],
+      "scope": "transition_model"
+    },
+    {
+      "name": "LinuxProofs.long_sleep_requires_post_resume_probe",
+      "source": "proofs/LinuxProofs.lean",
+      "line": 386,
+      "statement": "theorem long_sleep_requires_post_resume_probe {W} (writer : upstream.FirstWriter W)\n    (state next : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate)\n    (old : upstream.PoolHealth) (events : List HealthEvent) (sent spent : Bool) (io : upstream.FirstIo)\n    (before resumed : U64) (prior : old.at.val ≤ before.val)\n    (elapsed : before.val + 5000000000 ≤ resumed.val) (ordered : resumed.val ≤ g.now.val)\n    (quiescent : ∀ e s f code, HealthEvent.probe e s f code ∈ events →\n      s.val ≤ before.val ∨ resumed.val ≤ s.val)\n    (history : HealthHistory old events g.health)\n    (effect : upstream.guarded_first_write writer m i g sent state = ok (some io, spent, next)) :\n    ∃ e s f code, HealthEvent.probe e s f code ∈ events ∧ resumed.val ≤ s.val ∧\n      UpstreamProofs.WithinTTL s f ∧ UpstreamProofs.WithinTTL s g.now ∧\n      200 ≤ code.val ∧ code.val < 300",
+      "axioms": [
+        "Classical.choice",
         "Quot.sound",
         "propext"
       ],

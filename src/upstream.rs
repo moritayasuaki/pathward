@@ -186,3 +186,9 @@ pub fn guarded_first_write<W: FirstWriter>(
         other => other,
     })
 }
+
+/// The adapter reads the marker and file size under a lock. Only one awake byte
+/// admits a reader or lets a supervisor start another sleep.
+pub fn sleep_fence_awake(count: u64, first: u8) -> bool {
+    count == 1 && first == b'A'
+}

@@ -1,7 +1,6 @@
 #!/bin/sh
 # Runs only on the fresh, pinned, NIC-less lab guest, with an extra disposable swap disk.
 set -eu
-bin=$1
 test "$(id -u)" = 0
 test "$(cat /sys/devices/virtual/dmi/id/product_name)" = PathWardPoolLab
 test "$(ls /sys/class/net)" = lo
@@ -36,38 +35,15 @@ menuentry 'PathWard S4 restore' {
 GRUB
 sync
 
-wait_sample() {
-    for _ in $(seq 1 500); do
-        test ! -s "$1/sampled" || return 0
-        kill -0 "$2" || return 1
-        sleep 0.02
-    done
-    return 1
-}
-worker() {
-    PATHWARD_POOL_LAB=$1 exec setpriv --reuid=nobody --regid=nogroup --clear-groups \
-        "$bin" "$2" --ignored --exact --test-threads=1 --nocapture
-}
-prefix=backend_pool::io_tests::platform::linux::
 boot_id=$(cat /proc/sys/kernel/random/boot_id)
 for trial in 1 2; do
-    pre=$(mktemp -d)
-    post=$(mktemp -d)
-    chown nobody:nogroup "$pre" "$post"
-    worker "$pre" "${prefix}suspended_pool_samples_expire_and_require_a_successful_recheck" &
-    pre_pid=$!
-    worker "$post" "${prefix}hibernated_after_clock_read_exposes_the_socket_boundary" &
-    post_pid=$!
-    wait_sample "$pre" "$pre_pid"
-    wait_sample "$post" "$post_pid"
+    sleep_workers
     printf '\nS4_HIBERNATE trial=%s\n' "$trial"
-    echo disk > /sys/power/state
+    if test "$trial" = 1; then contended_sleep kernel-disk; else contended_sleep systemd-hibernate; fi
     test "$(cat /proc/sys/kernel/random/boot_id)" = "$boot_id"
     kill -0 "$pre_pid" "$post_pid"
     echo "S4_CONTINUITY trial=$trial same_boot_id=true both_workers_alive=true"
-    touch "$pre/resumed" "$post/resumed"
-    wait "$pre_pid"
-    wait "$post_pid"
+    resume_workers
     echo "S4_RESTORED trial=$trial"
 done
 echo POOL_LINUX_S4_PASSED

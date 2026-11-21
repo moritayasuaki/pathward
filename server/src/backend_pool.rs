@@ -241,6 +241,12 @@ impl Pool {
                 &member.health,
                 |retired, health| {
                     http::remaining(deadline).map_err(|_| http::Rejection(504))?;
+                    // Take a fresh lease even after WouldBlock. Its destructor
+                    // runs only after the synchronous write returns or unwinds.
+                    #[cfg(target_os = "linux")]
+                    let Ok(_lease) = crate::sleep_fence::first_write_lease() else {
+                        return Ok(None);
+                    };
                     let gate = FirstWriteGate {
                         peer: key(peer),
                         health: *health,

@@ -1,0 +1,188 @@
+{
+  "date_utc": "2026-11-21",
+  "base_commit": "e243272e2c8cbbf9d1c4002e7b73da051c790594",
+  "target_manifest": "audit/pool-linux-target.json",
+  "environment": {
+    "rust": "1.99.1",
+    "target": "x86_64-unknown-linux-musl",
+    "kernel": "Ubuntu 6.8.0-147.147-generic 6.8.12",
+    "image_sha256": "406630c08b5e545fcc7209854b129d47e3af822db128c9f19336593b5a2d3fe0",
+    "kernel_sha256": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f",
+    "qemu": "QEMU emulator version 11.1.3",
+    "isolation": "Fresh overlay, no network device; worker uid 65534. S4 uses a separate scratch swap and restore-only kernel boot."
+  },
+  "sources_sha256": {
+    "server/src/backend_pool.rs": "73d6a2a156be3ef15835036dc48e3cabc98126239144603e6cea102ffb54fbc8",
+    "server/src/sleep_fence.rs": "614859bfda3497adb035c7c58ebdf5df0bb8283596fb096d068f2336e9c224d2",
+    "server/src/main.rs": "76ff79085e390cabfc497109b8040f25e11a55f4efca2c6c28c69dd29d467e2f",
+    "server/src/lib.rs": "97df539c097bff6067b140c3fec60b0098ce3e5e1473590b37764e625ecba4cc",
+    "server/src/pool_linux_tests.rs": "b923c4beecaf16b185ce28b872874c182581c1a587da0455b9aaea43f457477b",
+    "src/upstream.rs": "1e18842611810bd4326338b498d853552fd08ea6435b0cb02ca00b54bfe0c465",
+    "proofs/LinuxProofs.lean": "031c61ffe5551450f4c3eee4e96444c3ed17dcdae3e8180f7af876b110d38ea4",
+    "scripts/extract.py": "31f7f68de1e027e34deb69ccc40a969ab59c70339993d8888e9918a2b1dfa367",
+    "deploy/pathward-sleep.conf": "c4bdce34ed7cd0b4e0c39686d56de4296735908e96eb8320876fecfb7152b278",
+    "deploy/pathward-sleep.tmpfiles": "881432840c228372362e7009aac568928f524f5cc18a834cce5dc7956f68d9d4",
+    "scripts/pool_linux_stage.mjs": "6ea5182257fbff410a6678fb0ab68b548a7fa09a4c9e889aa2cf53fac92ff16e",
+    "scripts/pool_linux_guest.sh": "dc66d4fba91364c4f987eac36eb44e36d3b4a529ae739f4771c98f116cc08f34",
+    "scripts/pool_linux_s4_guest.sh": "bcec97b44f45acf5698b0f65de00c1ec13670793fb0c438b144672f34adf4fdb",
+    "scripts/pool_sleep_guest.sh": "56567f2c132af2698e4919accce3c0be14f295b2c436215850635e8b2973f061"
+  },
+  "seed_sha256": {
+    "pool-tests": "53c0f7cf9811558777cb00d70c2b81974d62ca24e88b5f8332f5d1d490ff0572",
+    "pathward-server": "0739faee943d8674486e16d4705609d28d63e82973d6cb54ee21383eb6876b43",
+    "run": "dc66d4fba91364c4f987eac36eb44e36d3b4a529ae739f4771c98f116cc08f34",
+    "sleep-guest": "56567f2c132af2698e4919accce3c0be14f295b2c436215850635e8b2973f061",
+    "sleep.conf": "c4bdce34ed7cd0b4e0c39686d56de4296735908e96eb8320876fecfb7152b278",
+    "sleep.tmpfiles": "881432840c228372362e7009aac568928f524f5cc18a834cce5dc7956f68d9d4"
+  },
+  "serial_sha256": [
+    "6aa49f87e32fc8c43f9838b8d8549e31c8e7c62f207fdc44284d3ff467edfaf6",
+    "e126fc9d2c00257142937bb4ff968b1c60c82182784bc7c5c2f6b037be767b3b",
+    "d1fb90a5a79b8de64432a8daef875382da8b8f0ef7c88a4cc3dbb31a67e6104c",
+    "a18af4d6313f4a647ab1bcb91abfca2f33a04c434b357a9d592d4e157ff6b75d"
+  ],
+  "s4_host_sha256": "86435dbb5aa7a3c72b585bc7a65a872867659f48bacaea3a16f0db2ffbdbb99a",
+  "trials": [
+    {
+      "entry": "kernel-mem",
+      "exclusive_contended": true,
+      "age_at_final_read_ns": 8675000,
+      "age_at_peer_ns": 87602000,
+      "age_after_resume_ns": 13219974000,
+      "peer_bytes_before_sleep": 62,
+      "expired_peer_bytes_after_resume": 0,
+      "boottime_delta_ns": 13216032000,
+      "active_delta_ns": 285658000,
+      "parked_connected_request_bytes": 0,
+      "late_204_published": false,
+      "dials_after_503": 0,
+      "requests_after_new_204": 1,
+      "kernel_success_before": 0,
+      "kernel_success_after": 1
+    },
+    {
+      "entry": "systemd-suspend",
+      "exclusive_contended": true,
+      "age_at_final_read_ns": 7625000,
+      "age_at_peer_ns": 228761000,
+      "age_after_resume_ns": 12438154000,
+      "peer_bytes_before_sleep": 62,
+      "expired_peer_bytes_after_resume": 0,
+      "boottime_delta_ns": 12436607000,
+      "active_delta_ns": 443128000,
+      "parked_connected_request_bytes": 0,
+      "late_204_published": false,
+      "dials_after_503": 0,
+      "requests_after_new_204": 1,
+      "kernel_success_before": 1,
+      "kernel_success_after": 2
+    },
+    {
+      "entry": "kernel-disk",
+      "exclusive_contended": true,
+      "age_at_final_read_ns": 8195000,
+      "age_at_peer_ns": 73867000,
+      "age_after_resume_ns": 16783493000,
+      "peer_bytes_before_sleep": 62,
+      "expired_peer_bytes_after_resume": 0,
+      "boottime_delta_ns": 16763457000,
+      "active_delta_ns": 1041699000,
+      "parked_connected_request_bytes": 0,
+      "late_204_published": false,
+      "dials_after_503": 0,
+      "requests_after_new_204": 1,
+      "powered_off_ns": 7001885375,
+      "kernel_restored_kbytes": 330636,
+      "same_boot_id": true
+    },
+    {
+      "entry": "systemd-hibernate",
+      "exclusive_contended": true,
+      "age_at_final_read_ns": 16235000,
+      "age_at_peer_ns": 340804000,
+      "age_after_resume_ns": 17846253000,
+      "peer_bytes_before_sleep": 62,
+      "expired_peer_bytes_after_resume": 0,
+      "boottime_delta_ns": 17823206000,
+      "active_delta_ns": 2226604000,
+      "parked_connected_request_bytes": 0,
+      "late_204_published": false,
+      "dials_after_503": 0,
+      "requests_after_new_204": 1,
+      "powered_off_ns": 7002400542,
+      "kernel_restored_kbytes": 329400,
+      "same_boot_id": true
+    }
+  ],
+  "failure_cases": {
+    "fresh_healthy_member_zero_bytes": [
+      "missing fence",
+      "orphan marker",
+      "empty",
+      "extra byte",
+      "group/world-writable inode",
+      "held exclusive lock",
+      "killed supervisor with a surviving child"
+    ],
+    "second_supervisor_after_crash": "denied",
+    "tmpfiles_create_preserves_existing_marker": true
+  },
+  "dependency_audit": {
+    "added_crates": 0,
+    "auditor": "cargo-audit 0.22.2",
+    "database_commit": "55e1c3dfbd834237a05bbbf7b50ba3b5be27b662",
+    "advisories": 1555,
+    "reports": {
+      "core": {
+        "locked_packages": 1,
+        "vulnerabilities": 0,
+        "warnings": 0
+      },
+      "server_candidate": {
+        "locked_packages": 110,
+        "vulnerabilities": 0,
+        "warnings": 0
+      },
+      "configuration": {
+        "locked_packages": 10,
+        "vulnerabilities": 0,
+        "warnings": 0
+      },
+      "http_server": {
+        "locked_packages": 160,
+        "vulnerabilities": 0,
+        "warnings": 0
+      },
+      "native_administrator": {
+        "locked_packages": 38,
+        "vulnerabilities": 0,
+        "warnings": 0
+      }
+    }
+  },
+  "proofs": {
+    "theorems": 706,
+    "axiom_free": 104,
+    "axiom_counts": {
+      "Classical.choice": 469,
+      "Quot.sound": 484,
+      "propext": 602
+    },
+    "new_statements": [
+      "LinuxProofs.awake_marker_exact",
+      "LinuxProofs.closing_requires_all_readers_released",
+      "LinuxProofs.orphaned_fence_cannot_write_or_restart",
+      "LinuxProofs.held_step_preserves_suspended_time",
+      "LinuxProofs.held_lease_excludes_sleep",
+      "LinuxProofs.held_lease_forbids_sleep_event",
+      "LinuxProofs.sleep_wins_expired_first_write_is_inert",
+      "LinuxProofs.coordinated_resume_effect_requires_recheck",
+      "LinuxProofs.long_sleep_requires_post_resume_probe"
+    ]
+  },
+  "boundary": [
+    "All host sleep entry points must participate on the same trusted local inode throughout the boot and S4 restoration.",
+    "A synchronous sleep returns after resume; Linux preserves descriptors, flock exclusion and suspend-inclusive CLOCK_BOOTTIME.",
+    "Ordinary scheduler delay on an awake host, forced out-of-band pause, and remote application commit are outside the sleep exclusion claim."
+  ]
+}

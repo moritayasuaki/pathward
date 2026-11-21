@@ -32,6 +32,16 @@ assert.equal(artifacts.length, 1);
 mkdirSync(out, {mode:0o700});
 mkdirSync(seed, {mode:0o700});
 copyFileSync(artifacts[0].executable, join(seed, 'pool-tests'));
+const cli = execFileSync('cargo', ['+' + pin.rust_release, 'build', '--offline', '--locked', '--manifest-path',
+    'server/Cargo.toml', '--target', pin.target, '--bin', 'pathward-server', '--message-format=json'],
+    {cwd:root, encoding:'utf8', stdio:['ignore','pipe','inherit'], maxBuffer:16 << 20});
+const servers = cli.trim().split('\n').map(line => JSON.parse(line)).filter(a =>
+    a.reason === 'compiler-artifact' && a.target.name === 'pathward-server' && a.executable);
+assert.equal(servers.length, 1);
+copyFileSync(servers[0].executable, join(seed, 'pathward-server'));
+copyFileSync(join(root,'deploy/pathward-sleep.conf'), join(seed,'sleep.conf'));
+copyFileSync(join(root,'deploy/pathward-sleep.tmpfiles'), join(seed,'sleep.tmpfiles'));
+copyFileSync(join(root,'scripts/pool_sleep_guest.sh'), join(seed,'sleep-guest'));
 copyFileSync(join(root,'scripts/pool_linux_guest.sh'), join(seed,'run'));
 if (mode === 's4') {
     copyFileSync(join(root,'scripts/pool_linux_s4_guest.sh'), join(seed,'run-s4'));
@@ -40,7 +50,8 @@ function file(name, contents) { writeFileSync(join(seed, name), contents + '\n')
 file('release', pin.guest.release);
 file('version-signature', pin.guest.version_signature);
 file('kernel.sha256', pin.guest.kernel_sha256 + '  /boot/vmlinuz-' + pin.guest.release);
-file('binary.sha256', await digest(join(seed,'pool-tests')) + '  pool-tests');
+file('binary.sha256', (await Promise.all(['pool-tests','pathward-server','sleep.conf','sleep.tmpfiles','sleep-guest']
+    .map(async name => await digest(join(seed,name)) + '  ' + name))).join('\n'));
 file('meta-data', 'instance-id: pool-linux-refinement\nlocal-hostname: pool-lab');
 file('network-config', 'version: 2\nethernets: {}');
 file('user-data', '#cloud-config\npackage_update: false\npackage_upgrade: false\nruncmd:\n' +

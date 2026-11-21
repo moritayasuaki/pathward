@@ -22,6 +22,8 @@ mod proxy;
 mod quic_bounds;
 mod runtime;
 pub mod secrets;
+#[cfg(target_os = "linux")]
+pub mod sleep_fence;
 mod static_files;
 mod stream_pool;
 mod streaming;

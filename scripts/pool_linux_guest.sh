@@ -17,8 +17,10 @@ run() { setpriv --reuid=nobody --regid=nogroup --clear-groups "$@"; }
 run id
 uname -srvmo
 cat /proc/version_signature
+. "$seed/sleep-guest"
 if test -f "$seed/run-s4"; then
-    exec /bin/sh "$seed/run-s4" "$bin"
+    . "$seed/run-s4"
+    exit 0
 fi
 run "$bin" backend_pool --test-threads=1 --nocapture
 
@@ -35,17 +37,15 @@ for trial in 1 2; do
     stage=$(mktemp -d)
     chown nobody:nogroup "$stage"
     export PATHWARD_POOL_LAB="$stage"
-    setpriv --reuid=nobody --regid=nogroup --clear-groups "$bin" suspended_pool_samples --ignored --test-threads=1 --nocapture &
-    worker=$!
-    wait_file "$stage/sampled"
     before=$(cat /sys/power/suspend_stats/success)
     echo deep > /sys/power/mem_sleep
     cat /sys/power/mem_sleep
-    rtcwake --utc -m mem -s 10
+    sleep_workers
+    rtcwake --utc -m no -s 12
+    if test "$trial" = 1; then contended_sleep kernel-mem; else contended_sleep systemd-suspend; fi
     after=$(cat /sys/power/suspend_stats/success)
     test "$after" -eq "$((before + 1))"
-    touch "$stage/resumed"
-    wait "$worker"
+    resume_workers
     echo "S3 trial=$trial kernel_success_before=$before kernel_success_after=$after"
 
     setpriv --reuid=nobody --regid=nogroup --clear-groups "$bin" interrupted_send_preserves --ignored --test-threads=1 --nocapture &

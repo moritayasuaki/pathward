@@ -277,6 +277,15 @@ import UpstreamProofs
 #print axioms LinuxProofs.foreign_socket_is_rejected
 #print axioms LinuxProofs.retryable_report_keeps_socket_cursor
 #print axioms LinuxProofs.fatal_after_partial_preserves_exact_unaccepted_suffix
+#print axioms LinuxProofs.awake_marker_exact
+#print axioms LinuxProofs.closing_requires_all_readers_released
+#print axioms LinuxProofs.orphaned_fence_cannot_write_or_restart
+#print axioms LinuxProofs.held_step_preserves_suspended_time
+#print axioms LinuxProofs.held_lease_excludes_sleep
+#print axioms LinuxProofs.held_lease_forbids_sleep_event
+#print axioms LinuxProofs.sleep_wins_expired_first_write_is_inert
+#print axioms LinuxProofs.coordinated_resume_effect_requires_recheck
+#print axioms LinuxProofs.long_sleep_requires_post_resume_probe
 #print axioms PathwardProofs.name_byte_eq
 #print axioms PathwardProofs.step_eq
 #print axioms PathwardProofs.accepting_eq

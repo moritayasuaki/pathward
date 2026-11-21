@@ -29,7 +29,9 @@ jobs:
       - name: Prepare fixed verification tools
         run: make setup
       - name: Verify Rust core, configuration, and server
-        run: make rust-check config-check server-check admin-check recovery-check
+        run: |
+          sed "s/ root pathward / root $(id -gn) /" deploy/pathward-sleep.tmpfiles | sudo systemd-tmpfiles --create -
+          make rust-check config-check server-check admin-check recovery-check
       - name: Check mount confinement in a private Linux namespace
         run: python3 scripts/linux_mount_check.py
       - name: Build production HTTP binary and smoke-test the CLI

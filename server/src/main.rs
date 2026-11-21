@@ -26,6 +26,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let command = args.first().and_then(|s| s.to_str()).ok_or(HELP)?;
     match command {
+        #[cfg(target_os = "linux")]
+        "coordinated-sleep" if args.len() == 2 => {
+            pathward_server::sleep_fence::coordinated_sleep(args[1].to_str().ok_or(HELP)?)?;
+        }
         "cutover-policy" => {
             let allowed = cutover_policy::evaluate(&args[1..])?;
             println!("{}", if allowed { "ALLOW" } else { "DENY" });

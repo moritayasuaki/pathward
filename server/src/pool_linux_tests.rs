@@ -144,8 +144,13 @@ fn sample(pool: &Pool) -> (u128, u128, u128, u128) {
 fn wait_for_resume() {
     let dir = fixture_dir();
     fs::write(dir.join("sampled"), b"ready").unwrap();
+    wait_for_signal("resumed");
+}
+
+fn wait_for_signal(name: &str) {
+    let path = fixture_dir().join(name);
     let limit = Instant::now() + WAIT;
-    while !dir.join("resumed").exists() {
+    while !path.exists() {
         assert!(Instant::now() < limit);
         thread::sleep(Duration::from_millis(5));
     }
@@ -174,6 +179,24 @@ fn dispatch(pool: &Pool) -> (Result<(TcpStream, usize), http::Rejection>, bool) 
     let result =
         futures_lite::future::block_on(pool.start(0, Instant::now() + WAIT, WAIT, HEAD, &mut sent));
     (result, sent)
+}
+
+#[test]
+#[ignore = "guest administrator closes or removes the production fence"]
+fn unhealthy_fence_rejects_even_a_fresh_member() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let pool = Pool::new(
+        "app.example",
+        "/ready",
+        &[listener.local_addr().unwrap()],
+        &[],
+    );
+    assert!(probe(&pool, &listener, 204));
+    let (result, sent) = dispatch(&pool);
+    assert_eq!((result.unwrap_err().0, sent), (503, false));
+    listener.set_nonblocking(true).unwrap();
+    let (mut peer, _) = listener.accept().unwrap();
+    assert_eq!(peer.read(&mut [0]).unwrap(), 0);
 }
 
 #[test]
@@ -276,8 +299,8 @@ fn suspended_pool_samples_expire_and_require_a_successful_recheck() {
 }
 
 #[test]
-#[ignore = "S4 guest supervisor hibernates immediately after the protected clock sample"]
-fn hibernated_after_clock_read_exposes_the_socket_boundary() {
+#[ignore = "guest supervisor requests managed sleep after the final clock sample"]
+fn sleep_contends_with_the_sampled_first_write() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let pool = Pool::new(
         "app.example",
@@ -289,12 +312,18 @@ fn hibernated_after_clock_read_exposes_the_socket_boundary() {
     let health = *pool.members[0].health.lock().unwrap();
     let (timestamp, sampled) = mpsc::channel();
     let (pause, parked, resume_writer) = rendezvous();
+    let (hold_lease, written, release_lease) = rendezvous();
+    let first = AtomicBool::new(true);
     assert!(
         pool.at_write
             .set(Box::new(move |point| {
-                if let WritePoint::ClockSampled(tick) = point {
-                    timestamp.send(tick).unwrap();
-                    pause();
+                match point {
+                    WritePoint::ClockSampled(tick) if first.swap(false, Ordering::Relaxed) => {
+                        timestamp.send(tick).unwrap();
+                        pause();
+                    }
+                    WritePoint::Written => hold_lease(),
+                    _ => {}
                 }
             }))
             .is_ok()
@@ -311,11 +340,8 @@ fn hibernated_after_clock_read_exposes_the_socket_boundary() {
             peer.read(&mut [0]).unwrap_err().kind(),
             io::ErrorKind::WouldBlock
         );
-        wait_for_resume();
-        let later = pool.now();
-        assert!(later != u64::MAX && later - tick >= 5_000_000_000);
-        assert!(!fresh_health(health, later));
-        assert_eq!(socket_cookie(&peer).unwrap(), cookie);
+        fs::write(fixture_dir().join("sampled"), b"ready").unwrap();
+        wait_for_signal("contended");
         assert_eq!(
             peer.read(&mut [0]).unwrap_err().kind(),
             io::ErrorKind::WouldBlock
@@ -323,18 +349,44 @@ fn hibernated_after_clock_read_exposes_the_socket_boundary() {
         peer.set_nonblocking(false).unwrap();
         peer.set_read_timeout(Some(WAIT)).unwrap();
         resume_writer.send(()).unwrap();
+        written.recv_timeout(WAIT).unwrap();
+        let mut received = vec![0; HEAD.len()];
+        peer.read_exact(&mut received).unwrap();
+        assert_eq!(received, HEAD);
+        let at_peer = pool.now();
+        assert!(fresh_health(health, at_peer));
+        // Only now can the waiting power manager acquire its exclusive lock.
+        release_lease.send(()).unwrap();
         let (result, sent) = request.join().unwrap();
         let (socket, accepted) = result.unwrap();
-        assert!(sent && accepted > 0);
+        assert!(sent && accepted == received.len());
         drop(socket);
-        let mut received = Vec::new();
-        peer.read_to_end(&mut received).unwrap();
-        assert_eq!(received, HEAD[..accepted]);
+        assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+        wait_for_signal("resumed");
+        let later = pool.now();
+        assert!(later != u64::MAX && later - tick >= 5_000_000_000);
+        assert!(!fresh_health(health, later));
+        assert_eq!(socket_cookie(&peer).unwrap(), cookie);
+        let mut next = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        next.set_nonblocking(true).unwrap();
+        let (mut second_peer, _) = listener.accept().unwrap();
+        let mut spent = false;
+        let denied = futures_lite::future::block_on(pool.write_first(
+            0,
+            &mut next,
+            HEAD,
+            Instant::now() + WAIT,
+            &mut spent,
+        ))
+        .unwrap();
+        assert_eq!((denied, spent), (None, false));
+        drop(next);
+        assert_eq!(second_peer.read(&mut [0]).unwrap(), 0);
         println!(
-            "POST_SAMPLE age_at_read_ns={} age_at_release_ns={} first_write_bytes={accepted} peer_bytes={} same_cookie=true",
+            "FENCED_SAMPLE age_at_read_ns={} age_at_peer_ns={} age_after_resume_ns={} peer_bytes_before_sleep={accepted} expired_peer_bytes_after_resume=0",
             tick - health.at,
-            later - health.at,
-            received.len()
+            at_peer - health.at,
+            later - health.at
         );
     });
 }

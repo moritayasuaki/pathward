@@ -63,7 +63,9 @@ background probes. Positive and negative probe results expire five seconds
 after the probe starts. Linux counts time spent suspended with `CLOCK_BOOTTIME`.
 A response that has already aged five seconds is discarded even if it was a 2xx.
 An already connected request checks the same clock before its first write and
-after any no-progress retry. An expired member must pass a fresh check before
+after any no-progress retry. On Linux, pooled routes require the
+[host sleep coordinator](pool-platform-contract.md#installing-the-linux-sleep-coordinator).
+An unavailable fence returns 503 for a pooled dispatch. An expired member must pass a fresh check before
 it can receive a request. A request needing a fresh observation can run or join a probe under
 its original deadline. There is at most one outstanding probe per member of a
 route generation. The process readiness endpoint keeps its frontend meaning.

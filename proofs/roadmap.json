@@ -33,6 +33,14 @@
     "LinuxProofs.callback_returns_or_unwinds_through_both_drops"
   ],
   "model_only_theorems": [
+    "LinuxProofs.closing_requires_all_readers_released",
+    "LinuxProofs.orphaned_fence_cannot_write_or_restart",
+    "LinuxProofs.held_step_preserves_suspended_time",
+    "LinuxProofs.held_lease_excludes_sleep",
+    "LinuxProofs.held_lease_forbids_sleep_event",
+    "LinuxProofs.sleep_wins_expired_first_write_is_inert",
+    "LinuxProofs.coordinated_resume_effect_requires_recheck",
+    "LinuxProofs.long_sleep_requires_post_resume_probe",
     "LinuxProofs.acquire_after_publication_observes_complete_record",
     "LinuxProofs.sleep_advances_health_clock",
     "LinuxProofs.resume_expiry_preserves_writer",
@@ -149,6 +157,7 @@
     "KDL・HTTP・TLS・QUICの外部ライブラリと、抽出対象外のアダプター",
     "Atomic・Arc・ロック・FutureのpollとDropの実行・実行器の公平性",
     "OSのファイルオープン・ディスク永続化・時計・ソケット・systemd",
+    "Linuxの全休止入口が同じ管理者所有の/run上のinodeを使うこと。独立openのflock、同期的な休止処理の終了、S4での記述子復元とCLOCK_BOOTTIMEの進行を信頼する。rootによる直接のsysfs操作、外部VM停止、稼働中のスケジューリング遅延は別の境界。",
     "公開マニフェストの内容が機密ではないという運用判断とバックエンドの認証",
     "Rustの公開元FD走査・不変スナップショット・受領票の観測値、JSON parserと暗号学的hash、OSのロックとfsync。抽出判断と状態モデルは証明済みだが、アダプター全体の対応は未証明。",
     "ACMEアダプターが同じInstantと予算を保持し、試行数を正しく渡すこと。DNS候補の由来・選択とFuture/ソケットのDrop実行は回帰試験・レビュー対象。",
@@ -800,11 +809,29 @@
       ]
     },
     {
+      "id": "LOCAL-POOL-MANAGED-SLEEP",
+      "title": "ホストのS3・S4とプール初回書込みの排他",
+      "priority": "P1",
+      "status": "proved",
+      "acceptance": "許可マーカーをRustから抽出し、最後の採時から書込みまで共有ロックを保持する間は、任意の競合列にも休止が入れないことを示す。休止が先なら復帰時に期限切れの観測は送信権を消費せず、有効な2xxまで送信できない。隔離Linuxで直接協調入口とsystemdのS3・S4を通し、実際の競合と受信バイト数を照合する。",
+      "theorems": [
+        "LinuxProofs.awake_marker_exact",
+        "LinuxProofs.closing_requires_all_readers_released",
+        "LinuxProofs.orphaned_fence_cannot_write_or_restart",
+        "LinuxProofs.held_step_preserves_suspended_time",
+        "LinuxProofs.held_lease_excludes_sleep",
+        "LinuxProofs.held_lease_forbids_sleep_event",
+        "LinuxProofs.sleep_wins_expired_first_write_is_inert",
+        "LinuxProofs.coordinated_resume_effect_requires_recheck",
+        "LinuxProofs.long_sleep_requires_post_resume_probe"
+      ]
+    },
+    {
       "id": "LOCAL-POOL-KERNEL-SEMANTICS",
       "title": "固定した標準ライブラリとカーネルの契約そのものの検証",
       "priority": "P2",
       "status": "planned",
-      "acceptance": "MIRの分岐・標準ライブラリ内部でのdrop・Acquire/Releaseとカーネルのfutex、時刻源・電源管理、TCP・errno・記述子所有権に至る対応を機械化する。固定ゲストのS3・S4でCLOCK_BOOTTIMEを照合した。ソケット受理時にも新鮮と保証するには、保護下の読取りから受理までの経過時間が観測の残り寿命未満になる仕組みが必要。一般のLinuxスケジューラにはこの上限を置けない。物理機・別のアーキテクチャやカーネルでの時計復元も引き続き個別に検証する。",
+      "acceptance": "稼働中のスケジューリングによる読取りから受理までの遅延には上限がない。任意のCPU停止やハイパーバイザからの強制停止にも受理時の新鮮さを保証する仕組み、全休止経路の仲介、flock・futex・時刻源・TCP・記述子の意味論と実装の対応が残る。物理機・別アーキテクチャでの時計とロックの復元も個別に検証する。",
       "theorems": []
     },
     {

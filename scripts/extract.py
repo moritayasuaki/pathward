@@ -105,6 +105,7 @@ def main():
                         "--start-from", "pathward::upstream::publish_probe",
                         "--start-from", "pathward::upstream::retire_pool",
                         "--start-from", "pathward::upstream::guarded_first_write",
+                        "--start-from", "pathward::upstream::sleep_fence_awake",
                         "--start-from", "pathward::upstream::pool_tick",
                         "--start-from", "pathward::upstream::remaining_after_write",
                         "--start-from", "pathward::upstream::first_write_report",

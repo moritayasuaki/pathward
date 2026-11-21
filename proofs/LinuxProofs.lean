@@ -268,4 +268,138 @@ theorem fatal_after_partial_preserves_exact_unaccepted_suffix {E} (id : U64) (bu
   · rw [PlatformProofs.positive_count_uses_suffix buf n positive] at accepted
     exact PlatformProofs.accepted_prefix_and_suffix _ _ _ accepted
 
+/- One distinguished first writer and any number of other shared file
+   descriptions. The second component counts time actually spent in managed
+   sleep. A killed coordinator leaves the closed byte on the same inode. -/
+inductive Fence where
+  | awake (mine : Bool) (others : Nat)
+  | exclusive
+  | orphaned
+  deriving DecidableEq
+
+inductive PowerEvent where
+  | takeMine | dropMine | takeOther | dropOther | write | close
+  | sleep (elapsed : Nat)
+  | reopen | loseManager
+  deriving DecidableEq
+
+def powerStep : Fence × Nat → PowerEvent → Option (Fence × Nat)
+  | (.awake false n, t), .takeMine => some (.awake true n, t)
+  | (.awake true n, t), .dropMine => some (.awake false n, t)
+  | (.awake b n, t), .takeOther => some (.awake b (n+1), t)
+  | (.awake b (n+1), t), .dropOther => some (.awake b n, t)
+  | (.awake true n, t), .write => some (.awake true n, t)
+  | (.awake false 0, t), .close => some (.exclusive, t)
+  | (.exclusive, t), .sleep ns => some (.exclusive, t+ns)
+  | (.exclusive, t), .reopen => some (.awake false 0, t)
+  | (.exclusive, t), .loseManager => some (.orphaned, t)
+  | _, _ => none
+
+def powerRun (s : Fence × Nat) : List PowerEvent → Option (Fence × Nat)
+  | [] => some s
+  | e :: tail => (powerStep s e).bind (fun next => powerRun next tail)
+
+theorem awake_marker_exact (n : U64) (b : U8) :
+    upstream.sleep_fence_awake n b = ok (decide (n = 1#u64 ∧ b = 65#u8)) := by
+  by_cases h : n = 1#u64 <;> simp [upstream.sleep_fence_awake, h]
+
+theorem closing_requires_all_readers_released (f : Fence) (t : Nat) (s : Fence × Nat) :
+    powerStep (f, t) .close = some s ↔ f = .awake false 0 ∧ s = (.exclusive, t) := by
+  cases f with
+  | awake b n => cases b <;> cases n <;> simp [powerStep, eq_comm]
+  | exclusive | orphaned => simp [powerStep]
+
+theorem orphaned_fence_cannot_write_or_restart (t : Nat) (e : PowerEvent) (tail : List PowerEvent) :
+    powerRun (.orphaned, t) (e :: tail) = none := by
+  cases e <;> rfl
+
+theorem held_step_preserves_suspended_time {n t : Nat} {e : PowerEvent} {out : Fence × Nat}
+    (keep : e ≠ .dropMine) (step : powerStep (.awake true n, t) e = some out) :
+    ∃ k, out = (.awake true k, t) := by
+  cases e <;> cases n <;> simp_all [powerStep] <;> exact ⟨_, step.symm⟩
+
+/-- Between the last clock read and this writer's release, other actors may
+    run. No successful sequence can add any suspended time to its sample. -/
+theorem held_lease_excludes_sleep (t : Nat) (events : List PowerEvent) (n : Nat) (out : Fence × Nat)
+    (keep : .dropMine ∉ events) (ran : powerRun (.awake true n, t) events = some out) :
+    ∃ k, out = (.awake true k, t) := by
+  induction events generalizing n with
+  | nil =>
+    simp only [powerRun, Option.some.injEq] at ran
+    exact ⟨n, ran.symm⟩
+  | cons e es ih =>
+    have head : e ≠ .dropMine := by intro h; subst e; exact keep (by simp)
+    have tail : .dropMine ∉ es := fun member => keep (List.mem_cons_of_mem _ member)
+    cases one : powerStep (.awake true n, t) e with
+    | none => simp [powerRun, one] at ran
+    | some next =>
+      obtain ⟨k, rfl⟩ := held_step_preserves_suspended_time head one
+      exact ih k tail (by simpa [powerRun, one] using ran)
+
+/-- The acquired writer cannot even enter a zero-duration sleep transition. -/
+theorem held_lease_forbids_sleep_event (t ns : Nat) (events : List PowerEvent)
+    (n : Nat) (out : Fence × Nat) (keep : .dropMine ∉ events)
+    (ran : powerRun (.awake true n, t) events = some out) : .sleep ns ∉ events := by
+  induction events generalizing n with
+  | nil => simp
+  | cons e es ih =>
+    have head : e ≠ .dropMine := by intro h; subst e; exact keep (by simp)
+    have tail : .dropMine ∉ es := fun member => keep (List.mem_cons_of_mem _ member)
+    cases one : powerStep (.awake true n, t) e with
+    | none => simp [powerRun, one] at ran
+    | some next =>
+      have different : PowerEvent.sleep ns ≠ e := by
+        intro h; subst e; simp [powerStep] at one
+      obtain ⟨k, rfl⟩ := held_step_preserves_suspended_time head one
+      exact fun member => (List.mem_cons.mp member).elim different
+        (ih k tail (by simpa [powerRun, one] using ran))
+
+theorem sleep_wins_expired_first_write_is_inert {W} (writer : upstream.FirstWriter W)
+    (state : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate) (sent : Bool)
+    (t ns active : Nat) (later : U64) (clock : later.val = active + (t + ns))
+    (expired : g.health.at.val + 5000000000 ≤ active + (t + ns)) :
+    powerRun (.awake false 0, t) [.close, .sleep ns, .reopen, .takeMine] =
+      some (.awake true 0, t + ns) ∧
+    upstream.guarded_first_write writer m i {g with now := later} sent state =
+      ok (none, sent, state) := by
+  exact ⟨rfl, resampling_at_expiry_skips_write writer state m i g later sent (by omega)⟩
+
+/-- A request admitted after a completed sleep uses its post-resume clock
+    sample. Link that position to the generated dispatch and probe history. -/
+theorem coordinated_resume_effect_requires_recheck {W} (writer : upstream.FirstWriter W)
+    (state next : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate)
+    (old : upstream.PoolHealth) (events : List HealthEvent) (sent spent : Bool) (io : upstream.FirstIo)
+    (t ns active : Nat)
+    (sample : g.now.val = active + (t + ns)) (expired : old.at.val + 5000000000 ≤ active + (t + ns))
+    (history : HealthHistory old events g.health)
+    (effect : upstream.guarded_first_write writer m i g sent state = ok (some io, spent, next)) :
+    powerRun (.awake false 0, t) [.close, .sleep ns, .reopen, .takeMine, .write] =
+      some (.awake true 0, t + ns) ∧
+    ∃ expected start finish status, HealthEvent.probe expected start finish status ∈ events ∧
+      UpstreamProofs.WithinTTL start finish ∧ UpstreamProofs.WithinTTL start g.now ∧
+      200 ≤ status.val ∧ status.val < 300 := by
+  exact ⟨rfl, first_effect_after_expiry_requires_recheck writer state m i g sent spent io next
+    old events history (by omega) effect⟩
+
+/-- The OS supplies the gap in userspace execution. After a full TTL asleep,
+    every successful dispatch needs a probe that actually began after wake. -/
+theorem long_sleep_requires_post_resume_probe {W} (writer : upstream.FirstWriter W)
+    (state next : W) (m : Slice U32) (i : Usize) (g : upstream.FirstWriteGate)
+    (old : upstream.PoolHealth) (events : List HealthEvent) (sent spent : Bool) (io : upstream.FirstIo)
+    (before resumed : U64) (prior : old.at.val ≤ before.val)
+    (elapsed : before.val + 5000000000 ≤ resumed.val) (ordered : resumed.val ≤ g.now.val)
+    (quiescent : ∀ e s f code, HealthEvent.probe e s f code ∈ events →
+      s.val ≤ before.val ∨ resumed.val ≤ s.val)
+    (history : HealthHistory old events g.health)
+    (effect : upstream.guarded_first_write writer m i g sent state = ok (some io, spent, next)) :
+    ∃ e s f code, HealthEvent.probe e s f code ∈ events ∧ resumed.val ≤ s.val ∧
+      UpstreamProofs.WithinTTL s f ∧ UpstreamProofs.WithinTTL s g.now ∧
+      200 ≤ code.val ∧ code.val < 300 := by
+  obtain ⟨e, s, f, code, mem, timely, fresh, status⟩ :=
+    first_effect_after_expiry_requires_recheck writer state m i g sent spent io next old events
+      history (by omega) effect
+  have age := fresh.2.2
+  have start := quiescent e s f code mem
+  exact ⟨e, s, f, code, mem, by omega, timely, fresh, status⟩
+
 end LinuxProofs

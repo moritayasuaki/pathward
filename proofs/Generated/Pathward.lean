@@ -3518,4 +3518,13 @@ def upstream.guarded_first_write
       ok (some upstream.FirstIo.Failed, sent1, writer1)
   else ok (none, sent, writer)
 
+/-- [pathward::upstream::sleep_fence_awake]:
+    Source: 'src/upstream.rs', lines 192:0-194:1
+    Visibility: public -/
+def upstream.sleep_fence_awake
+  (count : Std.U64) (first : Std.U8) : RustM Bool := do
+  if count = 1#u64
+  then ok (first = 65#u8)
+  else ok false
+
 end pathward
